@@ -32,7 +32,7 @@ jest.mock('@react-native-documents/picker', () => ({
 
 jest.mock('@react-native-module/pbkdf2', () => ({
   pbkdf2: jest.fn((password, salt, rounds, length, digest, callback) => {
-    callback(null, Buffer.alloc(length));
+    callback(null, new Uint8Array(length));
   }),
 }));
 
