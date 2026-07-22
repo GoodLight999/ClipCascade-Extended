@@ -17,16 +17,26 @@ perform these steps before coding:
 5. Never sacrifice reliability merely to claim that ADB is absent. Preserve a tiered runtime design and choose the most reliable verified path for each Android device.
 6. Keep this file and the worklog current in every meaningful commit.
 
-## Repository state at bootstrap
+## Current repository state
 
 - Repository: `GoodLight999/ClipCascade-Extended`
 - Default branch: `main`
 - Active development branch: `agent/android-accessibility-foundation`
 - Expected PR: a draft PR from that branch to `main`
-- Source baselines:
-  - Original protocol/server: `Sathvik-Rao/ClipCascade`
-  - Historical Android implementation: `wuxinkami/ClipCascade_go_fork` at commit `084616111aa993c77c9f293811534253b7d3d3f9`
-- The current repository started empty. This branch introduces the first implementation.
+- The active branch currently contains bootstrap documentation only. Android code, Go engine code, CI, and APK artifacts have not yet been committed.
+
+## Source baselines
+
+- Original protocol/server: `Sathvik-Rao/ClipCascade`
+- Historical Go-based Android implementation: `wuxinkami/ClipCascade_go_fork` at commit `084616111aa993c77c9f293811534253b7d3d3f9`
+- The Android source is preserved in that commit and remains directly retrievable. Relevant paths include:
+  - `mobile/android/`
+  - `fyne_mobile/bridge/`
+  - `fyne_mobile/engine/`
+  - `pkg/crypto/`
+  - `pkg/protocol/`
+
+Use the historical Android implementation as the functional baseline. Preserve its useful clipboard-access and Go-engine ideas, then improve reliability, localization, credential storage, diagnostics, and update continuity.
 
 ## Product priority order
 
@@ -76,26 +86,12 @@ The application must detect and display which tier is active. It must never clai
 - Engine state is persisted separately so the UI shows the last truthful state.
 - No permanent foreground-service type or boot-start strategy may be assumed valid without CI checks, Android-version checks, and real-device evidence.
 
-## Known incomplete work
-
-1. The actual Android and Go implementation still needs to be committed; the repository currently contains bootstrap documentation only.
-2. A permanent signing key must be added to GitHub Actions secrets. See the signing documentation once created.
-3. CI must be implemented and observed before calling any APK installable.
-4. Real-device testing is required on at least:
-   - HONOR / MagicOS
-   - Pixel / AOSP-like Android
-   - Samsung / One UI if available
-5. Clipboard images/files are not implemented.
-6. Shizuku and direct-ADB adapters are not implemented.
-7. OTP/SMS/email notification extraction is only a roadmap item.
-8. Accessibility copy-label heuristics need telemetry-backed tuning without collecting clipboard contents.
-9. Vendor autostart/battery guides need device-specific paths.
-
 ## Immediate next steps
 
-1. Commit the Android project, Go engine, tests, and CI instead of documenting uncommitted implementation.
+1. Import the historical Android and Go source needed for the first build.
 2. Define a `ClipboardAccessBackend` capability interface with Standard, Shizuku, and Engineering implementations.
-3. Build a startup/self-test matrix that separately verifies:
+3. Implement the original server-compatible login, E2EE, WebSocket, and STOMP engine.
+4. Build a startup/self-test matrix that separately verifies:
    - server authentication;
    - STOMP handshake and subscription;
    - remote receive and local write;
@@ -103,11 +99,12 @@ The application must detect and display which tier is active. It must never clai
    - background operation while the UI is closed;
    - restart/reconnect behavior;
    - active privilege tier.
-4. Implement Standard mode first, then run it on HONOR/MagicOS. Add Shizuku immediately wherever Standard mode misses events or is killed.
-5. Configure fixed signing secrets and verify a signed release APK can update the preceding version.
-6. Add diagnostic export containing states and timestamps only, never clipboard payloads or passwords.
-7. Record exact device/Android/tier results in `docs/WORKLOG.md`.
-8. Only after text sync is stable, add images/files and OTP modules.
+5. Implement Standard mode first, then run it on HONOR/MagicOS. Add Shizuku immediately wherever Standard mode misses events or is killed.
+6. Add CI for Go tests, gomobile AAR generation, Android lint/tests, and APK assembly.
+7. Configure one fixed signing identity and verify that version N+1 installs over version N.
+8. Add diagnostic export containing states and timestamps only, never clipboard payloads or passwords.
+9. Record exact device/Android/tier results in `docs/WORKLOG.md`.
+10. Only after text sync is stable, add images/files and OTP modules.
 
 ## Definition of “stable enough for daily use”
 
