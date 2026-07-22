@@ -1,56 +1,53 @@
 # Worklog
 
-## 2026-07-22 — Stability policy correction
+## 2026-07-22 — Reliability policy and foundation investigation
 
-### User decision
+### Product decisions
 
-- Stable background operation is the absolute requirement.
+- Stable background send and receive operation is the absolute requirement.
 - ADB-free operation is preferred but must not be pursued at the cost of reliability.
 - Shizuku and direct ADB are approved fallback mechanisms when they produce better real-device results.
+- Runtime support is divided into Standard, Enhanced/Shizuku, and Engineering/direct-ADB tiers.
+- The application must report the active tier truthfully and pass separate send/receive self-tests before claiming success.
 
-### Repository changes
+### Repository state
 
-- Rewrote `HANDOFF.md` so every future thread uses reliability as the highest-priority criterion.
-- Defined three explicit runtime tiers: Standard, Enhanced/Shizuku, and Engineering/direct-ADB.
-- Required the application to report the active tier truthfully and pass send/receive self-tests before claiming success.
-- Corrected the repository status: implementation code and CI are not yet committed; prior documentation must not be mistaken for completed code.
-- Expanded the stability gate to include background send as well as receive, process death, reboot, network transitions, server restart, upgrades, and stress testing.
+- `GoodLight999/ClipCascade-Extended` began as an empty repository.
+- The active branch currently contains bootstrap documentation only.
+- Android implementation code, Go engine code, CI, fixed signing configuration, and APK artifacts remain to be committed.
+
+### Source investigation
+
+- Inspected the original `Sathvik-Rao/ClipCascade` protocol and server behavior.
+- Inspected `wuxinkami/ClipCascade_go_fork` history and found that Android/mobile files were removed from its later branch state.
+- Verified that the Android source remains preserved and directly retrievable at commit `084616111aa993c77c9f293811534253b7d3d3f9`.
+- Read the historical manifest, Kotlin activity, background service, accessibility service, boot receiver, history store, Go bridge, Go STOMP engine, crypto, protocol, and Android build scripts.
+
+### Historical implementation findings
+
+Useful baseline mechanisms:
+
+- Native Kotlin Android shell.
+- Go protocol/E2EE engine bound through gomobile.
+- Accessibility-triggered clipboard reads.
+- Temporary overlay-assisted clipboard access.
+- Foreground network service and restart support.
+- Original ClipCascade STOMP and encryption compatibility.
+
+Required improvements:
+
+- Add English and Japanese alongside Simplified Chinese.
+- Replace plaintext SharedPreferences password storage with Android Keystore-backed encryption.
+- Replace broad click-triggered clipboard probes with conservative hints and changed-content fingerprinting.
+- Strengthen source-aware loop suppression beyond one `lastWrittenText` value.
+- Report connection only after successful authentication, WebSocket, STOMP handshake, and subscription.
+- Isolate Standard, Shizuku, and direct-ADB clipboard access behind one capability interface.
+- Establish a permanent release signing identity rather than using debug signing as the installable lineage.
+- Validate foreground-service, reboot, and process-recovery behavior per Android version and device vendor instead of assuming one mechanism is universal.
 
 ### Next implementation action
 
-- Add a capability-based clipboard backend so Standard, Shizuku, and direct-ADB mechanisms can be implemented and tested without coupling them to protocol or UI logic.
-
-## 2026-07-22 — Foundation investigation
-
-### Investigated
-
-- Confirmed `GoodLight999/ClipCascade-Extended` was an empty public repository with write/admin access.
-- Inspected original `Sathvik-Rao/ClipCascade` protocol paths and Android ADB dependency.
-- Inspected `wuxinkami/ClipCascade_go_fork` current history and found mobile removal commits.
-- Recovered the historical native Android design from commit `084616111aa993c77c9f293811534253b7d3d3f9`.
-- Read its manifest, native Kotlin activity, background service, accessibility service, boot receiver, history store, Go bridge, Go STOMP engine, crypto, protocol, and Android build scripts.
-
-### Defects found in the historical Android design
-
-- UI was Chinese-only.
-- Password was stored in plaintext SharedPreferences.
-- Accessibility service treated broad click/selection activity as likely copy activity.
-- A single `lastWrittenText` value was insufficient loop suppression.
-- Service updated “connected” optimistically after `Engine.Start()` rather than using only callback-confirmed state.
-- A permanent `dataSync` foreground service and boot restart path are a poor universal modern Android foundation.
-- Transparent overlay logic was mixed into the network service.
-- Debug signing was used as an “installable” release alias, so update lineage was not durable.
-
-### Foundation documents created
-
-- Reliability and handoff policy.
-- Original server compatibility requirements.
-- Multilingual and durable-signing requirements.
-- Permanent worklog discipline.
-
-### Validation pending
-
-- Android and Go implementation commit.
-- GitHub Actions build result.
-- Fixed release signing secrets.
-- Real-device tests.
+1. Import the required historical Android and Go source into the active branch.
+2. Introduce `ClipboardAccessBackend` with Standard, Enhanced/Shizuku, and Engineering/direct-ADB implementations.
+3. Add protocol tests, Android tests, CI, and APK assembly.
+4. Run HONOR/MagicOS background send and receive tests before declaring any tier stable.
