@@ -1,6 +1,26 @@
 # Worklog
 
-## 2026-07-22 — Foundation bootstrap
+## 2026-07-22 — Stability policy correction
+
+### User decision
+
+- Stable background operation is the absolute requirement.
+- ADB-free operation is preferred but must not be pursued at the cost of reliability.
+- Shizuku and direct ADB are approved fallback mechanisms when they produce better real-device results.
+
+### Repository changes
+
+- Rewrote `HANDOFF.md` so every future thread uses reliability as the highest-priority criterion.
+- Defined three explicit runtime tiers: Standard, Enhanced/Shizuku, and Engineering/direct-ADB.
+- Required the application to report the active tier truthfully and pass send/receive self-tests before claiming success.
+- Corrected the repository status: implementation code and CI are not yet committed; prior documentation must not be mistaken for completed code.
+- Expanded the stability gate to include background send as well as receive, process death, reboot, network transitions, server restart, upgrades, and stress testing.
+
+### Next implementation action
+
+- Add a capability-based clipboard backend so Standard, Shizuku, and direct-ADB mechanisms can be implemented and tested without coupling them to protocol or UI logic.
+
+## 2026-07-22 — Foundation investigation
 
 ### Investigated
 
@@ -17,24 +37,20 @@
 - Accessibility service treated broad click/selection activity as likely copy activity.
 - A single `lastWrittenText` value was insufficient loop suppression.
 - Service updated “connected” optimistically after `Engine.Start()` rather than using only callback-confirmed state.
-- A permanent `dataSync` foreground service and boot restart path are a poor modern Android foundation.
+- A permanent `dataSync` foreground service and boot restart path are a poor universal modern Android foundation.
 - Transparent overlay logic was mixed into the network service.
 - Debug signing was used as an “installable” release alias, so update lineage was not durable.
 
-### Implemented in this bootstrap
+### Foundation documents created
 
-- ADB-free AccessibilityService-first architecture.
-- Conservative copy detection plus changed-content fingerprint gate.
-- Android Keystore encrypted config.
-- Truthful state machine.
-- Multilingual resources.
-- Original server protocol and E2EE compatibility engine.
-- CI build pipeline.
-- Permanent handoff and worklog discipline.
-- Permission/signing/architecture/server compatibility documentation.
+- Reliability and handoff policy.
+- Original server compatibility requirements.
+- Multilingual and durable-signing requirements.
+- Permanent worklog discipline.
 
 ### Validation pending
 
+- Android and Go implementation commit.
 - GitHub Actions build result.
 - Fixed release signing secrets.
 - Real-device tests.
