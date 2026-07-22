@@ -2,11 +2,22 @@
 
 ClipCascade Extended is a reliability-first Android client for servers compatible with [Sathvik-Rao/ClipCascade](https://github.com/Sathvik-Rao/ClipCascade).
 
-The Android client is based on the useful ideas from the historical native Android implementation in [wuxinkami/ClipCascade_go_fork](https://github.com/wuxinkami/ClipCascade_go_fork), but replaces its noisy “every click may be a copy” detector, plaintext credential storage, optimistic connection status, and fragile always-on `dataSync` foreground-service design.
+The project studies the historical native Android implementation in [wuxinkami/ClipCascade_go_fork](https://github.com/wuxinkami/ClipCascade_go_fork), then rebuilds it around measurable background reliability, truthful status reporting, durable signing, multilingual setup, and explicit recovery paths.
 
-## Current scope
+## Absolute requirement
 
-- ADB-free clipboard text synchronization through an explicitly enabled Android Accessibility Service.
+**Stable background send and receive operation takes priority over eliminating ADB.**
+
+The intended runtime has three explicit tiers:
+
+- **Standard:** Android AccessibilityService and normal APIs, without ADB or Shizuku.
+- **Enhanced:** Shizuku-backed compatibility path for devices where Standard mode misses clipboard events or is aggressively killed.
+- **Engineering:** direct ADB for development, diagnostics, stress tests, and a documented last resort.
+
+ADB-free operation remains the preferred outcome, but the project will not ship an unstable path merely to advertise “no ADB.” The app must disclose the active tier and must not claim success before its self-tests pass.
+
+## Required scope
+
 - Original ClipCascade server protocol compatibility:
   - `POST /login`
   - `GET /api/user-info`
@@ -14,12 +25,18 @@ The Android client is based on the useful ideas from the historical native Andro
   - STOMP send `/app/cliptext`
   - STOMP subscription `/user/queue/cliptext`
   - Original PBKDF2 + AES-256-GCM E2EE format
-- English, Japanese, and Simplified Chinese UI.
+- English, Japanese, and Simplified Chinese UI and setup guidance.
 - Android Keystore-backed encrypted credential storage.
 - Conservative copy-signal detection and content-fingerprint loop suppression.
 - Reconnection with bounded exponential backoff and truthful connection states.
+- A capability-based clipboard backend so Accessibility, Shizuku, and direct-ADB mechanisms can be tested independently.
+- A self-test that verifies both receive and send paths while the activity is closed.
 - CI that builds and verifies the Go engine AAR and Android APK.
-- Stable release-signing workflow prepared for a one-time GitHub Secrets setup.
+- One permanent release-signing identity so every APK can update the previous version.
+
+## Stability gate
+
+A release is not considered stable because it compiles or works with the activity open. Every declared device/tier combination must pass the test matrix in [`HANDOFF.md`](HANDOFF.md), including 24-hour background send/receive, process death, reboot, network transitions, server restart, and a 500-copy stress test without duplicate storms or input lag.
 
 ## Resume development in another thread
 
@@ -27,29 +44,12 @@ Say only:
 
 > https://github.com/GoodLight999/ClipCascade-Extended←これを引継いで開発して！
 
-Then the next agent must read [`HANDOFF.md`](HANDOFF.md) and [`docs/WORKLOG.md`](docs/WORKLOG.md) before changing code.
+The next agent must read [`HANDOFF.md`](HANDOFF.md) and [`docs/WORKLOG.md`](docs/WORKLOG.md) before changing code.
 
-## Build
+## Current repository state
 
-CI is the canonical build path. Locally:
-
-```bash
-go test ./engine/...
-go install golang.org/x/mobile/cmd/gomobile@latest
-gomobile init
-mkdir -p android/app/libs
-gomobile bind \
-  -target=android \
-  -androidapi 26 \
-  -javapkg ccengine \
-  -o android/app/libs/engine.aar \
-  ./engine/bridge
-
-gradle -p android :app:lintDebug :app:testDebugUnitTest :app:assembleDebug
-```
-
-The unsigned/debug CI artifact is for validation. Do not establish an installation lineage until the repository's fixed release signing key is configured as described in [`docs/SIGNING.md`](docs/SIGNING.md).
+The repository is in foundation bootstrap. Documentation and the stability policy exist; the Android/Go implementation, CI, signed APK, and real-device evidence must still be committed and verified. The canonical truth is always in `HANDOFF.md`.
 
 ## License and attribution
 
-Apache-2.0. See [`NOTICE`](NOTICE) and [`docs/REFERENCE_AUDIT.md`](docs/REFERENCE_AUDIT.md).
+Apache-2.0. Source attribution and the exact reused implementation areas must be maintained as code is imported or adapted.
