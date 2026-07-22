@@ -1,126 +1,132 @@
 # Canonical Handoff — ClipCascade Extended
 
-This file is the single source of truth for resuming development.
+This is the concise current-state entry point for resuming development. The permanent product contract is [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md).
 
-## Trigger phrase
+## Resume trigger
 
 When the user says:
 
 > https://github.com/GoodLight999/ClipCascade-Extended←これを引継いで開発して！
 
-perform these steps before coding:
+perform these steps before changing code:
 
 1. Read this file completely.
-2. Read `docs/WORKLOG.md`, newest entry first.
-3. Inspect the newest open draft PR and its CI status.
-4. Read every architecture, compatibility, signing, testing, and roadmap document present under `docs/`.
-5. Never sacrifice reliability merely to claim that ADB is absent. Preserve a tiered runtime design and choose the most reliable verified path for each Android device.
-6. Keep this file and the worklog current in every meaningful commit.
+2. Read `docs/PRODUCT_REQUIREMENTS.md` completely. Its requirements are non-negotiable.
+3. Read `docs/WORKLOG.md`, newest entry first.
+4. Inspect the repository tree, active branch, newest draft PR, CI runs, and artifacts. Never infer implementation from documentation alone.
+5. Inspect the preserved Android source in the Go reference commit listed below before designing the clipboard path.
+6. Continue implementation, tests, CI repair, APK building, and factual handoff updates in the same thread.
 
-## Current repository state
+Handoff text must state the present truth directly. Do not spend context on conversational mistakes, apologies, superseded plans, or correction history.
+
+## Repository state
 
 - Repository: `GoodLight999/ClipCascade-Extended`
 - Default branch: `main`
 - Active development branch: `agent/android-accessibility-foundation`
-- Expected PR: a draft PR from that branch to `main`
-- The active branch currently contains bootstrap documentation only. Android code, Go engine code, CI, and APK artifacts have not yet been committed.
+- Open PR: none at the time of this handoff; create a draft PR after meaningful implementation is pushed.
+- Current contents: bootstrap documentation and product requirements only.
+- Not yet committed: Android implementation, Go engine, CI workflow, signing workflow, APK, or real-device evidence.
 
-## Source baselines
+Do not claim code, CI, or APK exists until verified from the repository and workflow artifacts.
 
-- Original protocol/server: `Sathvik-Rao/ClipCascade`
-- Historical Go-based Android implementation: `wuxinkami/ClipCascade_go_fork` at commit `084616111aa993c77c9f293811534253b7d3d3f9`
-- The Android source is preserved in that commit and remains directly retrievable. Relevant paths include:
+## Absolute priority
+
+**Stable background send and receive operation is the absolute condition.**
+
+ADB-free operation is preferred, but it is not an absolute requirement. Retain Shizuku or direct ADB whenever they measurably improve stability.
+
+Runtime capability tiers:
+
+1. **Standard** — AccessibilityService and ordinary Android APIs; no ADB or Shizuku.
+2. **Enhanced** — Shizuku-backed reliability path. Prefer or adapt `https://github.com/thedjchi/Shizuku`. Shizuku installation may be delegated to the user; subsequent setup must be guided by clear tap-through screens.
+3. **Engineering** — direct ADB for development, diagnostics, stress tests, provisioning, and a documented last resort when no equally reliable tap-driven path exists.
+
+The app must disclose the active tier and separately prove background send and background receive before reporting that setup is healthy.
+
+## Required source baselines
+
+### Historical Go Android implementation — functional baseline
+
+- Repository: `https://github.com/wuxinkami/ClipCascade_go_fork`
+- Preserved Android recovery commit: `084616111aa993c77c9f293811534253b7d3d3f9`
+- Relevant paths:
   - `mobile/android/`
   - `fyne_mobile/bridge/`
   - `fyne_mobile/engine/`
   - `pkg/crypto/`
   - `pkg/protocol/`
+  - Android build scripts and historical CI
 
-Use the historical Android implementation as the functional baseline. Preserve its useful clipboard-access and Go-engine ideas, then improve reliability, localization, credential storage, diagnostics, and update continuity.
+The Android source is not lost. It was removed from a later branch state but remains retrievable at the commit above.
 
-## Product priority order
+Reconstruct its useful clipboard-copy mechanism first, import or adapt it into this repository, and then make it more reliable. Do not replace it with a speculative clean-room design without first reproducing its working behavior.
 
-1. Stable background send and receive operation.
-2. Truthful diagnostics and automatic recovery.
-3. Simple setup and upgrade continuity.
-4. Original ClipCascade server compatibility.
-5. ADB-free operation where it is genuinely reliable.
-6. Additional clipboard types and OTP-related features.
+### Original ClipCascade — server/protocol authority
 
-ADB elimination is not an absolute requirement. ADB, wireless debugging, or Shizuku may remain when they measurably improve stability. The project must not knowingly ship an unreliable no-ADB path merely because it appears simpler.
+- Repository: `https://github.com/Sathvik-Rao/ClipCascade`
 
-## Supported reliability tiers
+The Extended client must remain compatible with original ClipCascade servers. Preserve the original login, E2EE key derivation, WebSocket/STOMP endpoints, destinations, clipboard schema, and encryption format. No incompatible server fork may become mandatory.
 
-The implementation must be designed around explicit, testable tiers rather than one hidden mechanism:
+### Future OTP baseline
 
-- **Standard mode:** no ADB and no Shizuku. AccessibilityService and normal Android APIs only.
-- **Enhanced mode:** Shizuku-backed privileges or commands, started through a user-facing tap workflow. This is the preferred compatibility fallback when Standard mode is unreliable on a device.
-- **Engineering mode:** direct ADB for development, diagnostics, stress testing, and last-resort provisioning. Any production dependency on direct ADB must be documented honestly and replaced by a tap-driven Shizuku flow where technically possible.
+- Repository: `https://github.com/jd1378/otphelper`
 
-The application must detect and display which tier is active. It must never claim full background reliability before the active tier passes self-tests.
+OTP, SMS, and email-notification code extraction is a later module. Implement it only after clipboard text synchronization passes the stability gate. It must be isolated so it cannot destabilize the clipboard core.
 
 ## Non-negotiable product requirements
 
-- Stable background operation is the absolute condition.
-- ADB-free operation remains a preferred goal, not a higher priority than reliability.
-- Shizuku is an approved compatibility and reliability mechanism.
-- Direct ADB is approved for diagnostics and may remain as a fallback when no equally reliable tap-driven route exists.
-- A normal user should be able to complete the recommended setup by tapping through the application, Android Settings, and Shizuku. Shizuku installation itself may be delegated to the user.
-- Server behavior must remain compatible with the original ClipCascade server.
-- English, Japanese, and Simplified Chinese must remain supported.
-- Release APK updates must use one permanent signing identity.
-- Connection UI must never report “connected” before the WebSocket/STOMP handshake succeeds.
-- Copy detection must not react expensively to every ordinary tap.
-- Never store server passwords in plaintext SharedPreferences.
-- Every thread must leave exact next steps and test evidence here and in `docs/WORKLOG.md`.
+- English, Japanese, and Simplified Chinese for all user-facing UI, setup, permissions, diagnostics, and essential documentation.
+- Complete permission/setup/repair wizard suitable for a non-technical user clicking through the app and Android Settings.
+- Guided AccessibilityService, notifications, battery optimization, vendor autostart, overlay-when-needed, Shizuku, and ADB/wireless-debugging setup.
+- Permission verification based on actual state, not merely opening a Settings page.
+- One permanent release signing identity for all public APKs.
+- Version N+1 must install over version N without uninstalling or losing configuration.
+- Android Keystore-backed credential protection; no plaintext password storage.
+- Truthful connection state; never report connected before real authentication, WebSocket/STOMP handshake, and subscription succeed.
+- Copy detection must not perform expensive work on every ordinary tap.
+- Source-aware fingerprint loop suppression for local and remote clipboard writes.
+- Capability interfaces must isolate Standard, Shizuku, and direct-ADB clipboard access from protocol, state, diagnostics, and UI.
+- Work must continue through implementation, tests, CI, APK assembly, install/upgrade verification, and real-device evidence. Documentation or compilation alone is not completion.
 
-## Architecture direction
+## Immediate implementation sequence
 
-- Native Kotlin Android application.
-- Shared Go protocol/E2EE engine compiled with gomobile into `engine.aar` unless a native Kotlin replacement proves more reliable and remains wire-compatible.
-- AccessibilityService is one clipboard-event source, not a dogma and not the sole permitted source.
-- Shizuku/ADB adapters must be isolated behind a capability interface so the transport and loop-suppression logic do not depend on one privilege path.
-- Copy events are hints only; actual sending is gated by changed content fingerprints and source-aware loop suppression.
-- Remote clipboard writes are fingerprint-marked before writing to suppress bounce loops.
-- Credentials are encrypted with a key stored in Android Keystore.
-- Engine state is persisted separately so the UI shows the last truthful state.
-- No permanent foreground-service type or boot-start strategy may be assumed valid without CI checks, Android-version checks, and real-device evidence.
+1. Recover the historical Go Android source into a local working tree and audit licenses/attribution.
+2. Import the minimum original-compatible Go protocol, crypto, gomobile bridge, and native Android shell into this repository.
+3. Reproduce historical text send/receive behavior before redesigning it.
+4. Introduce a `ClipboardAccessBackend` capability interface with Standard, Enhanced/Shizuku, and Engineering/ADB implementations or explicit placeholders.
+5. Replace broad every-click processing with conservative event hints plus changed-content fingerprint checks.
+6. Implement truthful engine states and independent send/receive self-tests that run while the activity is closed.
+7. Implement encrypted configuration and the three-language setup/repair wizard.
+8. Add CI for Go tests, gomobile AAR generation, Android lint/unit tests, and debug APK assembly.
+9. Configure permanent release signing through repository secrets and verify N-to-N+1 update installation.
+10. Run the real-device stability matrix beginning with HONOR/MagicOS; add Shizuku immediately if Standard mode is unreliable.
+11. Record exact code, CI, artifact, and device results in `docs/WORKLOG.md` after each meaningful step.
 
-## Immediate next steps
+## Stability gate
 
-1. Import the historical Android and Go source needed for the first build.
-2. Define a `ClipboardAccessBackend` capability interface with Standard, Shizuku, and Engineering implementations.
-3. Implement the original server-compatible login, E2EE, WebSocket, and STOMP engine.
-4. Build a startup/self-test matrix that separately verifies:
-   - server authentication;
-   - STOMP handshake and subscription;
-   - remote receive and local write;
-   - local copy detection and remote send;
-   - background operation while the UI is closed;
-   - restart/reconnect behavior;
-   - active privilege tier.
-5. Implement Standard mode first, then run it on HONOR/MagicOS. Add Shizuku immediately wherever Standard mode misses events or is killed.
-6. Add CI for Go tests, gomobile AAR generation, Android lint/tests, and APK assembly.
-7. Configure one fixed signing identity and verify that version N+1 installs over version N.
-8. Add diagnostic export containing states and timestamps only, never clipboard payloads or passwords.
-9. Record exact device/Android/tier results in `docs/WORKLOG.md`.
-10. Only after text sync is stable, add images/files and OTP modules.
+A device/tier combination is not supported merely because the activity-open path works or an APK compiles. It must pass:
 
-## Definition of “stable enough for daily use”
-
-A release is not stable merely because it built or worked while the activity was open. The supported tier on each declared device class must pass:
-
-- 24-hour background receive test without manual app reopening.
-- 24-hour background send test with the screen both on and off where the OS permits clipboard changes.
+- 24-hour background send test.
+- 24-hour background receive test.
+- Screen-on and screen-off behavior documented where Android permits clipboard changes.
 - 500-copy stress test with no duplicate storm and no measurable input lag.
-- Network transitions Wi-Fi → mobile → Wi-Fi recover automatically.
-- Server restart recovers automatically.
-- App process death and service restart recover automatically.
-- Phone reboot recovery is documented and succeeds through the declared tier.
-- No false “connected” state.
-- No plaintext secrets in app storage or logs.
-- Upgrade from version N to N+1 succeeds without uninstalling.
-- Japanese, English, and Chinese setup paths all complete.
-- The app reports Standard, Enhanced, or Engineering mode truthfully.
+- Wi-Fi → mobile → Wi-Fi recovery.
+- Server restart recovery.
+- Process death/service restart recovery.
+- Phone reboot recovery through the declared tier.
+- No false connected state.
+- No plaintext credentials or clipboard contents in persistent logs.
+- Upgrade from version N to N+1 with the same signing identity.
+- Complete English, Japanese, and Simplified Chinese setup paths.
+- Accurate display of Standard, Enhanced, or Engineering mode.
 
-If Standard mode fails but Enhanced mode passes, the device is supported in Enhanced mode. That is an acceptable result. Claiming Standard-mode support despite failed tests is not.
+If Standard fails but Enhanced passes, declare the device supported in Enhanced mode. Do not pretend Standard passed.
+
+## Handoff maintenance rule
+
+After every meaningful implementation or test session, update:
+
+- this file with current branch/PR, actual implemented state, exact next actions, blockers, and validated artifacts;
+- `docs/WORKLOG.md` with factual commits, commands, CI results, device/tier results, and failures;
+- `docs/PRODUCT_REQUIREMENTS.md` only when requirements are deliberately expanded by the user, never to weaken existing requirements.
