@@ -1,0 +1,106 @@
+name: Android reliability CI
+
+on:
+  push:
+    branches:
+      - main
+      - stability-mobile-otp
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out extension repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Materialize pinned upstream and apply overlay
+        run: |
+          chmod +x scripts/materialize_upstream.sh
+          ./scripts/materialize_upstream.sh
+
+      - name: Restore stable APK signing key
+        run: |
+          base64 --decode ci/clipcascade-extended.keystore.b64 \
+            > build/mobile/android/app/clipcascade-extended.keystore
+          keytool -list -keystore build/mobile/android/app/clipcascade-extended.keystore \
+            -storepass clipcascade-extended -alias clipcascade-extended
+
+      - name: Install JavaScript dependencies
+        working-directory: build/mobile
+        run: npm ci
+
+      - name: Lint JavaScript and TypeScript
+        working-directory: build/mobile
+        run: npm run lint
+
+      - name: Run JavaScript tests
+        working-directory: build/mobile
+        run: npm test -- --runInBand
+
+      - name: Run Android unit tests and build standalone APK
+        working-directory: build/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace --warning-mode all \
+            testExtendedUnitTest assembleExtended
+
+      - name: Verify signature and record checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="build/mobile/android/app/build/outputs/apk/extended/app-extended.apk"
+          test -s "$apk"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$apksigner"
+          "$apksigner" verify --verbose --print-certs "$apk" | tee apk-signature.txt
+          mkdir -p dist
+          cp "$apk" dist/ClipCascade-Extended.apk
+          sha256sum dist/ClipCascade-Extended.apk | tee dist/ClipCascade-Extended.apk.sha256
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipCascade-Extended-${{ github.sha }}
+          path: |
+            dist/ClipCascade-Extended.apk
+            dist/ClipCascade-Extended.apk.sha256
+            apk-signature.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipCascade-Extended-failure-reports-${{ github.sha }}
+          path: |
+            build/mobile/android/app/build/reports/**
+            build/mobile/android/build/reports/**
+            build/mobile/npm-debug.log
+          if-no-files-found: ignore
+          retention-days: 14
