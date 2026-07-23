@@ -26,6 +26,8 @@ def main() -> None:
         '''                put("captureCoordinator", ClipboardCaptureCoordinator.status(reactApplicationContext))
                 put("nativeDeliveryReady", PendingReactEventStore.isDeliveryReady())
                 put("sharedPayloadStatus", bridge.getValue("shared_payload_status").orEmpty())
+                put("outboundQueueStatus", bridge.getValue("outbound_queue_status").orEmpty())
+                put("restartReceiverStatus", bridge.getValue("restart_receiver_status").orEmpty())
                 put("readLogs", readLogs)''',
         "native reliability diagnostics",
     )
@@ -37,6 +39,8 @@ def main() -> None:
         '''                        `Coordinator: ${status.captureCoordinator}`,
                         `JS event listener ready: ${status.nativeDeliveryReady}`,
                         `Shared payload staging: ${status.sharedPayloadStatus || 'idle'}`,
+                        `Outbound queue: ${status.outboundQueueStatus || 'idle'}`,
+                        `Restart receiver: ${status.restartReceiverStatus || 'not observed'}`,
                         `READ_LOGS: ${status.readLogs}`,''',
         "self-test reliability diagnostics",
     )
