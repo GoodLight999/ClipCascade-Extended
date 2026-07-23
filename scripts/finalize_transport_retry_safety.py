@@ -6,11 +6,11 @@ import argparse
 from pathlib import Path
 
 
-def replace_exact(text: str, old: str, new: str, expected: int, label: str) -> str:
+def replace_once(text: str, old: str, new: str, label: str) -> str:
     count = text.count(old)
-    if count != expected:
-        raise RuntimeError(f"{label}: expected {expected} marker(s), found {count}")
-    return text.replace(old, new)
+    if count != 1:
+        raise RuntimeError(f"{label}: expected one marker, found {count}")
+    return text.replace(old, new, 1)
 
 
 def main() -> None:
@@ -20,44 +20,66 @@ def main() -> None:
     path = root / "StartForegroundService.js"
     text = path.read_text(encoding="utf-8")
 
-    text = replace_exact(
+    # P2S: do not mark content sent or enter echo-wait mode before publish succeeds.
+    text = replace_once(
         text,
-        """                  previous_clipboard_content_hash = hcb;
+        """                  if (await newCB(hcb)) {
+                    previous_clipboard_content_hash = hcb;
 
-                  if (block_image_once) {""",
-        """                  if (block_image_once) {""",
-        2,
-        "defer sent hash until transport success",
+                    if (block_image_once) {
+                      block_image_once = false;
+                    } else {
+                      toggle = true;
+
+                      if (cipher_enabled === 'true') {""",
+        """                  if (await newCB(hcb)) {
+                    if (block_image_once) {
+                      block_image_once = false;
+                      previous_clipboard_content_hash = hcb;
+                    } else {
+                      if (cipher_enabled === 'true') {""",
+        "defer P2S sent state until publish",
     )
-    text = replace_exact(
+    text = replace_once(
         text,
-        """                  if (block_image_once) {
+        """                      stompClient.publish({
+                        destination: SEND_DESTINATION,
+                        body: JSON.stringify({
+                          payload: String(clipContent),
+                          type: type_,
+                        }),
+                      });
+                    }""",
+        """                      stompClient.publish({
+                        destination: SEND_DESTINATION,
+                        body: JSON.stringify({
+                          payload: String(clipContent),
+                          type: type_,
+                        }),
+                      });
+                      previous_clipboard_content_hash = hcb;
+                      toggle = true;
+                    }""",
+        "commit P2S state after publish",
+    )
+
+    # P2P: keep an interrupted or failed fragmented send eligible for queue retry.
+    text = replace_once(
+        text,
+        """                if (await newCB(hcb)) {
+                  previous_clipboard_content_hash = hcb;
+
+                  if (block_image_once) {
                     block_image_once = false;
                   } else {""",
-        """                  if (block_image_once) {
+        """                if (await newCB(hcb)) {
+                  if (block_image_once) {
                     block_image_once = false;
                     previous_clipboard_content_hash = hcb;
                   } else {""",
-        2,
-        "retain inbound image loop suppression",
+        "defer P2P sent state until all fragments",
     )
-    text = replace_exact(
-        text,
-        """                    stompClient.publish({
-                      destination: SEND_DESTINATION,
-                      body: clipContent,
-                    });
-                    toggle = true;""",
-        """                    stompClient.publish({
-                      destination: SEND_DESTINATION,
-                      body: clipContent,
-                    });
-                    previous_clipboard_content_hash = hcb;
-                    toggle = true;""",
-        1,
-        "commit P2S hash after publish",
-    )
-    text = replace_exact(
+    text = replace_once(
         text,
         """                      if (sendingFragmentId != metadata.id) {
                         loopBroken = true;
@@ -67,10 +89,9 @@ def main() -> None:
                         loopBroken = true;
                         return false;
                       }""",
-        1,
         "report interrupted P2P send as unsent",
     )
-    text = replace_exact(
+    text = replace_once(
         text,
         """                    if (!loopBroken) {
                       await resetSendingFragmentId();
@@ -79,8 +100,7 @@ def main() -> None:
                       previous_clipboard_content_hash = hcb;
                       await resetSendingFragmentId();
                     }""",
-        1,
-        "commit P2P hash after all fragments",
+        "commit P2P state after all fragments",
     )
 
     path.write_text(text, encoding="utf-8")
