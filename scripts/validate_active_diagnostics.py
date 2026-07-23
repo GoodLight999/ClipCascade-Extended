@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require active event, heartbeat, runtime lease, clipboard URI and report-copy diagnostics."""
+"""Require active event, heartbeat, runtime lease and localized report diagnostics."""
 from __future__ import annotations
 
 import argparse
@@ -21,6 +21,7 @@ def main() -> None:
     foreground = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     panel = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
     analyzer = (root / "AutoDebug.js").read_text(encoding="utf-8")
+    i18n = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
 
     require(native_bridge, "fun runEventBridgeProbe", "native event bridge probe")
     require(native_bridge, "onExtendedDiagnosticProbe", "diagnostic event name")
@@ -28,9 +29,25 @@ def main() -> None:
     require(panel, "runEventBridgeProbe", "one-tap active event test")
     require(panel, "new NativeEventEmitter(NativeBridgeModule)", "active event listener")
     require(panel, "probe.eventBridge = eventBridge", "active event result in report")
+    require(panel, "formatDiagnosticsReport(report, text)", "localized report dictionary")
     require(analyzer, "native-react-event-bridge", "active event verdict")
     require(analyzer, "heartbeatAgeMs", "heartbeat freshness verdict")
     require(analyzer, "foreground-runtime-singleton", "foreground runtime singleton verdict")
+    require(analyzer, "CHECK_LABEL_KEYS", "localized diagnostic check mapping")
+    require(analyzer, "diagnosticsRawStatus", "localized raw-status heading")
+    require(analyzer, "diagnosticsNativeProbe", "localized native-probe heading")
+    for key in (
+        "diagnosticsOverall",
+        "diagnosticsGenerated",
+        "diagnosticsRawStatus",
+        "diagnosticsNativeProbe",
+        "diagnosticNativeReact",
+        "diagnosticForeground",
+        "diagnosticSharedPayload",
+        "diagnosticP2P",
+    ):
+        require(i18n, f"{key}:", f"localized diagnostic key {key}")
+
     require(foreground, "foreground_service_heartbeat_at", "foreground loop heartbeat")
     require(foreground, "activeForegroundRuntimeId", "single foreground runtime lease")
     require(foreground, "duplicate-runtime-suppressed", "duplicate runtime suppression")
@@ -43,7 +60,7 @@ def main() -> None:
     require(native_debug, 'put("uriCount", uriCount)', "clipboard URI visibility")
     require(panel, "Clipboard.setString(dialog.copy)", "one-tap full report copy")
 
-    print("active automatic diagnostics: OK")
+    print("active localized automatic diagnostics: OK")
 
 
 if __name__ == "__main__":
