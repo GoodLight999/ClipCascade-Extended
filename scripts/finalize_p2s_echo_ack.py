@@ -14,14 +14,6 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-def replace_exact(path: Path, old: str, new: str, expected: int, label: str) -> None:
-    text = path.read_text(encoding="utf-8")
-    count = text.count(old)
-    if count != expected:
-        raise RuntimeError(f"{label}: expected {expected} markers, found {count}")
-    path.write_text(text.replace(old, new), encoding="utf-8")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("destination", type=Path)
@@ -79,13 +71,23 @@ import { createP2SAckTracker } from './P2SAckTracker';""",
         """                    const body = JSON.parse(message.body);
                     const echoedDeliveryId =
                       body.metadata?.extendedDeliveryId ?? null;
-                    if (p2sAckTracker.acknowledge(echoedDeliveryId)) {
+                    const activeAck = p2sAckTracker.acknowledge(
+                      echoedDeliveryId,
+                    );
+                    const queuedForAck = echoedDeliveryId
+                      ? await outboundQueue.peek()
+                      : null;
+                    if (activeAck || queuedForAck?.id === echoedDeliveryId) {
                       toggle = false;
                       await outboundQueue.acknowledge(echoedDeliveryId);
-                      await updateOutboundQueueStatus('p2s-echo-acknowledged');
+                      await updateOutboundQueueStatus(
+                        activeAck
+                          ? 'p2s-echo-acknowledged'
+                          : 'p2s-late-echo-acknowledged',
+                      );
                     }
                     let cb = String(body.payload);""",
-        "acknowledge matching P2S echo",
+        "acknowledge active or late matching P2S echo",
     )
 
     replace_once(
