@@ -35,6 +35,7 @@ Implemented:
 - Shizuku API/provider 13.1.5, AIDL, transient non-daemon UserService;
 - in-app authorization and one-time READ_LOGS/overlay application;
 - strict command exit-code checking plus Extended-side polling of actual retained grants;
+- Shizuku Binder/command/verification work moved to a dedicated worker thread to avoid UI blocking/ANR;
 - PC ADB explicitly second choice;
 - OTP removed from core setup flow;
 - version `3.2.0-extended.2`, versionCode `320002`, package/signer unchanged.
@@ -46,13 +47,14 @@ Implementation commits:
 9d240b08d40a067f3c340f98f2e1a8b771459541  version/UserService correction
 9a7dd08e4fb343f6c3946911adbea3dd168e42cf  unified capture serialization
 886c155e56187c0b814460c095857845e6a52b1e  strict Shizuku verification
+257dc2d83f3f8d2f972c2b7f2dffdea2dc3bde84  Shizuku setup off UI thread
 ```
 
-CI run `29970261242` passed all source, npm, lint, Jest, Android tests/build, signing, checksum, and artifact steps.
+CI run `29970990520` for final code commit `257dc2d83f3f8d2f972c2b7f2dffdea2dc3bde84` passed all source, npm, lint, Jest, Android tests/build, signing, checksum, and artifact steps.
 
 ```text
 APK size: 93,595,251 bytes
-APK SHA-256: d7ce5149d4503a88f376a0b3902cb5986686951210c2e812364027aa8e14b77f
+APK SHA-256: 4951029a94a81485f54881aa1b3f16298d936515e9374b7d9a108c58649b4a19
 Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 Signature: APK Signature Scheme v2
 ```
