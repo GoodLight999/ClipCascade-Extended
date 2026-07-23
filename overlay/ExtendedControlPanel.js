@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  NativeEventEmitter,
   PlatformColor,
   ScrollView,
   Text,
@@ -59,6 +60,35 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
     }
   };
 
+  const runEventBridgeProbe = async () =>
+    new Promise(resolve => {
+      const token = `cc-probe-${Date.now()}-${Math.random()}`;
+      const emitter = new NativeEventEmitter(NativeBridgeModule);
+      let finished = false;
+      let subscription;
+      let timeout;
+      const finish = (received, error = '') => {
+        if (finished) return;
+        finished = true;
+        if (timeout) clearTimeout(timeout);
+        subscription?.remove();
+        resolve({ received, token, error });
+      };
+      subscription = emitter.addListener(
+        'onExtendedDiagnosticProbe',
+        receivedToken => {
+          if (receivedToken === token) finish(true);
+        },
+      );
+      timeout = setTimeout(
+        () => finish(false, 'native event was not observed within 2000 ms'),
+        2000,
+      );
+      Promise.resolve(NativeBridgeModule.runEventBridgeProbe(token)).catch(
+        error => finish(false, String(error)),
+      );
+    });
+
   const showStatus = async () => {
     const status = JSON.parse(
       await NativeBridgeModule.getReliabilityStatus(),
@@ -77,6 +107,7 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
       `Shared payload: ${status.sharedPayloadStatus || 'idle'}`,
       `Outbound queue:\n${pretty(status.outboundQueueStatus)}`,
       `Foreground service state: ${status.foregroundServiceState || '—'}`,
+      `Foreground service heartbeat: ${status.foregroundServiceHeartbeatAt || '—'}`,
       `Foreground service error: ${status.foregroundServiceError || 'none'}`,
       `P2P candidates/compatible/incompatible: ${
         status.p2pCandidatePeers || 0
@@ -95,12 +126,14 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
   };
 
   const runAutoDebug = async () => {
+    const eventBridge = await runEventBridgeProbe();
     const status = JSON.parse(
       await NativeBridgeModule.getReliabilityStatus(),
     );
     const probe = NativeBridgeModule.runNativeAutoDebug
       ? JSON.parse(await NativeBridgeModule.runNativeAutoDebug())
       : { clipboard: { clipboardRead: null }, reason: 'native probe unavailable' };
+    probe.eventBridge = eventBridge;
     const report = analyzeDiagnostics(status, probe);
     const body = formatDiagnosticsReport(report, text.reportTitle);
     show(text.autoDebug, body);
