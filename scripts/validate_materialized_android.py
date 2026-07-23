@@ -28,14 +28,20 @@ def main() -> None:
     ).read_text(encoding="utf-8")
     build_gradle = (root / "android/app/build.gradle").read_text(encoding="utf-8")
     app_js = (root / "App.js").read_text(encoding="utf-8")
+    foreground_js = (root / "StartForegroundService.js").read_text(encoding="utf-8")
+    headless_js = (root / "HeadlessTask.js").read_text(encoding="utf-8")
 
     require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
     require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
+    require(manifest, "android.intent.action.MY_PACKAGE_REPLACED", "package update restart")
     require(accessibility_xml, 'android:canRetrieveWindowContent="false"', "privacy setting")
     require(build_gradle, 'applicationId "com.clipcascade.extended"', "permanent package")
     require(build_gradle, "versionCode 320003", "monotonic versionCode")
     require(build_gradle, 'versionName "3.2.0-extended.3"', "versionName")
     require(app_js, "const APP_VERSION = '3.2.0-extended.3';", "UI version")
+    require(app_js, "JS event listener ready", "listener readiness self-test")
+    require(app_js, "Shared payload staging", "shared payload self-test")
+    require(headless_js, "android.intent.action.MY_PACKAGE_REPLACED", "update headless restart")
 
     kotlin_files = list((android / "java/com/clipcascade").glob("*.kt"))
     all_native = "\n".join(path.read_text(encoding="utf-8") for path in kotlin_files)
@@ -44,12 +50,23 @@ def main() -> None:
     require(all_native, "activateAndDrain", "React listener readiness gate")
     require(all_native, "capture-timeout", "capture watchdog")
     require(all_native, "one-time-setup-only", "one-time Shizuku contract")
+    require(all_native, "ClipCascade-ShareStager", "shared URI staging")
+    require(all_native, "acquireWakeLockNow", "Headless JS wake lock")
+
+    require(foreground_js, "⏳ Connecting...", "fresh connection status")
+    require(
+        foreground_js,
+        "✅ Signaling connected; waiting for peer",
+        "truthful P2P signaling status",
+    )
+    require(foreground_js, "✅ P2P peer connected", "truthful P2P peer status")
 
     runtime_files = [
         android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt",
         android / "java/com/clipcascade/ClipboardCaptureCoordinator.kt",
         android / "java/com/clipcascade/ClipboardFloatingActivity.kt",
         android / "java/com/clipcascade/ClipboardListenerModule.kt",
+        android / "java/com/clipcascade/SharedPayloadStager.kt",
         root / "StartForegroundService.js",
     ]
     for path in runtime_files:
