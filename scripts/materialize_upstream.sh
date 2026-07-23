@@ -61,6 +61,7 @@ python3 "$ROOT_DIR/scripts/finalize_foreground_loop_supervision.py" "$DESTINATIO
 python3 "$ROOT_DIR/scripts/finalize_extended_product_ui.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_product_ui_cleanup.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_service_button_state.py" "$DESTINATION"
+python3 "$ROOT_DIR/scripts/finalize_runtime_message_localization.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_control_panel_localization.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_runtime_recovery_localization.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_android_lint.py" "$DESTINATION"
