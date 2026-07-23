@@ -1,108 +1,60 @@
 # ClipCascade Extended — Worklog
 
-This file is chronological engineering evidence. `HANDOFF.md` is the concise
-canonical state and always takes precedence when this file contains older entries.
+`HANDOFF.md` is the canonical current state. This file preserves chronological engineering evidence.
 
-## 2026-07-23 — Requirement-priority correction
+## 2026-07-23 — Requirement correction
 
-### User correction
+The prior CI-green baseline incorrectly prioritized notification OTP and lacked the Go-fork Accessibility path and Shizuku integration. It was reclassified as a build/lifecycle baseline. Correct priority:
 
-The original governing requirements were re-established:
+1. generic clipboard reliability;
+2. ADB-free Accessibility runtime;
+3. one-time Shizuku setup as best fallback;
+4. one-time PC ADB as second choice;
+5. no always-on Shizuku dependency;
+6. OTP/SMS/email only after clipboard acceptance and only as an otphelper superior.
 
-- generic clipboard reliability is the core objective;
-- ADB-free operation is the final goal;
-- a dependable ADB fallback is required when it improves stability;
-- any ADB-capable fallback must be integrated with Shizuku and presented as a
-  click-driven setup rather than raw commands;
-- `wuxinkami/ClipCascade_go_fork` is the primary Android behavior reference and its
-  Accessibility Service mechanism must be reproduced and improved;
-- `Sathvik-Rao/ClipCascade` remains the protocol/server compatibility authority;
-- English, Japanese, and Simplified Chinese setup/UI are required;
-- stable signing and in-place updates are mandatory;
-- OTP/SMS/email work is deferred until generic clipboard reliability is complete and
-  must ultimately exceed `jd1378/otphelper` rather than duplicate it poorly.
+Inspected Go-fork files: Accessibility Service, background service, manifest, and accessibility XML. Preserved its event→overlay→read concept, but rejected broad click triggering, one global debounce, service-binding drops, non-serialized overlays, weak loop state, and Chinese-only UX.
 
-### Error acknowledged
-
-The preceding implementation incorrectly prioritized notification OTP work and
-understated the importance of the Go fork and Shizuku. The generated APK was CI-green,
-but it did not contain the Go fork's Accessibility Service path or Shizuku integration.
-It must be treated as a build/lifecycle baseline, not a requirement-complete release.
-
-### Go fork inspection
-
-Files inspected at `wuxinkami/ClipCascade_go_fork`:
-
-- `mobile/android/app/src/main/java/com/clipcascade/android/ClipCascadeAccessibilityService.kt`
-- `mobile/android/app/src/main/java/com/clipcascade/android/ClipCascadeBackgroundService.kt`
-- `mobile/android/app/src/main/AndroidManifest.xml`
-- `mobile/android/app/src/main/res/xml/accessibility_service_config.xml`
-
-Observed mechanism:
-
-1. Accessibility events outside the app trigger a delayed/debounced copy check.
-2. Accessibility Service binds to a sticky foreground background service.
-3. The service creates a momentary 1x1 overlay, reads the clipboard, removes the
-   overlay, suppresses a simple self-loop, and sends through the Go engine.
-4. Boot/package-replacement receiver restarts the service.
-
-Observed weaknesses to improve rather than copy literally:
-
-- broad `TYPE_VIEW_CLICKED` triggering and excessive wakeups;
-- one global debounce that may miss legitimate rapid copies;
-- incomplete localized copy-signal recognition;
-- trigger loss while service binding is unavailable;
-- non-serialized overlay operations;
-- weak text-only duplicate/loop detection;
-- limited retry and durable state;
-- Chinese-only user experience and diagnostics.
-
-### Shizuku direction
-
-Primary developer API: `RikkaApps/Shizuku-API`.
-Recommended user-facing option under evaluation: `thedjchi/Shizuku`, because its
-watchdog and improved start-on-boot behavior may reduce setup failures. The fork
-currently states that maintenance is paused, so integration must use standard Shizuku
-API contracts and must not depend unnecessarily on fork-only internals.
-
-Implementation must:
-
-- add Shizuku provider/API dependencies;
-- detect binder/version/UID/permission/death state;
-- request Shizuku authorization inside Extended;
-- prefer Binder/UserService operations to text shell commands;
-- apply and verify required grants/app-ops through a guided wizard;
-- display degraded state after reboot when Shizuku is not active;
-- retain Accessibility as the preferred ADB-free path.
-
-### ADB grant update behavior
-
-Working assumption recorded for implementation and device verification:
-
-- an in-place update with the same application ID/signing lineage normally retains
-  package permission and app-op state;
-- uninstall/fresh install resets it;
-- manifest removal, user/admin revocation, OEM policy, or permission auto-reset can
-  change it;
-- therefore the app must inspect actual state after every start/update and never show
-  setup as complete merely because it was completed once.
-
-### Documentation changes
-
-- Replaced `HANDOFF.md` with the corrected source authority, priority, honest current
-  gaps, target architecture, acceptance standard, and continuation order.
-- Added this chronological `WORKLOG.md`.
-
-### Current branch state after correction
+Correction/documentation commits:
 
 ```text
-Branch: stability-mobile-otp
-Correction commit: 22bd17ca8d97a468b0286dc18c14cbb3752f7e4c
-PR: #2 (draft)
+22bd17ca8d97a468b0286dc18c14cbb3752f7e4c
+369da2478c6107fda139db1ef75fa7bf708d1937
 ```
 
-### Next implementation action
+## 2026-07-23 — Accessibility and one-time Shizuku implementation
 
-Implement the Accessibility Service, manifest/XML configuration, copy-event classifier,
-durable trigger queue, and serialized overlay acquisition coordinator before expanding
-OTP functionality or declaring the APK usable.
+Implemented:
+
+- localized copy-signal classifier and tests;
+- Accessibility Service with `canRetrieveWindowContent=false`;
+- persistent serialized capture coordinator with retry/newer-request preservation;
+- one-shot overlay Activity and React-not-ready event persistence;
+- unified Accessibility and READ_LOGS trigger serialization;
+- English/Japanese/Simplified-Chinese setup resources/buttons;
+- Shizuku API/provider 13.1.5, AIDL, transient non-daemon UserService;
+- in-app authorization and one-time READ_LOGS/overlay application;
+- strict command exit-code checking plus Extended-side polling of actual retained grants;
+- PC ADB explicitly second choice;
+- OTP removed from core setup flow;
+- version `3.2.0-extended.2`, versionCode `320002`, package/signer unchanged.
+
+Implementation commits:
+
+```text
+6a01c89889d16c43004706f239e6a4694a071cf1  Accessibility/Shizuku
+9d240b08d40a067f3c340f98f2e1a8b771459541  version/UserService correction
+9a7dd08e4fb343f6c3946911adbea3dd168e42cf  unified capture serialization
+886c155e56187c0b814460c095857845e6a52b1e  strict Shizuku verification
+```
+
+CI run `29970261242` passed all source, npm, lint, Jest, Android tests/build, signing, checksum, and artifact steps.
+
+```text
+APK size: 93,595,251 bytes
+APK SHA-256: d7ce5149d4503a88f376a0b3902cb5986686951210c2e812364027aa8e14b77f
+Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
+Signature: APK Signature Scheme v2
+```
+
+Proof boundary: CI does not establish HONOR/OEM event delivery, background overlay behavior, real Shizuku grant persistence, live server compatibility, endurance, reboot recovery, battery impact, or actual in-place update. Next work is device acceptance, not OTP expansion.

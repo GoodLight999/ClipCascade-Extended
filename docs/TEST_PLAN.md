@@ -1,126 +1,74 @@
 # ClipCascade Extended — Reliability Test Plan
 
-This document distinguishes automated evidence from checks that require a real
-Android device and a live ClipCascade-compatible server. A design claim is not a
-pass result.
+Compilation/self-test output is not device acceptance.
 
-## 1. Automated CI gate
+## Automated gate
 
-Every pull request must pass all of the following in `.github/workflows/android-ci.yml`:
+Every behavioral head must pass exact upstream materialization, guarded overlays, signing-key inspection, `npm ci`, ESLint, Jest, `testExtendedUnitTest`, `assembleExtended`, `apksigner verify`, checksum, and artifact upload.
 
-1. Fetch the exact upstream commit from `UPSTREAM.lock` and verify its SHA.
-2. Apply every overlay and upstream repair with guarded markers.
-3. Restore and inspect the fixed sideload signing key.
-4. Run `npm ci` and `npm run lint`.
-5. Run the React Native Jest render test.
-6. Run `testExtendedUnitTest`, including OTP and clipboard-denial policy tests.
-7. Run `assembleExtended` to produce a non-debuggable APK.
-8. Verify the APK with `apksigner` and publish its SHA-256 checksum.
-9. Upload the APK, checksum, and signer report as one artifact.
+## Upgrade-first install
 
-## 2. Fresh-install acceptance
+1. Do not uninstall an existing Extended build.
+2. Install `3.2.0-extended.2` / `320002` over it.
+3. Verify configuration retention and signer SHA-256
+   `2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd`.
+4. Record Self-Test fields. Preserve installer errors instead of bypassing the test by uninstalling.
+5. Later perform a separate clean-install onboarding test.
 
-Use the CI APK with package name `com.clipcascade.extended`.
+## Preferred ADB-free path
 
-1. Install the APK on a clean device.
-2. Confirm the launcher name is **ClipCascade Extended**.
-3. Grant notification permission when requested.
-4. Open Android battery settings from the app and exempt ClipCascade Extended
-   from aggressive power management.
-5. Log in to a known-good ClipCascade server.
-6. Verify that the app does **not** display “Connected” before a WebSocket or P2P
-   transport has actually connected.
-7. Open **Reliability Self-Test** and record every displayed field.
+1. Enable **ClipCascade copy detector** via the in-app Accessibility button.
+2. Confirm its description says window content is not retrieved.
+3. Allow overlay through the in-app button.
+4. Do not start Shizuku or use PC ADB.
+5. Connect to a known-good server and confirm Connected is shown only after real transport connection.
 
-## 3. Core synchronization matrix
+Test at least five unrelated source apps: browser, chat, notes/editor, document viewer, and OEM/system app. For each:
 
-Run each case in P2S and P2P mode when both are available.
+- copy a unique text with Extended hidden; require exactly one peer delivery;
+- select text without copying; stale clipboard must not resend;
+- perform rapid A→B→C copies; require correct order/no miss/no stale/no duplicate;
+- repeat after removing UI from recents while foreground service remains;
+- record coordinator/capture status after any miss.
 
-| Direction | Payload | App visible | App background | Screen off |
-|---|---|---:|---:|---:|
-| Android → peer | Text | Required | Required by share/OTP; generic copy uses fallback | Required by share/OTP; generic copy uses fallback |
-| Peer → Android | Text | Required | Required | Required |
-| Android → peer | Image | Required | Required through Android Share | Required through Android Share |
-| Peer → Android | Image | Required | Required | Required |
-| Android → peer | File(s) | Required | Required through Android Share | Required through Android Share |
-| Peer → Android | File(s) | Required | Required | Required |
+Repeat representative tests with English/Japanese/Chinese copy feedback, battery saver, rotation, and screen state where copying is possible. Image/file outbound remains through Android Share unless a device provides a reliable URI clipboard event.
 
-For every case, verify exactly-once delivery and confirm that the source payload
-is not echoed back as a duplicate.
+## Transport/inbound matrix
 
-## 4. ADB-free OTP acceptance
+Test P2S and P2P where available: Android→peer text copy, peer→Android text/image/files with app visible/background/screen off, and Android Share image/files. Verify authentication, encryption, size limits, truthful status, reconnect, loop suppression, and exactly-once behavior.
 
-1. Grant **Notification Access (OTP Sync)** from the app.
-2. Start synchronization and background the app.
-3. Receive an OTP notification from each available source:
-   - Gmail
-   - Beeper
-   - Perceptron or another messaging client
-4. Verify that only the 4–8 digit authentication code is sent.
-5. Verify that an order number, tracking number, date, and ordinary chat message
-   are not sent.
-6. Repeat the same notification and verify the two-minute duplicate filter.
-7. Stop synchronization and verify that subsequent OTP notifications are not sent.
+## Best fallback: Shizuku once
 
-## 5. Generic background clipboard fallback
+1. Start Shizuku once and press the in-app setup button.
+2. Approve Extended.
+3. Require successful command exit codes and local verification of READ_LOGS + overlay.
+4. Stop Shizuku completely.
+5. Repeat the five-app matrix; Shizuku being stopped must not break normal runtime.
+6. Reboot without restarting Shizuku; recheck grants and retest.
+7. Perform a later in-place update with Shizuku stopped and retest.
 
-Android 10+ does not provide ordinary background clipboard access to a normal
-application. Manual Share and notification OTP capture remain the ADB-free paths.
-For automatic generic-copy capture, the supported fallback is:
+Any routine copy/network operation that requires the Shizuku Binder is a failure.
+
+## Second choice: PC ADB once
 
 ```bash
 adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS
 adb shell appops set com.clipcascade.extended android:system_alert_window allow
 ```
 
-Then:
+Disconnect the PC, run the same matrix, reboot without ADB, perform an in-place update, then revoke each grant separately and require truthful degraded status.
 
-1. Force-stop and reopen the app.
-2. Start synchronization.
-3. Confirm Self-Test reports `READ_LOGS fallback: true` and `Overlay fallback: true`.
-4. Background the app, copy text in at least five unrelated applications, and
-   verify exactly-once delivery without bringing ClipCascade to the foreground.
-5. Revoke each permission separately and verify that Self-Test accurately reports
-   the missing capability instead of claiming full operation.
+## Stress/endurance
 
-Shizuku is an accepted future replacement or setup assistant for this fallback,
-but no Shizuku API integration is claimed in the current build.
+- 30-minute rapid-copy sequence with repeated/alternating values;
+- process kill, swipe-away, reboot, Wi-Fi/mobile/airplane changes, peer sleep/wake;
+- 8-hour idle/reconnect;
+- battery, wakeups, typing latency, task wipe/restart loops, ghost notifications, and progressively heavier input.
 
-## 6. Lifecycle and endurance
+## Deferred OTP phase
 
-1. Swipe the UI away while synchronization is active; verify foreground service
-   reception remains operational.
-2. Reboot the device; verify configured restart behavior and status accuracy.
-3. Kill the process, reopen it, and verify queued native events are delivered once.
-4. Run a 30-minute rapid-copy test and an 8-hour idle/reconnect test.
-5. Toggle Wi-Fi/mobile data and suspend/resume the peer computer.
-6. Verify no task wipe, launcher restart loop, duplicate tray/notification state,
-   or progressively heavier text input.
-7. Record battery consumption before and after the endurance run.
+Do not expand OTP/SMS/email until all clipboard sections are green. Later compare directly against `jd1378/otphelper` across Gmail, SMS/messaging, expanded notification fields, multiple codes, false positives, deduplication, privacy controls, and app-specific rules.
 
-## 7. Upgrade and signature continuity
+## Failure evidence
 
-1. Install one Extended CI APK.
-2. Install a later Extended CI APK without uninstalling the first.
-3. Confirm Android performs an in-place update and retains configuration.
-4. Verify the signer certificate SHA-256 remains:
-
-```text
-2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
-```
-
-The Extended package has a distinct application ID and therefore is not an
-in-place update of the upstream `com.clipcascade` package.
-
-## 8. Failure evidence
-
-For every failed device check, preserve:
-
-- device manufacturer/model and Android build;
-- server mode and server version;
-- exact test step and timestamp;
-- Reliability Self-Test output;
-- foreground-service and connection notifications;
-- `adb logcat` limited to ClipCascade, ClipboardService, ClipboardManager,
-  ReactNativeJS, AndroidRuntime, and system power-management tags;
-- whether the failure survives process restart and reboot.
+Record device/OEM build, Extended version/signer/APK hash, server mode/version, source app, payload pattern, timestamp, Self-Test before/after, whether Shizuku was running/stopped/never started, permission screenshots, focused ClipCascade/Accessibility/Clipboard/React/ActivityTaskManager/OEM-power logs, and persistence after process restart/reboot/update.

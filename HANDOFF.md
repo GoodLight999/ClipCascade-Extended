@@ -1,252 +1,105 @@
 # ClipCascade Extended — Canonical Handoff
 
-Last materially updated: **2026-07-23 JST**
+Last updated: **2026-07-23 JST**
 
-This is the single canonical continuation document. A new thread must be able to
-resume by receiving only:
+A new thread must resume from only:
 
 > https://github.com/GoodLight999/ClipCascade-Extended ←これを引継いで開発して！
 
-Do not reconstruct project state from archived repositories, abandoned branches,
-old chat speculation, or superseded CI failures.
+## Authority and active work
 
-## 1. Repository and source authority
+- Repository: `GoodLight999/ClipCascade-Extended`
+- Branch: `stability-mobile-otp` (historical name; clipboard reliability is priority)
+- Draft PR: `#2`
+- Protocol/server authority: `Sathvik-Rao/ClipCascade`
+- Primary Android behavior reference: `wuxinkami/ClipCascade_go_fork`
+- Shizuku API: `RikkaApps/Shizuku-API`; optional user-facing fork: `thedjchi/Shizuku`
+- Permanently excluded: `GoodLight999/Trash-ClipCascade`; never import, test, or derive facts from it.
 
-- Development repository: `GoodLight999/ClipCascade-Extended`
-- Active branch: `stability-mobile-otp` (historical name; clipboard reliability now has priority)
-- Active draft PR: `#2 — Build a reliability-first Android client and standalone APK`
-- **Protocol/server compatibility authority:** `Sathvik-Rao/ClipCascade`
-- **Primary Android behavior reference:** `wuxinkami/ClipCascade_go_fork`
-- Shizuku integration/reference: `RikkaApps/Shizuku-API` and, for user-facing
-  installation/restart robustness, `thedjchi/Shizuku`
-- Permanently excluded: `GoodLight999/Trash-ClipCascade`
+## Non-negotiable requirements
 
-The excluded repository must not be imported, copied, migrated, tested as a
-baseline, treated as a source of implementation facts, or described as a
-canonical/archived original.
+1. Stable generic clipboard send/receive is the core product.
+2. Preferred runtime is ADB-free: Accessibility Service + ordinary overlay permission.
+3. Preferred privileged fallback setup is **Shizuku started once**, authorization and grants applied/verified, then Shizuku may stop.
+4. Second choice is one-time PC ADB commands.
+5. **Always-on Shizuku is forbidden as a normal requirement.** Routine clipboard/network runtime must not use its Binder.
+6. Preserve full `Sathvik-Rao/ClipCascade` authentication, encryption, P2S/P2P, payload, and reconnect compatibility.
+7. Setup guidance must cover English, Japanese, and Simplified Chinese.
+8. Keep `com.clipcascade.extended`, the permanent signer, and increasing versionCode for in-place updates.
+9. OTP/SMS/email is deferred until generic clipboard acceptance is green; later work must exceed `jd1378/otphelper` rather than add a superficial regex feature.
 
-Before using any repository, verify exact owner/name, archive status, stated role,
-license, and the user's designation.
+## Current implementation
 
-## 2. Corrected user requirements and priority order
+`UPSTREAM.lock` pins `Sathvik-Rao/ClipCascade` commit
+`fd2cbbce69d5e5fa6b9b758d13a7dc6efdcb8a39`, mobile path
+`ClipCascade_Mobile/src`. Materialization verifies the SHA and applies guarded overlays.
 
-**Stable operation is the absolute requirement. ADB-free generic clipboard sync is
-the final goal, but a dependable ADB fallback is preferable to an unreliable
-ADB-free claim.**
+Implemented ADB-free path:
 
-The governing priority order is:
+- `ClipCascadeAccessibilityService` observes events outside Extended only while sync is requested.
+- `CopySignalClassifier` recognizes explicit/localized copy feedback in English, Japanese, Chinese, and Korean, avoids generic-click triggering, and unit tests cover rejection/acceptance.
+- `ClipboardCaptureCoordinator` persists the newest request, serializes overlay acquisition, retries launch failure, and preserves a newer request arriving during capture.
+- `ClipboardFloatingActivity` performs one-shot 1x1 overlay focus acquisition, reads text/image/file URI payloads, cleans up in `finally`, and delivers or persists the React event.
+- Accessibility and READ_LOGS-denial triggers share the same coordinator.
+- Accessibility declares `canRetrieveWindowContent=false`.
 
-1. **Generic Android clipboard send/receive reliability.** This is the core product.
-2. Reproduce and then harden the Go fork's Android mechanism:
-   `AccessibilityService` copy-signal detection -> foreground background service ->
-   momentary overlay/focus acquisition -> clipboard read -> upstream-compatible send.
-3. Preserve full server-side compatibility with `Sathvik-Rao/ClipCascade`, including
-   authentication, P2S/P2P behavior, encryption, payload types, and reconnect semantics.
-4. Make ADB-free operation the preferred path using Accessibility Service and normal
-   Android permissions.
-5. Keep a formal ADB-capable fallback when needed for stability. **ADB fallback and
-   Shizuku integration are a package deal:** the application must detect Shizuku,
-   request Shizuku permission, apply/check required grants through privileged Binder or
-   UserService calls where possible, and guide the user through a click-driven wizard.
-   Installing and starting Shizuku may be delegated to the user; raw desktop ADB
-   commands must not be the normal user experience.
-6. Provide a foolproof permission/setup wizard and self-test in English, Japanese,
-   and Simplified Chinese. Every step must expose current state, expected result,
-   failure reason, and a direct settings/action button.
-7. Use one permanent application ID and one permanent signing lineage so every
-   generated APK supports in-place update.
-8. **OTP/SMS/email extraction is deferred to the final phase.** It must not distract
-   from clipboard reliability. When resumed, it must aim to exceed `jd1378/otphelper`,
-   not ship as a superficial regex feature.
+Implemented one-time Shizuku setup:
 
-Design documents alone are not completion. Every behavioral change must progress
-through implementation, automated tests, CI, APK generation, and real-device
-acceptance.
+- standard Shizuku API/provider `13.1.5`;
+- Binder/API/UID/authorization detection and in-app authorization request;
+- transient non-daemon AIDL UserService applies `READ_LOGS` and overlay app-op;
+- every command exit code is checked;
+- Extended polls its own real permission/app-op state and refuses to report success unless both are retained;
+- UserService is removed after setup; status explicitly reports `runtimeDependency=false` and `usage=one-time-setup-only`.
 
-## 3. Honest status of the current PR
+Setup UI includes direct Accessibility/overlay buttons, one-time Shizuku setup, PC ADB second-choice guidance, and Reliability Self-Test. OTP setup is not in the core flow.
 
-The current PR is a useful **CI-green build and lifecycle baseline**, but it does
-**not yet satisfy the corrected core requirement**.
+Existing foundation retained: pending native-event FIFO, task/lifecycle corrections, truthful diagnostics scaffolding, guarded upstream JS fixes, stable signing, lint/Jest/Android tests, and signed APK CI.
 
-What is implemented and worth preserving:
-
-- reproducible pinning of `Sathvik-Rao/ClipCascade` mobile source;
-- deterministic guarded overlays/patches;
-- stable Extended package ID and signing key;
-- native-event persistence when React Native is not ready;
-- task/lifecycle fixes that remove destructive `FLAG_ACTIVITY_CLEAR_TASK` behavior;
-- strict lint, Jest, Android unit tests, signed APK build, signature verification;
-- diagnostics scaffolding and a fallback log-denial classifier.
-
-What is **not** implemented yet:
-
-- the Go fork's `ClipCascadeAccessibilityService` equivalent;
-- an Accessibility Service configuration and multilingual enablement wizard;
-- a hardened accessibility-event classifier for copy operations;
-- direct integration between accessibility detection and durable outbound queueing;
-- Shizuku API/provider/UserService integration;
-- one-tap Shizuku-assisted grant/app-op setup and health checks;
-- a complete English/Japanese/Chinese UI;
-- real-device proof on the user's HONOR device;
-- long-duration, reboot, process-death, rapid-copy, and reconnect acceptance;
-- demonstrated behavioral parity or superiority over the historical Go client.
-
-The existing notification OTP code is experimental/non-priority. Do not expand it
-until the generic clipboard acceptance matrix is green. It may remain isolated if it
-does not destabilize the core, but it must not define the branch's architecture or
-completion criteria.
-
-## 4. Go fork findings that must guide implementation
-
-The Go fork contains a concrete Android path that reportedly worked reasonably well
-for the user:
-
-- `ClipCascadeAccessibilityService` observes accessibility events outside its own
-  package and triggers clipboard acquisition after a delay/debounce;
-- it binds to `ClipCascadeBackgroundService`;
-- the background service briefly adds a 1x1 overlay to obtain sufficient foreground
-  focus, reads the clipboard, suppresses self-loop content, and sends through its
-  engine;
-- the service is foreground/sticky and is restarted after boot/package replacement.
-
-This is the starting behavior to reproduce, not code to copy blindly. Known weaknesses
-that must be improved:
-
-- it triggers on broad `TYPE_VIEW_CLICKED`/selection events, causing needless wakeups;
-- one global one-second debounce can miss rapid legitimate copies;
-- copy-word matching is incomplete and language/OEM dependent;
-- service binding races simply drop triggers;
-- overlay add/read/remove is not serialized and is vulnerable to concurrent events;
-- failure/retry state is mostly logging rather than a durable queue/state machine;
-- text-only assumptions and simplistic `lastWrittenText` loop suppression are weak;
-- some task flags and lifecycle handling need the same corrections already made in
-  Extended.
-
-Extended must preserve the successful mechanism while replacing these weaknesses with
-an explicit state machine, bounded queues, content fingerprints, retry policy,
-serialized overlay access, truthful diagnostics, and tests.
-
-## 5. Target Android architecture
-
-### Preferred ADB-free path
-
-1. Foreground synchronization service maintains authenticated P2S/P2P connectivity.
-2. Accessibility Service listens only to the minimum required events and packages.
-3. A copy-signal classifier combines event type, source package, localized copy
-   announcements/toasts, timing, and clipboard fingerprint changes.
-4. Trigger requests enter a bounded durable queue; they are never silently discarded
-   because a service or React context is not ready.
-5. A single serialized clipboard acquisition coordinator briefly obtains focus with
-   an overlay, reads clipboard data, removes the overlay in `finally`, fingerprints the
-   payload, suppresses loops/duplicates, and submits it to the transport queue.
-6. Transport acknowledgements, reconnects, retries, and status shown in UI must reflect
-   reality; opening the app must never fabricate `Connected`.
-
-### Shizuku/ADB reliability fallback
-
-- Integrate `dev.rikka.shizuku:api` and provider support.
-- Detect binder availability, Shizuku version, server UID (ADB/root), permission state,
-  and binder death.
-- Request Shizuku authorization from inside Extended.
-- Prefer Binder/system-service calls or a Shizuku UserService over spawning textual
-  shell commands. Use command execution only where no stable Binder route exists.
-- Provide click-driven actions to apply/check `READ_LOGS` and required app-op state,
-  with explicit verification after each action.
-- Handle reboot/Shizuku-not-running as a visible degraded state and retain the normal
-  Accessibility path.
-- Support `thedjchi/Shizuku` as the recommended user-facing Shizuku build when its
-  watchdog/start-on-boot behavior is useful, but do not couple the app to fork-only
-  APIs unless documented and tested.
-
-Raw ADB commands remain developer/emergency documentation, not the primary onboarding
-flow.
-
-## 6. Permissions and update semantics
-
-The permanent package is `com.clipcascade.extended`. Later APKs must use the same
-application ID, signer/signing lineage, and monotonically increasing versionCode.
-
-A permission or app-op granted to the installed package normally survives an in-place
-update because the package installation is replaced rather than uninstalled. This
-includes a previously applied `pm grant` such as `READ_LOGS`, provided that:
-
-- the update is accepted as the same app (same application ID and signer/lineage);
-- the updated manifest still requests the permission;
-- the app is not uninstalled/cleared as part of installation;
-- Android/OEM policy, permission auto-reset, or a user/admin action does not revoke it.
-
-Therefore the setup wizard must always **check**, never merely assume, the post-update
-state. Uninstalling the app resets grants and app data. Changing the package ID or
-signing certificate prevents an in-place update and would require a fresh install.
-
-## 7. Current reproducible baseline and evidence
-
-`UPSTREAM.lock` pins:
+## Current validated build
 
 ```text
-Repository: Sathvik-Rao/ClipCascade
-Commit: fd2cbbce69d5e5fa6b9b758d13a7dc6efdcb8a39
-Mobile path: ClipCascade_Mobile/src
-```
-
-Current CI-green baseline:
-
-```text
-Implementation commit: f948196bce539022ec047ab1b23de4b7712c418d
-Final documentation/CI commit before this correction: 41c51bd60af891aed1297033442676852fd390a8
-Workflow run: 29966386455
+Implementation commit: 886c155e56187c0b814460c095857845e6a52b1e
+CI run: 29970261242
+Version: 3.2.0-extended.2
+versionCode: 320002
 Application ID: com.clipcascade.extended
-Version: 3.2.0-extended.1 / versionCode 320001
+APK size: 93,595,251 bytes
+Run-specific APK SHA-256:
+d7ce5149d4503a88f376a0b3902cb5986686951210c2e812364027aa8e14b77f
+Signing: APK Signature Scheme v2
 Signer certificate SHA-256:
 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 ```
 
-The green workflow passed exact materialization, patch drift checks, npm install,
-ESLint, Jest, Android unit tests, APK assembly, APK signature verification, checksum,
-and artifact upload. This proves build integrity only; it does not prove the missing
-Accessibility/Shizuku behavior.
+Run `29970261242` passed exact materialization, signing-key inspection, `npm ci`, ESLint, Jest, `testExtendedUnitTest`, `assembleExtended`, `apksigner verify`, checksum, and artifact upload. APK hashes are per-run; bit-for-bit reproducibility is not claimed.
 
-## 8. Immediate continuation order
+## Permission/update semantics
 
-1. Add a work-tested Accessibility Service modeled on the Go fork.
-2. Add the accessibility XML/manifest entries and English/Japanese/Chinese onboarding.
-3. Implement a serialized clipboard acquisition coordinator and durable trigger queue.
-4. Connect acquired clipboard payloads to the existing upstream-compatible transport.
-5. Add unit/instrumentation tests for event classification, debounce/coalescing,
-   service-not-ready recovery, overlay cleanup, duplicate suppression, and rapid copy.
-6. Build and device-test the ADB-free path on the user's HONOR device.
-7. Integrate Shizuku API/provider/UserService and a click-driven fallback wizard.
-8. Verify grants/app-ops after setup, app update, process death, and reboot.
-9. Run fresh-install, in-place-update, 30-minute rapid-copy, 8-hour idle/reconnect,
-   process-kill, reboot, and multiple-source-app tests.
-10. Only after the generic clipboard matrix is green, resume OTP/SMS/email work and
-    compare behavior directly against `jd1378/otphelper`.
+One-time Shizuku or PC ADB grants normally survive Shizuku stopping, reboot, and same-package/same-signer in-place updates. The app must still recheck actual state after startup/update. Uninstall, signer/package change, manifest removal, user/admin/OEM action, or permission reset may revoke them.
 
-## 9. Acceptance standard
+Second-choice commands:
 
-Do not claim success from compilation or a self-test button alone. Completion requires
-recorded real-device evidence for:
+```bash
+adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS
+adb shell appops set com.clipcascade.extended android:system_alert_window allow
+```
 
-- truthful connection state;
-- background inbound and outbound text;
-- screen-off and app-not-open behavior;
-- rapid consecutive copies without stale/missed/duplicate sends;
-- at least five source apps and major clipboard UI variants;
-- service/process death and reconnect;
-- reboot and package replacement;
-- ADB-free Accessibility path;
-- Shizuku-assisted fallback with click-only onboarding;
-- in-place APK update with retained configuration and verified permission state;
-- acceptable battery and input-latency impact.
+## Proof boundary
 
-## 10. Documentation discipline
+CI proves compilation, tests, packaging, and signature only. It has **not** proven HONOR/OEM Accessibility delivery, background Activity/overlay behavior, real Shizuku grant persistence, live user server compatibility, rapid-copy/endurance behavior, reboot recovery, battery impact, or actual `.1`→`.2` in-place update. Never claim these without device evidence.
 
-- Keep this file as the concise canonical state.
-- Keep `WORKLOG.md` as chronological evidence, failed hypotheses, commands, CI runs,
-  device observations, and next actions.
-- Update both whenever requirements, architecture, package ID, signer, CI state,
-  device evidence, or priority changes.
-- Keep PR #2 draft until the corrected core acceptance matrix is green or the user
-  explicitly chooses another merge strategy.
-- Do not erase failed attempts; mark them superseded and record why, without treating
-  them as current implementation facts.
+## Immediate continuation
+
+1. Install `.2` over the previous Extended APK without uninstalling when possible.
+2. Verify configuration retention, signer/versionCode continuity, and actual grants.
+3. Enable Accessibility + overlay; test ADB-free generic text copy from at least five apps with Extended hidden.
+4. Test rapid A→B→C copies, selection-without-copy, duplicates, stale content, and typing latency.
+5. Test live P2S/P2P truthfulness, inbound background/screen-off behavior, reconnect, process kill, and reboot.
+6. Start Shizuku once, authorize/apply/verify, stop it, repeat tests, then reboot **without restarting Shizuku** and retest.
+7. Test one-time PC ADB separately as second choice.
+8. Run 30-minute rapid-copy and 8-hour idle/reconnect tests.
+9. Preserve Self-Test/log evidence for failures; fix the existing architecture rather than speculative rewrites.
+10. Keep OTP isolated until all generic clipboard gates are green.
+
+`WORKLOG.md` is chronological evidence; `docs/TEST_PLAN.md` is the executable matrix. Keep PR #2 draft until real-device acceptance is recorded or the user explicitly changes merge strategy.
