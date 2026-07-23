@@ -84,6 +84,8 @@ def main() -> None:
     require(app_js, "EXTENDED_TEXT.username", "localized login form")
     require(app_js, "EXTENDED_TEXT.start", "localized synchronization controls")
     require(app_js, "APP_VERSION}</Text>", "visible product version")
+    require(app_js, "service-started-for-share", "automatic share service start")
+    require(app_js, "service-started-after-login", "share service start after authentication")
     for inherited in (
         "New version available!",
         "GITHUB",
@@ -142,7 +144,6 @@ def main() -> None:
     require(foreground_js, "ready-after-registration", "listener-order evidence")
     require(foreground_js, "foregroundServiceHandlerRegistered", "single foreground handler")
     require(foreground_js, "foreground_service_error", "persistent foreground-service error")
-    require(foreground_js, "service-started-for-share", "automatic share service start")
     require(foreground_js, "share-image-enqueued", "image share enqueue evidence")
     require(foreground_js, "share-files-enqueued", "file share enqueue evidence")
     require(foreground_js, "⏳ Connecting...", "fresh connection status")
