@@ -35,6 +35,7 @@ def main() -> None:
     accumulator_js = (root / "P2PFragmentAccumulator.js").read_text(encoding="utf-8")
     channel_sender_js = (root / "P2PChannelSender.js").read_text(encoding="utf-8")
     p2s_ack_js = (root / "P2SAckTracker.js").read_text(encoding="utf-8")
+    file_uris_js = (root / "OutboundFileUris.js").read_text(encoding="utf-8")
 
     require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
     require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
@@ -57,6 +58,10 @@ def main() -> None:
     require(all_native, "capture-timeout", "capture watchdog")
     require(all_native, "one-time-setup-only", "one-time Shizuku contract")
     require(all_native, "ClipCascade-ShareStager", "shared URI staging")
+    require(all_native, "MAX_CACHE_BYTES", "shared cache total bound")
+    require(all_native, "MAX_BATCH_BYTES", "shared batch bound")
+    require(all_native, "JSONArray(staged.map(Uri::toString))", "JSON-safe staged file URIs")
+    require(all_native, "JSONArray(uris).toString()", "JSON-safe clipboard file URIs")
     require(all_native, "acquireWakeLockNow", "Headless JS wake lock")
 
     require(foreground_js, "⏳ Connecting...", "fresh connection status")
@@ -89,6 +94,12 @@ def main() -> None:
         "P2S queue release only after server echo",
     )
     require(foreground_js, "P2S server echo acknowledgement timed out", "P2S ACK timeout")
+    require(foreground_js, "parseOutboundFileUris", "JSON-safe outbound file URI parsing")
+    forbid(
+        foreground_js,
+        "const file_paths = clipContent\n                      .split(',')",
+        "comma-split file URI parsing",
+    )
     forbid(foreground_js, "receivingFragments =", "single global fragment buffer")
     forbid(foreground_js, "await sendClipBoard(", "pre-initialization event dispatch")
     forbid(foreground_js, "textEncoder.encode(clipContent)", "unsafe P2P byte sizing")
@@ -102,6 +113,8 @@ def main() -> None:
     require(channel_sender_js, "backpressure timeout", "DataChannel timeout guard")
     require(p2s_ack_js, "P2S acknowledgement ID is required", "P2S ACK input guard")
     require(p2s_ack_js, "active?.id !== id", "P2S ACK identity guard")
+    require(file_uris_js, "JSON.parse(value)", "JSON file URI decoding")
+    require(file_uris_js, "Backward compatibility", "legacy file URI compatibility")
 
     runtime_files = [
         android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt",
@@ -114,6 +127,7 @@ def main() -> None:
         root / "P2PFragmentAccumulator.js",
         root / "P2PChannelSender.js",
         root / "P2SAckTracker.js",
+        root / "OutboundFileUris.js",
     ]
     for path in runtime_files:
         text = path.read_text(encoding="utf-8")
