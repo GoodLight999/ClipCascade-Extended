@@ -1,6 +1,7 @@
 package com.clipcascade
 
 import android.view.accessibility.AccessibilityEvent
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,8 +21,14 @@ class CopySignalClassifierTest {
     }
 
     @Test
-    fun acceptsEnglishJapaneseAndChineseCopyFeedback() {
-        val samples = listOf("Copied to clipboard", "クリップボードにコピーしました", "已复制到剪贴板")
+    fun acceptsLocalizedCopyFeedback() {
+        val samples = listOf(
+            "Copied to clipboard",
+            "クリップボードにコピーしました",
+            "已复制到剪贴板",
+            "已複製到剪貼簿",
+            "클립보드에 복사했습니다"
+        )
         samples.forEach { text ->
             val result = CopySignalClassifier.classify(
                 AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED,
@@ -45,32 +52,46 @@ class CopySignalClassifierTest {
     }
 
     @Test
-    fun ignoresGenericClicksButAcceptsExplicitCopyButton() {
+    fun ignoresGenericClicksButAcceptsExplicitCopyButtons() {
         val generic = CopySignalClassifier.classify(
             AccessibilityEvent.TYPE_VIEW_CLICKED,
             "example.app",
             listOf("Open"),
             ownPackage
         )
-        val copy = CopySignalClassifier.classify(
-            AccessibilityEvent.TYPE_VIEW_CLICKED,
-            "example.app",
-            listOf("コピー"),
-            ownPackage
-        )
+        val labels = listOf("Copy", "アドレスをコピー", "复制地址", "주소 복사")
         assertFalse(generic.capture)
-        assertTrue(copy.capture)
+        labels.forEach { label ->
+            val copy = CopySignalClassifier.classify(
+                AccessibilityEvent.TYPE_VIEW_CLICKED,
+                "example.app",
+                listOf(label),
+                ownPackage
+            )
+            assertTrue(label, copy.capture)
+        }
     }
 
     @Test
-    fun selectionChangeCreatesDelayedProbe() {
+    fun selectionWithoutCopyNeverTriggersCapture() {
         val result = CopySignalClassifier.classify(
             AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED,
             "example.app",
-            emptyList(),
+            listOf("selected text"),
             ownPackage
         )
-        assertTrue(result.capture)
-        assertTrue(result.delayMs >= 300L)
+        assertFalse(result.capture)
+        assertEquals("selection-without-copy", result.reason)
+    }
+
+    @Test
+    fun rejectsUnknownPackageEvenWithCopyText() {
+        val result = CopySignalClassifier.classify(
+            AccessibilityEvent.TYPE_ANNOUNCEMENT,
+            null,
+            listOf("Copied"),
+            ownPackage
+        )
+        assertFalse(result.capture)
     }
 }
