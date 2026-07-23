@@ -16,25 +16,21 @@ import java.util.concurrent.Executors
 /** One-shot setup helper. ClipCascade runtime must never depend on Shizuku staying alive. */
 object ShizukuSetup {
     private const val REQUEST_CODE = 7342
+    private const val PERMISSION_TIMEOUT_MS = 30_000L
+    private const val SETUP_TIMEOUT_MS = 30_000L
     private val handler = Handler(Looper.getMainLooper())
     private val setupExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "ClipCascade-ShizukuSetup").apply { isDaemon = true }
     }
     private var permissionPromise: Promise? = null
+    private var permissionTimeout: Runnable? = null
     private var setupPromise: Promise? = null
     private var activeConnection: ServiceConnection? = null
-    private var activeArgs: Shizuku.UserServiceArgs? = null
+    private var setupTimeout: Runnable? = null
 
     private val permissionListener = Shizuku.OnRequestPermissionResultListener { requestCode, result ->
         if (requestCode != REQUEST_CODE) return@OnRequestPermissionResultListener
-        val promise = synchronized(this) {
-            permissionPromise.also { permissionPromise = null }
-        } ?: return@OnRequestPermissionResultListener
-        if (result == PackageManager.PERMISSION_GRANTED) {
-            promise.resolve(true)
-        } else {
-            promise.reject("SHIZUKU_DENIED", "Shizuku permission was denied")
-        }
+        finishPermissionRequest(result)
     }
 
     init {
@@ -42,13 +38,13 @@ object ShizukuSetup {
     }
 
     fun status(context: Context): String = JSONObject().apply {
-        val running = try { Shizuku.pingBinder() } catch (_: Throwable) { false }
+        val running = binderAlive()
         put("running", running)
-        put("permissionGranted", running && try {
+        put("permissionGranted", running && runCatching {
             Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (_: Throwable) { false })
-        put("serverUid", if (running) try { Shizuku.getUid() } catch (_: Throwable) { -1 } else -1)
-        put("apiVersion", if (running) try { Shizuku.getVersion() } catch (_: Throwable) { -1 } else -1)
+        }.getOrDefault(false))
+        put("serverUid", if (running) runCatching { Shizuku.getUid() }.getOrDefault(-1) else -1)
+        put("apiVersion", if (running) runCatching { Shizuku.getVersion() }.getOrDefault(-1) else -1)
         put(
             "readLogs",
             ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_LOGS) ==
@@ -65,7 +61,13 @@ object ShizukuSetup {
             promise.reject("SHIZUKU_NOT_RUNNING", "Start Shizuku once, then return to ClipCascade")
             return
         }
-        if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+        val alreadyGranted = runCatching {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        }.getOrElse { error ->
+            promise.reject("SHIZUKU_PERMISSION_ERROR", error.message, error)
+            return
+        }
+        if (alreadyGranted) {
             promise.resolve(true)
             return
         }
@@ -73,10 +75,26 @@ object ShizukuSetup {
             promise.reject("SHIZUKU_BUSY", "A Shizuku permission request is already open")
             return
         }
+
         permissionPromise = promise
+        val timeout = Runnable {
+            synchronized(this@ShizukuSetup) {
+                val pending = permissionPromise ?: return@synchronized
+                permissionPromise = null
+                permissionTimeout = null
+                pending.reject(
+                    "SHIZUKU_PERMISSION_TIMEOUT",
+                    "Shizuku permission request timed out; restart Shizuku and try again"
+                )
+            }
+        }
+        permissionTimeout = timeout
+        handler.postDelayed(timeout, PERMISSION_TIMEOUT_MS)
         try {
             Shizuku.requestPermission(REQUEST_CODE)
         } catch (error: Throwable) {
+            handler.removeCallbacks(timeout)
+            permissionTimeout = null
             permissionPromise = null
             promise.reject("SHIZUKU_PERMISSION_ERROR", error.message, error)
         }
@@ -88,7 +106,13 @@ object ShizukuSetup {
             promise.reject("SHIZUKU_NOT_RUNNING", "Start Shizuku once, then return to ClipCascade")
             return
         }
-        if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+        val permissionGranted = runCatching {
+            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        }.getOrElse { error ->
+            promise.reject("SHIZUKU_PERMISSION_ERROR", error.message, error)
+            return
+        }
+        if (!permissionGranted) {
             promise.reject("SHIZUKU_PERMISSION_REQUIRED", "Authorize ClipCascade in Shizuku first")
             return
         }
@@ -130,32 +154,48 @@ object ShizukuSetup {
             }
 
             override fun onServiceDisconnected(name: ComponentName) {
-                finishSetup(
-                    args,
-                    this,
-                    error = IllegalStateException("Shizuku setup service disconnected")
-                )
+                handler.post {
+                    finishSetup(
+                        args,
+                        this,
+                        error = IllegalStateException("Shizuku setup service disconnected")
+                    )
+                }
             }
         }
 
         setupPromise = promise
-        activeArgs = args
         activeConnection = connection
+        val timeout = Runnable {
+            synchronized(this@ShizukuSetup) {
+                if (setupPromise != null && activeConnection === connection) {
+                    finishSetup(
+                        args,
+                        connection,
+                        error = IllegalStateException("Shizuku setup timed out")
+                    )
+                }
+            }
+        }
+        setupTimeout = timeout
+        handler.postDelayed(timeout, SETUP_TIMEOUT_MS)
         try {
             Shizuku.bindUserService(args, connection)
-            handler.postDelayed({
-                synchronized(this@ShizukuSetup) {
-                    if (setupPromise != null && activeConnection === connection) {
-                        finishSetup(
-                            args,
-                            connection,
-                            error = IllegalStateException("Shizuku setup timed out")
-                        )
-                    }
-                }
-            }, 30_000L)
         } catch (error: Throwable) {
             finishSetup(args, connection, error = error)
+        }
+    }
+
+    @Synchronized
+    private fun finishPermissionRequest(result: Int) {
+        val promise = permissionPromise ?: return
+        permissionPromise = null
+        permissionTimeout?.let(handler::removeCallbacks)
+        permissionTimeout = null
+        if (result == PackageManager.PERMISSION_GRANTED) {
+            promise.resolve(true)
+        } else {
+            promise.reject("SHIZUKU_DENIED", "Shizuku permission was denied")
         }
     }
 
@@ -170,7 +210,8 @@ object ShizukuSetup {
         val promise = setupPromise
         setupPromise = null
         activeConnection = null
-        activeArgs = null
+        setupTimeout?.let(handler::removeCallbacks)
+        setupTimeout = null
         try {
             if (binderAlive()) Shizuku.unbindUserService(args, connection, true)
         } catch (_: Throwable) {
@@ -195,5 +236,5 @@ object ShizukuSetup {
         return latest
     }
 
-    private fun binderAlive(): Boolean = try { Shizuku.pingBinder() } catch (_: Throwable) { false }
+    private fun binderAlive(): Boolean = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
 }
