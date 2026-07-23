@@ -22,6 +22,7 @@ object ReliabilityAutoDebug {
         "shared_payload_pending",
         "foreground_service_error",
         "foreground_service_state",
+        "foreground_service_heartbeat_at",
         "foreground_service_last_started_at",
         "foreground_service_last_stopped_at",
         "p2p_candidate_peers",
