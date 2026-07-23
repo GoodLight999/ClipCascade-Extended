@@ -15,6 +15,7 @@ function check(id, level, detail) {
 export function analyzeDiagnostics(statusInput, nativeProbeInput = {}) {
   const status = parseObject(statusInput);
   const probe = parseObject(nativeProbeInput);
+  const clipboardProbe = parseObject(probe.clipboard);
   const queue = parseObject(status.outboundQueueStatus);
   const checks = [];
 
@@ -89,8 +90,12 @@ export function analyzeDiagnostics(statusInput, nativeProbeInput = {}) {
   checks.push(
     check(
       'foreground-clipboard-probe',
-      probe.clipboardRead === true ? 'PASS' : probe.clipboardRead === false ? 'FAIL' : 'WARN',
-      JSON.stringify(probe),
+      clipboardProbe.clipboardRead === true
+        ? 'PASS'
+        : clipboardProbe.clipboardRead === false
+          ? 'FAIL'
+          : 'WARN',
+      JSON.stringify(clipboardProbe),
     ),
   );
 
