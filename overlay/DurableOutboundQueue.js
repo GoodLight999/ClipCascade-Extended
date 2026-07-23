@@ -8,7 +8,7 @@ const STORAGE_KEY = 'extended_outbound_queue_v1';
 const MAX_ITEMS = 64;
 const MAX_TOTAL_CHARS = 16 * 1024 * 1024;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const MAX_FAILURES = 3;
+const MAX_FAILURES = 8;
 let operationChain = Promise.resolve();
 
 const serialize = operation => {
