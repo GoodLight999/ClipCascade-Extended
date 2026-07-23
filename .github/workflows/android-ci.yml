@@ -55,6 +55,22 @@ jobs:
         working-directory: build/mobile
         run: npm ci
 
+      - name: Audit injected Gradle repositories
+        working-directory: build/mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '=== central.sonatype snapshot references ==='
+            grep -R -n -I --exclude='*.map' \
+              'central.sonatype.com/repository/maven-snapshots' \
+              android node_modules || true
+            echo '=== generic Sonatype snapshot references ==='
+            grep -R -n -I --exclude='*.map' \
+              -E 'sonatype.*snapshot|snapshot.*sonatype' \
+              android node_modules || true
+          } | tee gradle-repository-audit.txt
+
       - name: Lint JavaScript and TypeScript
         working-directory: build/mobile
         shell: bash
@@ -137,6 +153,7 @@ jobs:
             apk-manifest.xml
             apk-zip-test.txt
             apk-zipalign.txt
+            build/mobile/gradle-repository-audit.txt
           if-no-files-found: error
           retention-days: 30
 
@@ -149,6 +166,7 @@ jobs:
             build/mobile/lint.log
             build/mobile/jest.log
             build/mobile/gradle-build.log
+            build/mobile/gradle-repository-audit.txt
             build/mobile/App.js
             build/mobile/android/app/build.gradle
             build/mobile/android/app/src/main/AndroidManifest.xml
