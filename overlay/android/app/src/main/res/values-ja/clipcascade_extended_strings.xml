@@ -2,4 +2,5 @@
 <resources>
     <string name="clipcascade_accessibility_label">ClipCascade コピー検知</string>
     <string name="clipcascade_accessibility_description">コピー操作を検知し、同期のため一瞬だけクリップボードを読み取ります。画面内容は取得しません。</string>
+    <string name="clipcascade_share_prepare_failed">共有ファイルを送信用に準備できませんでした。</string>
 </resources>
