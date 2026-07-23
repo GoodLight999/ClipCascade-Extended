@@ -114,6 +114,17 @@ def patch_foreground_service(path: Path) -> None:
     )
     text = replace_exact(
         text,
+        """                    const rawPayloadSizeInBytes =
+                      textEncoder.encode(clipContent).length;""",
+        """                    const rawPayloadSizeInBytes = Buffer.byteLength(
+                      clipContent,
+                      'utf8',
+                    );""",
+        1,
+        "P2P raw UTF-8 byte length",
+    )
+    text = replace_exact(
+        text,
         "temp = {};",
         "const temp = {};",
         2,
@@ -136,6 +147,41 @@ def patch_foreground_service(path: Path) -> None:
         let max_clipboard_size_local_limit_bytes = Number(maxClipboardLimitStr);""",
         1,
         "clear stale connection status at service start",
+    )
+    text = replace_exact(
+        text,
+        """                    let loopBroken = false;
+                    sendingFragmentId = metadata.id;""",
+        """                    const openChannels = Object.values(dataChannels).filter(
+                      channel => channel && channel.readyState === 'open',
+                    );
+                    if (openChannels.length === 0) {
+                      throw new Error('No open P2P peer data channel');
+                    }
+
+                    let loopBroken = false;
+                    sendingFragmentId = metadata.id;""",
+        1,
+        "P2P open-channel precondition",
+    )
+    text = replace_exact(
+        text,
+        """                      // send to all open DataChannels
+                      Object.entries(dataChannels).forEach(
+                        async ([peerId, channel]) => {
+                          if (channel.readyState === 'open') {
+                            await channel.send(messageJson);
+                          }
+                        },
+                      );""",
+        """                      // DataChannel.send is synchronous. A for...of loop keeps
+                      // failures inside this send attempt instead of losing them in
+                      // an unobserved async forEach callback.
+                      for (const channel of openChannels) {
+                        channel.send(messageJson);
+                      }""",
+        1,
+        "P2P channel send error propagation",
     )
     text = replace_exact(
         text,
