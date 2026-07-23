@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require active event, heartbeat, clipboard URI and report-copy diagnostics."""
+"""Require active event, heartbeat, runtime lease, clipboard URI and report-copy diagnostics."""
 from __future__ import annotations
 
 import argparse
@@ -30,9 +30,16 @@ def main() -> None:
     require(panel, "probe.eventBridge = eventBridge", "active event result in report")
     require(analyzer, "native-react-event-bridge", "active event verdict")
     require(analyzer, "heartbeatAgeMs", "heartbeat freshness verdict")
+    require(analyzer, "foreground-runtime-singleton", "foreground runtime singleton verdict")
     require(foreground, "foreground_service_heartbeat_at", "foreground loop heartbeat")
+    require(foreground, "activeForegroundRuntimeId", "single foreground runtime lease")
+    require(foreground, "duplicate-runtime-suppressed", "duplicate runtime suppression")
+    require(foreground, "finishForegroundRuntime", "runtime lease release")
     require(native_bridge, "foregroundServiceHeartbeatAt", "heartbeat status bridge")
+    require(native_bridge, "foregroundServiceInstanceId", "runtime instance status bridge")
+    require(native_bridge, "foregroundServiceDuplicateSuppressedAt", "duplicate status bridge")
     require(native_debug, '"foreground_service_heartbeat_at"', "heartbeat raw snapshot")
+    require(native_debug, '"foreground_service_instance_id"', "runtime lease raw snapshot")
     require(native_debug, 'put("uriCount", uriCount)', "clipboard URI visibility")
     require(panel, "Clipboard.setString(dialog.copy)", "one-tap full report copy")
 
