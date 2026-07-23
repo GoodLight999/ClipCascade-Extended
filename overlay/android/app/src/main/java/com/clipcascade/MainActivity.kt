@@ -3,7 +3,10 @@ package com.clipcascade
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -20,6 +23,8 @@ class MainActivity : ReactActivity() {
         const val TAG = "ClipCascade"
         const val WORK_NAME = "schedule_work"
     }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun getMainComponentName(): String = "ClipCascade"
 
@@ -88,20 +93,20 @@ class MainActivity : ReactActivity() {
             }
 
             Intent.ACTION_SEND == intent.action && intent.type?.startsWith("image/") == true -> {
-                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let {
-                    dispatch("SHARED_IMAGE", "image", it.toString())
+                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
+                    stageAndDispatch(listOf(uri), "SHARED_IMAGE", "image")
                 }
             }
 
             Intent.ACTION_SEND == intent.action && intent.type != null -> {
-                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let {
-                    dispatch("SHARED_FILES", "files", it.toString())
+                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
+                    stageAndDispatch(listOf(uri), "SHARED_FILES", "files")
                 }
             }
 
             Intent.ACTION_SEND_MULTIPLE == intent.action && intent.type != null -> {
                 intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.let { uris ->
-                    dispatch("SHARED_FILES", "files", uris.joinToString(",") { it.toString() })
+                    stageAndDispatch(uris, "SHARED_FILES", "files")
                 }
             }
         }
@@ -114,6 +119,38 @@ class MainActivity : ReactActivity() {
                     .setValue("foreground_service_stopped_running", "true")
             } catch (error: Exception) {
                 Log.e(TAG, "Unable to persist foreground-service state", error)
+            }
+        }
+    }
+
+    private fun stageAndDispatch(
+        uris: List<Uri>,
+        eventName: String,
+        key: String
+    ) {
+        val app = applicationContext
+        AsyncStorageBridge(app).setValue("shared_payload_status", "staging:${uris.size}")
+        SharedPayloadStager.stage(app, uris) { result ->
+            mainHandler.post {
+                result.onSuccess { staged ->
+                    val value = staged.joinToString(",") { it.toString() }
+                    AsyncStorageBridge(app).setValue(
+                        "shared_payload_status",
+                        "staged:${staged.size}"
+                    )
+                    dispatch(eventName, key, value)
+                }.onFailure { error ->
+                    val outcome = "staging-error:${error.javaClass.simpleName}:${error.message}"
+                    AsyncStorageBridge(app).setValue("shared_payload_status", outcome.take(300))
+                    Log.e(TAG, "Unable to stage shared payload", error)
+                    if (!isFinishing && !isDestroyed) {
+                        Toast.makeText(
+                            this,
+                            "ClipCascade could not prepare the shared file.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             }
         }
     }
