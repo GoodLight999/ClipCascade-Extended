@@ -107,7 +107,13 @@ object ShizukuSetup {
                 try {
                     val service = IClipCascadeSetupService.Stub.asInterface(binder)
                     val remote = JSONObject(service.applySetup(app.packageName))
-                    remote.put("verified", JSONObject(status(app)))
+                    val verified = waitForVerification(app)
+                    remote.put("verified", verified)
+                    if (!verified.getBoolean("readLogs") || !verified.getBoolean("overlay")) {
+                        throw IllegalStateException(
+                            "Shizuku commands returned but Android did not retain the required grants: $verified"
+                        )
+                    }
                     finishSetup(args, this, result = remote.toString())
                 } catch (error: Throwable) {
                     finishSetup(args, this, error = error)
@@ -167,6 +173,17 @@ object ShizukuSetup {
                 error
             )
         }
+    }
+
+    private fun waitForVerification(context: Context): JSONObject {
+        val deadline = System.currentTimeMillis() + 5_000L
+        var latest = JSONObject(status(context))
+        while (System.currentTimeMillis() < deadline) {
+            if (latest.optBoolean("readLogs") && latest.optBoolean("overlay")) return latest
+            Thread.sleep(150L)
+            latest = JSONObject(status(context))
+        }
+        return latest
     }
 
     private fun binderAlive(): Boolean = try { Shizuku.pingBinder() } catch (_: Throwable) { false }

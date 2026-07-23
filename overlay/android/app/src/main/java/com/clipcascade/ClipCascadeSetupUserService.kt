@@ -17,9 +17,16 @@ class ClipCascadeSetupUserService() : IClipCascadeSetupService.Stub() {
             listOf("cmd", "package", "grant", packageName, android.Manifest.permission.READ_LOGS),
             listOf("cmd", "appops", "set", packageName, "android:system_alert_window", "allow")
         )
+        val results = commands.map(::runCommand)
+        val failed = results.filter { it.optInt("exitCode", -1) != 0 }
+        if (failed.isNotEmpty()) {
+            throw IllegalStateException(
+                "One-time Shizuku setup command failed: ${JSONArray(failed)}"
+            )
+        }
         return JSONObject().apply {
             put("mode", "one-time-shizuku")
-            put("commands", JSONArray(commands.map(::runCommand)))
+            put("commands", JSONArray(results))
             put("inspection", JSONObject(inspectSetup(packageName)))
         }.toString()
     }
