@@ -22,6 +22,28 @@ def main() -> None:
 
     replace_once(
         service,
+        """        let sendClipBoardTransport = null;
+        let outboundFlushRunning = false;""",
+        """        let sendClipBoardTransport = null;
+        let p2pTransportReady = () => false;
+        let outboundFlushRunning = false;""",
+        "declare cross-scope P2P readiness probe",
+    )
+    replace_once(
+        service,
+        """          let liveConnectionsCount = 0; // Track open DataChannels""",
+        """          let liveConnectionsCount = 0; // Track open DataChannels
+          p2pTransportReady = () => liveConnectionsCount > 0;""",
+        "bind P2P readiness probe",
+    )
+    replace_once(
+        service,
+        """            if (liveConnectionsCount <= 0) return false;""",
+        """            if (!p2pTransportReady()) return false;""",
+        "use P2P readiness probe",
+    )
+    replace_once(
+        service,
         """          await setDataInAsyncStorage(
             'outbound_queue_status',
             JSON.stringify({...snapshot, state}),
