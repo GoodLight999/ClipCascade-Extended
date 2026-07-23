@@ -46,8 +46,11 @@ object ClipboardCaptureCoordinator {
 
     @Synchronized
     fun resumePending(context: Context) {
+        // In-memory inFlight state is already reset after process death. Within the
+        // same process, clearing it here can launch a duplicate Activity while the
+        // original capture is still running.
+        if (inFlight.get()) return
         val app = context.applicationContext
-        clearActiveCapture()
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_PENDING, false)) schedulePending(app)
     }
