@@ -150,12 +150,26 @@ jobs:
           grep -Fq 'ClipCascade-ShizukuSetup' apk-dex-strings.txt
           grep -Fq 'addBinderReceivedListenerSticky' apk-dex-strings.txt
           grep -Fq 'ReliabilityAutoDebug' apk-dex-strings.txt
-          grep -Fq 'ready-after-registration' apk-dex-strings.txt
+          grep -Fq 'ForegroundRuntimeRecovery' apk-dex-strings.txt
+          grep -Fq 'com.clipcascade.CAPTURE_RECOVERY' apk-dex-strings.txt
+          grep -Fq 'foreground_service_recovery_status' apk-dex-strings.txt
           grep -Fq 'foreground_service_error' apk-dex-strings.txt
           grep -Fq 'p2p_incompatible_peers' apk-dex-strings.txt
           grep -Fq 'activateAndDrain' apk-dex-strings.txt
           ! grep -Fq 'NotificationCaptureService' apk-dex-strings.txt
           ! grep -Fq 'OtpExtractor' apk-dex-strings.txt
+
+          unzip -p "$apk" assets/index.android.bundle > apk-js-bundle.txt
+          test -s apk-js-bundle.txt
+          grep -Fq 'ready-after-registration' apk-js-bundle.txt
+          grep -Fq 'duplicate-runtime-suppressed' apk-js-bundle.txt
+          grep -Fq 'foreground_service_loop_failed_at' apk-js-bundle.txt
+          grep -Fq 'service-started-for-share' apk-js-bundle.txt
+          grep -Fq 'notificationConnectionRestored' apk-js-bundle.txt
+          grep -Fq '自動診断レポート' apk-js-bundle.txt
+          ! grep -Fq 'New version available!' apk-js-bundle.txt
+          ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/version.json' apk-js-bundle.txt
+          ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/metadata.json' apk-js-bundle.txt
 
           mkdir -p dist
           cp "$apk" dist/ClipCascade-Extended.apk
@@ -172,6 +186,8 @@ jobs:
             apk-manifest.xml
             apk-zip-test.txt
             apk-zipalign.txt
+            apk-dex-strings.txt
+            apk-js-bundle.txt
             build/mobile/gradle-repository-audit.txt
             materialize.log
           if-no-files-found: error
@@ -200,6 +216,7 @@ jobs:
             build/mobile/android/app/src/main/java/com/clipcascade/ClipCascadeAccessibilityService.kt
             build/mobile/android/app/src/main/java/com/clipcascade/ShizukuSetup.kt
             build/mobile/android/app/src/main/java/com/clipcascade/ReliabilityAutoDebug.kt
+            build/mobile/android/app/src/main/java/com/clipcascade/ForegroundRuntimeRecovery.kt
             build/mobile/android/app/build/reports/**
             build/mobile/android/build/reports/**
             apk-signature.txt
@@ -207,6 +224,7 @@ jobs:
             apk-zip-test.txt
             apk-zipalign.txt
             apk-dex-strings.txt
+            apk-js-bundle.txt
             build/mobile/npm-debug.log
           if-no-files-found: ignore
           retention-days: 14
