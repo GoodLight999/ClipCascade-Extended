@@ -116,6 +116,16 @@ export function analyzeDiagnostics(
     ),
   );
 
+  const recoveryStatus = String(status.foregroundServiceRecoveryStatus || '');
+  const recoveryFailed = /(?:recovery-failed|headless-error)/i.test(recoveryStatus);
+  checks.push(
+    check(
+      'foreground-recovery',
+      recoveryFailed ? 'FAIL' : 'PASS',
+      recoveryStatus || 'no recovery attempt recorded',
+    ),
+  );
+
   checks.push(
     check(
       'shared-payload',
@@ -169,6 +179,7 @@ const DEFAULT_REPORT_TEXT = {
   diagnosticOutboundQueue: 'Durable outbound queue',
   diagnosticForeground: 'Foreground Service heartbeat',
   diagnosticSingleton: 'Foreground runtime singleton',
+  diagnosticRecovery: 'Visible-capture runtime recovery',
   diagnosticSharedPayload: 'Android Share / staged payload',
   diagnosticP2P: 'P2P compatibility',
   diagnosticClipboardProbe: 'Foreground clipboard probe',
@@ -183,6 +194,7 @@ const CHECK_LABEL_KEYS = {
   'outbound-queue': 'diagnosticOutboundQueue',
   'foreground-service': 'diagnosticForeground',
   'foreground-runtime-singleton': 'diagnosticSingleton',
+  'foreground-recovery': 'diagnosticRecovery',
   'shared-payload': 'diagnosticSharedPayload',
   'p2p-compatibility': 'diagnosticP2P',
   'foreground-clipboard-probe': 'diagnosticClipboardProbe',
