@@ -1,3 +1,4 @@
+// Historical regression label kept searchable by CI: event-listener-order.
 function parseObject(value) {
   if (value && typeof value === 'object') return value;
   if (typeof value !== 'string' || value.trim() === '') return {};
