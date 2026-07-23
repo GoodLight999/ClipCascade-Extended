@@ -238,8 +238,8 @@ import { createDurableOutboundQueue } from './DurableOutboundQueue';""",
           }
           if (server_mode === 'P2P') {
             if (liveConnectionsCount <= 0) return false;
-            await sendClipBoardP2P(clipContent, type_);
-            return true;
+            const result = await sendClipBoardP2P(clipContent, type_);
+            return result !== false;
           }
           throw new Error(`Unsupported server mode: ${server_mode}`);
         };
