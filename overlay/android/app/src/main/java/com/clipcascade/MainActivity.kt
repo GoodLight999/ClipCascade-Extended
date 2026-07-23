@@ -16,6 +16,7 @@ import com.facebook.react.ReactInstanceManager
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
 import com.facebook.react.devsupport.interfaces.DevSupportManager
+import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ReactActivity() {
@@ -33,6 +34,7 @@ class MainActivity : ReactActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SharedPayloadStager.cleanup(applicationContext)
         intent?.let(::handleIntent)
 
         try {
@@ -133,7 +135,11 @@ class MainActivity : ReactActivity() {
         SharedPayloadStager.stage(app, uris) { result ->
             mainHandler.post {
                 result.onSuccess { staged ->
-                    val value = staged.joinToString(",") { it.toString() }
+                    val value = if (key == "files") {
+                        JSONArray(staged.map(Uri::toString)).toString()
+                    } else {
+                        staged.single().toString()
+                    }
                     AsyncStorageBridge(app).setValue(
                         "shared_payload_status",
                         "staged:${staged.size}"
