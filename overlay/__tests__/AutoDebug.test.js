@@ -92,4 +92,23 @@ describe('automatic diagnostics', () => {
       'ForegroundServiceStartNotAllowedException',
     );
   });
+
+  test('localizes report headings, levels and check names', () => {
+    const result = analyzeDiagnostics(healthyStatus, healthyProbe, now);
+    const report = formatDiagnosticsReport(result, {
+      reportTitle: '自動診断レポート',
+      diagnosticsOverall: '総合判定',
+      diagnosticsGenerated: '生成日時',
+      diagnosticsRawStatus: '生の状態情報',
+      diagnosticsNativeProbe: 'ネイティブ実経路検査',
+      pass: '合格',
+      warn: '要確認',
+      fail: '失敗',
+      diagnosticNativeReact: 'ネイティブ→Reactイベント経路',
+    });
+    expect(report).toContain('総合判定: 合格');
+    expect(report).toContain('[合格] ネイティブ→Reactイベント経路');
+    expect(report).toContain('生の状態情報:');
+    expect(report).toContain('ネイティブ実経路検査:');
+  });
 });
