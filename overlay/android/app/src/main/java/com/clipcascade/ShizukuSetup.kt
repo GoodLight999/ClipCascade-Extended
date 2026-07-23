@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.Promise
 import org.json.JSONObject
@@ -232,9 +233,9 @@ object ShizukuSetup {
     }
 
     private fun waitForVerification(context: Context, connection: ServiceConnection): JSONObject {
-        val deadline = System.currentTimeMillis() + 5_000L
+        val deadline = SystemClock.elapsedRealtime() + 5_000L
         var latest = JSONObject(status(context))
-        while (System.currentTimeMillis() < deadline) {
+        while (SystemClock.elapsedRealtime() < deadline) {
             synchronized(this@ShizukuSetup) {
                 if (setupPromise == null || activeConnection !== connection) {
                     throw IllegalStateException("Shizuku setup was cancelled before verification")
