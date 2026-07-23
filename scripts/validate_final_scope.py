@@ -50,6 +50,10 @@ def main() -> None:
     require(sync_cache, "lastCheckAt = null", "cache invalidation")
     require(shizuku, "activeConnection !== connection", "stale Shizuku connection guard")
     require(shizuku, "waitForVerification(app, connection)", "cancel-aware Shizuku verification")
+    require(native_bridge, "fun openOrGetShizuku", "Shizuku open/install action")
+    require(native_bridge, "thedjchi/Shizuku/releases", "recommended Shizuku fork fallback")
+    require(app, "shizukuOpen", "localized Shizuku open button")
+    require(app, "shizukuGuide", "localized Shizuku guidance")
     require(foreground, "p2s-late-echo-acknowledged", "late P2S ACK recovery")
     require(foreground, "queuedForAck?.id === echoedDeliveryId", "late P2S queue identity guard")
 
