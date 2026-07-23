@@ -7,11 +7,9 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /** Runs only during the one-time Shizuku setup and exits immediately afterwards. */
-class ClipCascadeSetupUserService : IClipCascadeSetupService.Stub {
-    constructor()
-
+class ClipCascadeSetupUserService() : IClipCascadeSetupService.Stub() {
     @Keep
-    constructor(@Suppress("UNUSED_PARAMETER") context: Context)
+    constructor(@Suppress("UNUSED_PARAMETER") context: Context) : this()
 
     override fun applySetup(packageName: String): String {
         require(packageName == BuildConfig.APPLICATION_ID) { "Unexpected package: $packageName" }
