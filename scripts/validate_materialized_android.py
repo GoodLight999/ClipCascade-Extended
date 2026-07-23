@@ -36,6 +36,12 @@ def main() -> None:
     accessibility_service = (
         android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt"
     ).read_text(encoding="utf-8")
+    shizuku_setup = (
+        android / "java/com/clipcascade/ShizukuSetup.kt"
+    ).read_text(encoding="utf-8")
+    native_debug = (
+        android / "java/com/clipcascade/ReliabilityAutoDebug.kt"
+    ).read_text(encoding="utf-8")
     build_gradle = (root / "android/app/build.gradle").read_text(encoding="utf-8")
     app_js = (root / "App.js").read_text(encoding="utf-8")
     foreground_js = (root / "StartForegroundService.js").read_text(encoding="utf-8")
@@ -46,6 +52,10 @@ def main() -> None:
     channel_sender_js = (root / "P2PChannelSender.js").read_text(encoding="utf-8")
     p2s_ack_js = (root / "P2SAckTracker.js").read_text(encoding="utf-8")
     file_uris_js = (root / "OutboundFileUris.js").read_text(encoding="utf-8")
+    i18n_js = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
+    control_panel_js = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
+    auto_debug_js = (root / "AutoDebug.js").read_text(encoding="utf-8")
+    p2p_compat_js = (root / "P2PCompatibility.js").read_text(encoding="utf-8")
 
     require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
     require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
@@ -63,13 +73,42 @@ def main() -> None:
         "if (!isSyncRequested())",
         "copy classification before AsyncStorage lookup",
     )
+
     require(build_gradle, 'applicationId "com.clipcascade.extended"', "permanent package")
-    require(build_gradle, "versionCode 320003", "monotonic versionCode")
-    require(build_gradle, 'versionName "3.2.0-extended.3"', "versionName")
-    require(app_js, "const APP_VERSION = '3.2.0-extended.3';", "UI version")
-    require(app_js, "JS event listener ready", "listener readiness self-test")
-    require(app_js, "Shared payload staging", "shared payload self-test")
-    require(app_js, "Outbound queue", "outbound queue self-test")
+    require(build_gradle, "versionCode 320004", "monotonic versionCode")
+    require(build_gradle, 'versionName "3.2.0-extended.4"', "versionName")
+    require(app_js, "const APP_VERSION = '3.2.0-extended.4';", "UI version")
+    require(app_js, "ExtendedControlPanel", "Extended-only control panel")
+    require(app_js, "getExtendedStrings", "complete product localization")
+    require(app_js, "PlatformColor('?android:attr/textColorPrimary')", "adaptive text color")
+    require(app_js, "EXTENDED_TEXT.username", "localized login form")
+    require(app_js, "EXTENDED_TEXT.start", "localized synchronization controls")
+    require(app_js, "APP_VERSION}</Text>", "visible product version")
+    for inherited in (
+        "New version available!",
+        "GITHUB",
+        "DONATE",
+        "HOMEPAGE",
+        "Automatic Clipboard Monitoring Setup",
+        "raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/version.json",
+        "raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/metadata.json",
+        "adb -d shell am force-stop",
+        "EXTENDED_SETUP_TEXT",
+    ):
+        forbid(app_js, inherited, f"inherited upstream UI residue {inherited}")
+
+    for locale in ("ja:", "zh:", "en:"):
+        require(i18n_js, locale, f"locale dictionary {locale}")
+    for key in ("username", "login", "start", "shizukuSetup", "autoDebug", "copy"):
+        require(i18n_js, f"{key}:", f"localized key {key}")
+    require(control_panel_js, "selectable", "selectable diagnostic text")
+    require(control_panel_js, "Clipboard.setString(dialog.copy)", "one-tap report/ADB copy")
+    require(control_panel_js, "runNativeAutoDebug", "automatic diagnostic button")
+    require(auto_debug_js, "event-listener-order", "listener-order verdict")
+    require(auto_debug_js, "foreground-service", "foreground-service verdict")
+    require(native_debug, "clipboardRead", "native foreground clipboard probe")
+    require(native_debug, "sharedCacheBytes", "shared-cache diagnostics")
+
     require(headless_js, "android.intent.action.MY_PACKAGE_REPLACED", "update headless restart")
 
     kotlin_files = list((android / "java/com/clipcascade").glob("*.kt"))
@@ -83,13 +122,29 @@ def main() -> None:
     require(all_native, "MAX_CACHE_BYTES", "shared cache total bound")
     require(all_native, "MAX_BATCH_BYTES", "shared batch bound")
     require(all_native, "JSONArray(staged.map(Uri::toString))", "JSON-safe staged file URIs")
+    require(all_native, "shared_payload_pending", "pending Android Share startup")
     require(
         all_native,
         "nontext-clipboard-use-android-share",
         "stable non-text outbound boundary",
     )
     require(all_native, "acquireWakeLockNow", "Headless JS wake lock")
+    require(shizuku_setup, "addBinderReceivedListenerSticky", "asynchronous Shizuku Binder delivery")
+    require(shizuku_setup, "awaitBinder(BINDER_TIMEOUT_MS)", "bounded Shizuku Binder wait")
+    require(shizuku_setup, "addBinderDeadListener", "Shizuku Binder death tracking")
 
+    require_before(
+        foreground_js,
+        "const clipboardOnChange = clipboardListener.addListener(",
+        "await ClipboardListener.startListening();",
+        "JS listener registration before native durable-event drain",
+    )
+    require(foreground_js, "ready-after-registration", "listener-order evidence")
+    require(foreground_js, "foregroundServiceHandlerRegistered", "single foreground handler")
+    require(foreground_js, "foreground_service_error", "persistent foreground-service error")
+    require(foreground_js, "service-started-for-share", "automatic share service start")
+    require(foreground_js, "share-image-enqueued", "image share enqueue evidence")
+    require(foreground_js, "share-files-enqueued", "file share enqueue evidence")
     require(foreground_js, "⏳ Connecting...", "fresh connection status")
     require(
         foreground_js,
@@ -111,6 +166,16 @@ def main() -> None:
     require(foreground_js, "fragmentAccumulator.clearPeer", "peer fragment cleanup")
     require(foreground_js, "deliveryId || (await generateUuid())", "idempotent P2P retry ID")
     require(foreground_js, "sendP2PFragment(openChannels, messageJson)", "P2P backpressure send")
+    require(foreground_js, "evaluateP2PCompatibility", "tested P2P compatibility policy")
+    require(foreground_js, "quarantinedPeers", "incompatible peer quarantine")
+    require(foreground_js, "p2p_incompatible_peers", "P2P compatibility diagnostics")
+    forbid(
+        foreground_js,
+        "Encryption must be enabled on all devices if enabled",
+        "room-wide repeated P2P decrypt error",
+    )
+    require(p2p_compat_js, "legacy-peer-no-hello", "legacy peer compatibility state")
+    require(p2p_compat_js, "encryption-key", "encryption key mismatch policy")
     require(foreground_js, "createP2SAckTracker", "P2S server-echo acknowledgement")
     require(foreground_js, "extendedDeliveryId", "P2S delivery metadata")
     require(foreground_js, "awaiting-p2s-ack", "P2S durable acknowledgement state")
@@ -155,10 +220,10 @@ def main() -> None:
         root / "P2SAckTracker.js",
         root / "OutboundFileUris.js",
     ]
-    for path in runtime_files:
-        text = path.read_text(encoding="utf-8")
-        forbid(text, "rikka.shizuku", f"runtime Shizuku dependency in {path.name}")
-        forbid(text, "Shizuku.", f"runtime Shizuku call in {path.name}")
+    for runtime_path in runtime_files:
+        runtime_text = runtime_path.read_text(encoding="utf-8")
+        forbid(runtime_text, "rikka.shizuku", f"runtime Shizuku dependency in {runtime_path.name}")
+        forbid(runtime_text, "Shizuku.", f"runtime Shizuku call in {runtime_path.name}")
 
     print("materialized Android reliability invariants: OK")
 
