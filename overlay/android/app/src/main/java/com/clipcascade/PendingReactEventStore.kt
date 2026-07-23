@@ -7,11 +7,12 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Native entry points can run before React Native has created a ReactContext.
- * Upstream silently drops those events. This store persists a small FIFO queue
- * and drains it as soon as the foreground service starts its native listener.
+ * Native entry points can run before React Native has registered its event listeners.
+ * ReactContext existence alone is not a delivery guarantee, so events remain durable
+ * until ClipboardListener.startListening() atomically activates and drains the queue.
  */
 object PendingReactEventStore {
     private const val PREFS = "clipcascade_native_events"
@@ -20,6 +21,7 @@ object PendingReactEventStore {
     private const val LAST_FINGERPRINT_TIME = "last_fingerprint_time"
     private const val MAX_EVENTS = 64
     private const val DEDUP_WINDOW_MS = 2_000L
+    private val deliveryReady = AtomicBoolean(false)
 
     @Synchronized
     fun emitOrQueue(
@@ -28,16 +30,40 @@ object PendingReactEventStore {
         eventName: String,
         payload: Map<String, String>
     ): Boolean {
-        if (reactContext != null && emitNow(reactContext, eventName, payload)) {
+        if (deliveryReady.get() && reactContext != null && emitNow(reactContext, eventName, payload)) {
             return true
         }
         enqueue(context.applicationContext, eventName, payload)
         return false
     }
 
+    /** Activates direct delivery and drains older events without allowing overtaking. */
+    @Synchronized
+    fun activateAndDrain(context: Context, reactContext: ReactContext): Int {
+        deliveryReady.set(true)
+        return drainLocked(context.applicationContext, reactContext)
+    }
+
+    @Synchronized
+    fun deactivate() {
+        deliveryReady.set(false)
+    }
+
     @Synchronized
     fun drain(context: Context, reactContext: ReactContext): Int {
-        val appContext = context.applicationContext
+        if (!deliveryReady.get()) return 0
+        return drainLocked(context.applicationContext, reactContext)
+    }
+
+    @Synchronized
+    fun pendingCount(context: Context): Int {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return parseQueue(prefs.getString(QUEUE, null)).length()
+    }
+
+    fun isDeliveryReady(): Boolean = deliveryReady.get()
+
+    private fun drainLocked(appContext: Context, reactContext: ReactContext): Int {
         val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val source = parseQueue(prefs.getString(QUEUE, null))
         if (source.length() == 0) return 0
@@ -62,12 +88,6 @@ object PendingReactEventStore {
         }
         prefs.edit().putString(QUEUE, remaining.toString()).apply()
         return delivered
-    }
-
-    @Synchronized
-    fun pendingCount(context: Context): Int {
-        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return parseQueue(prefs.getString(QUEUE, null)).length()
     }
 
     private fun emitNow(
