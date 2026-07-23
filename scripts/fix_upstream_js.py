@@ -107,6 +107,98 @@ def patch_foreground_service(path: Path) -> None:
         1,
         "clearFiles argument assignment",
     )
+    text = replace_exact(
+        text,
+        """        const maxsize = Number(maxsizeStr);
+        let max_clipboard_size_local_limit_bytes = Number(MaxClipboardLimitStr);""".replace(
+            "MaxClipboardLimitStr", "maxClipboardLimitStr"
+        ),
+        """        const maxsize = Number(maxsizeStr);
+        await setDataInAsyncStorage('wsStatusMessage', '⏳ Connecting...');
+        await setDataInAsyncStorage('p2pStatusMessage', '');
+        let max_clipboard_size_local_limit_bytes = Number(maxClipboardLimitStr);""",
+        1,
+        "clear stale connection status at service start",
+    )
+    text = replace_exact(
+        text,
+        """              wsSignalingClient.onopen = async () => {
+                await cleanupPeerConnections();
+
+                await setDataInAsyncStorage('wsStatusMessage', '✅ Connected');""",
+        """              wsSignalingClient.onopen = async () => {
+                await cleanupPeerConnections();
+
+                await setDataInAsyncStorage(
+                  'wsStatusMessage',
+                  '✅ Signaling connected; waiting for peer',
+                );""",
+        1,
+        "P2P signaling status",
+    )
+    text = replace_exact(
+        text,
+        """                wsSignalingClient.send(JSON.stringify(obj));
+                await setDataInAsyncStorage('wsStatusMessage', '✅ Connected');""",
+        """                wsSignalingClient.send(JSON.stringify(obj));
+                await setDataInAsyncStorage(
+                  'wsStatusMessage',
+                  liveConnectionsCount > 0
+                    ? '✅ P2P peer connected'
+                    : '✅ Signaling connected; waiting for peer',
+                );""",
+        1,
+        "P2P signaling send must not fabricate peer connection",
+    )
+    text = replace_exact(
+        text,
+        """            channel.onopen = async () => {
+              startDataChannelHeartbeat(remotePeerId, channel);
+              await syncLiveConnectionsCount();
+            };""",
+        """            channel.onopen = async () => {
+              startDataChannelHeartbeat(remotePeerId, channel);
+              await syncLiveConnectionsCount();
+              await setDataInAsyncStorage(
+                'wsStatusMessage',
+                '✅ P2P peer connected',
+              );
+            };""",
+        1,
+        "P2P data channel open status",
+    )
+    text = replace_exact(
+        text,
+        """              await syncLiveConnectionsCount();
+              await recoverPeerTransport(remotePeerId, null);""",
+        """              await syncLiveConnectionsCount();
+              if (liveConnectionsCount === 0) {
+                await setDataInAsyncStorage(
+                  'wsStatusMessage',
+                  '✅ Signaling connected; waiting for peer',
+                );
+              }
+              await recoverPeerTransport(remotePeerId, null);""",
+        1,
+        "P2P data channel close status",
+    )
+    text = replace_exact(
+        text,
+        """            if (channel.readyState === 'open') {
+              startDataChannelHeartbeat(remotePeerId, channel);
+              await syncLiveConnectionsCount();
+            }""",
+        """            if (channel.readyState === 'open') {
+              startDataChannelHeartbeat(remotePeerId, channel);
+              await syncLiveConnectionsCount();
+              await setDataInAsyncStorage(
+                'wsStatusMessage',
+                '✅ P2P peer connected',
+              );
+            }""",
+        1,
+        "already-open P2P data channel status",
+    )
     path.write_text(text, encoding="utf-8")
 
 
