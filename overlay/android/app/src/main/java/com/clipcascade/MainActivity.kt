@@ -84,42 +84,59 @@ class MainActivity : ReactActivity() {
         val isShareIntent = intent.action == Intent.ACTION_SEND ||
             intent.action == Intent.ACTION_SEND_MULTIPLE ||
             intent.action == Intent.ACTION_PROCESS_TEXT
+        val bridge = AsyncStorageBridge(applicationContext)
         if (isShareIntent) {
-            AsyncStorageBridge(applicationContext).apply {
+            bridge.apply {
                 setValue("shared_payload_pending", "true")
                 setValue("shared_payload_status", "intent-received:${intent.action}:${intent.type}")
             }
         }
 
-        when {
-            Intent.ACTION_SEND == intent.action && intent.type == "text/plain" -> {
-                intent.getStringExtra(Intent.EXTRA_TEXT)?.let {
-                    dispatch("SHARED_TEXT", "text", it)
+        var shareHandled = false
+        when (intent.action) {
+            Intent.ACTION_PROCESS_TEXT -> {
+                intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()?.let { text ->
+                    shareHandled = true
+                    dispatch("SHARED_TEXT", "text", text)
                 }
             }
 
-            Intent.ACTION_PROCESS_TEXT == intent.action && intent.type == "text/plain" -> {
-                intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.let {
-                    dispatch("SHARED_TEXT", "text", it.toString())
+            Intent.ACTION_SEND -> {
+                val stream = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+                val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+                when {
+                    stream != null && intent.type?.startsWith("image/") == true -> {
+                        shareHandled = true
+                        stageAndDispatch(listOf(stream), "SHARED_IMAGE", "image")
+                    }
+
+                    stream != null -> {
+                        shareHandled = true
+                        stageAndDispatch(listOf(stream), "SHARED_FILES", "files")
+                    }
+
+                    text != null -> {
+                        // EXTRA_TEXT is a CharSequence in Android's contract. Restricting
+                        // it to String/text/plain loses Spanned, text/html and MIME-less shares.
+                        shareHandled = true
+                        dispatch("SHARED_TEXT", "text", text)
+                    }
                 }
             }
 
-            Intent.ACTION_SEND == intent.action && intent.type?.startsWith("image/") == true -> {
-                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
-                    stageAndDispatch(listOf(uri), "SHARED_IMAGE", "image")
-                }
-            }
-
-            Intent.ACTION_SEND == intent.action && intent.type != null -> {
-                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { uri ->
-                    stageAndDispatch(listOf(uri), "SHARED_FILES", "files")
-                }
-            }
-
-            Intent.ACTION_SEND_MULTIPLE == intent.action && intent.type != null -> {
-                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.let { uris ->
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val uris = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                if (!uris.isNullOrEmpty()) {
+                    shareHandled = true
                     stageAndDispatch(uris, "SHARED_FILES", "files")
                 }
+            }
+        }
+
+        if (isShareIntent && !shareHandled) {
+            bridge.apply {
+                setValue("shared_payload_pending", "false")
+                setValue("shared_payload_status", "unsupported-share:${intent.action}:${intent.type}")
             }
         }
 
@@ -127,8 +144,7 @@ class MainActivity : ReactActivity() {
             intent.getStringExtra("action") == "foreground_service_stopped_running"
         ) {
             try {
-                AsyncStorageBridge(applicationContext)
-                    .setValue("foreground_service_stopped_running", "true")
+                bridge.setValue("foreground_service_stopped_running", "true")
             } catch (error: Exception) {
                 Log.e(TAG, "Unable to persist foreground-service state", error)
             }
