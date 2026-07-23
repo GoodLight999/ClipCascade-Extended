@@ -109,6 +109,7 @@ def main() -> None:
     require(auto_debug_js, "event-listener-order", "listener-order verdict")
     require(auto_debug_js, "foreground-service", "foreground-service verdict")
     require(native_debug, "clipboardRead", "native foreground clipboard probe")
+    require(native_debug, "uriCount", "clipboard URI probe")
     require(native_debug, "sharedCacheBytes", "shared-cache diagnostics")
 
     require(headless_js, "android.intent.action.MY_PACKAGE_REPLACED", "update headless restart")
@@ -119,16 +120,22 @@ def main() -> None:
     require(all_native, "selection-without-copy", "selection false-positive guard")
     require(all_native, "activateAndDrain", "React listener readiness gate")
     require(all_native, "capture-timeout", "capture watchdog")
+    require(all_native, "URI_STAGING_TIMEOUT_MS = 120_000L", "bounded URI staging watchdog")
+    require(all_native, "extendForUriStaging", "URI staging watchdog extension")
     require(all_native, "one-time-setup-only", "one-time Shizuku contract")
     require(all_native, "ClipCascade-ShareStager", "shared URI staging")
     require(all_native, "MAX_CACHE_BYTES", "shared cache total bound")
     require(all_native, "MAX_BATCH_BYTES", "shared batch bound")
     require(all_native, "JSONArray(staged.map(Uri::toString))", "JSON-safe staged file URIs")
     require(all_native, "shared_payload_pending", "pending Android Share startup")
-    require(
+    require(all_native, "fun readOrStage", "clipboard URI staging entry point")
+    require(all_native, "clipboard-uri-staging", "clipboard URI staging status")
+    require(all_native, "clipboard-uri-duplicate-suppressed", "clipboard URI duplicate guard")
+    require(all_native, "capture-delivered:$type", "typed clipboard capture result")
+    forbid(
         all_native,
         "nontext-clipboard-use-android-share",
-        "stable non-text outbound boundary",
+        "obsolete clipboard URI rejection",
     )
     require(all_native, "acquireWakeLockNow", "Headless JS wake lock")
     require(shizuku_setup, "addBinderReceivedListenerSticky", "asynchronous Shizuku Binder delivery")
