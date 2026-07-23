@@ -19,13 +19,15 @@ object ClipboardCaptureCoordinator {
     private const val KEY_SOURCE = "source"
     private const val KEY_ATTEMPTS = "attempts"
     private const val MAX_ATTEMPTS = 3
-    private const val CAPTURE_TIMEOUT_MS = 3_500L
+    private const val CAPTURE_TIMEOUT_MS = 5_000L
+    private const val URI_STAGING_TIMEOUT_MS = 120_000L
     private val mainHandler = Handler(Looper.getMainLooper())
     private val inFlight = AtomicBoolean(false)
     private val activeSequence = AtomicLong(0L)
     private val scheduleLock = Any()
     private var scheduledRunnable: Runnable? = null
     private var watchdogRunnable: Runnable? = null
+    private var watchdogDeadlineAt = 0L
 
     @Synchronized
     fun request(context: Context, source: String, delayMs: Long) {
@@ -46,13 +48,20 @@ object ClipboardCaptureCoordinator {
 
     @Synchronized
     fun resumePending(context: Context) {
-        // In-memory inFlight state is already reset after process death. Within the
-        // same process, clearing it here can launch a duplicate Activity while the
-        // original capture is still running.
         if (inFlight.get()) return
         val app = context.applicationContext
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getBoolean(KEY_PENDING, false)) schedulePending(app)
+    }
+
+    @Synchronized
+    fun extendForUriStaging(context: Context, sequence: Long) {
+        if (!inFlight.get() || activeSequence.get() != sequence) return
+        AsyncStorageBridge(context.applicationContext).setValue(
+            "accessibility_capture_status",
+            "clipboard-uri-staging:$sequence"
+        )
+        scheduleWatchdog(context.applicationContext, sequence, URI_STAGING_TIMEOUT_MS)
     }
 
     @Synchronized
@@ -100,6 +109,7 @@ object ClipboardCaptureCoordinator {
             append(";activeSeq=").append(activeSequence.get())
             append(";seq=").append(prefs.getLong(KEY_SEQUENCE, 0L))
             append(";attempts=").append(prefs.getInt(KEY_ATTEMPTS, 0))
+            append(";watchdogDeadlineAt=").append(watchdogDeadlineAt)
             prefs.getString(KEY_SOURCE, null)?.let { append(";source=").append(it) }
         }
     }
@@ -131,7 +141,7 @@ object ClipboardCaptureCoordinator {
                 "accessibility_capture_status",
                 "capture-launched:$sequence"
             )
-            scheduleWatchdog(context.applicationContext, sequence)
+            scheduleWatchdog(context.applicationContext, sequence, CAPTURE_TIMEOUT_MS)
         } catch (error: Exception) {
             clearActiveCapture()
             retryOrStop(
@@ -142,9 +152,10 @@ object ClipboardCaptureCoordinator {
         }
     }
 
-    private fun scheduleWatchdog(context: Context, sequence: Long) {
+    private fun scheduleWatchdog(context: Context, sequence: Long, timeoutMs: Long) {
         synchronized(scheduleLock) {
             watchdogRunnable?.let(mainHandler::removeCallbacks)
+            watchdogDeadlineAt = System.currentTimeMillis() + timeoutMs
             val runnable = Runnable {
                 synchronized(this@ClipboardCaptureCoordinator) {
                     if (inFlight.get() && activeSequence.get() == sequence) {
@@ -154,7 +165,7 @@ object ClipboardCaptureCoordinator {
                 }
             }
             watchdogRunnable = runnable
-            mainHandler.postDelayed(runnable, CAPTURE_TIMEOUT_MS)
+            mainHandler.postDelayed(runnable, timeoutMs)
         }
     }
 
@@ -196,6 +207,7 @@ object ClipboardCaptureCoordinator {
     private fun clearActiveCapture() {
         inFlight.set(false)
         activeSequence.set(0L)
+        watchdogDeadlineAt = 0L
         synchronized(scheduleLock) {
             watchdogRunnable?.let(mainHandler::removeCallbacks)
             watchdogRunnable = null
