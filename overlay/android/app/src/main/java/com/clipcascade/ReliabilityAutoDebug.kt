@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.ContextCompat
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
@@ -18,6 +19,7 @@ object ReliabilityAutoDebug {
         "js_listener_status",
         "outbound_queue_status",
         "shared_payload_status",
+        "shared_payload_pending",
         "foreground_service_error",
         "foreground_service_state",
         "foreground_service_last_started_at",
@@ -37,11 +39,26 @@ object ReliabilityAutoDebug {
         val clipboard = app.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clipboardResult = JSONObject()
         try {
+            val clip = clipboard.primaryClip
+            val uriCount = if (clip == null) 0 else (0 until clip.itemCount).count {
+                clip.getItemAt(it).uri != null
+            }
+            val mimeTypes = JSONArray()
+            clip?.description?.let { description ->
+                for (index in 0 until description.mimeTypeCount) {
+                    mimeTypes.put(description.getMimeType(index).orEmpty())
+                }
+            }
             val payload = ClipboardPayloadReader.read(app, clipboard)
             clipboardResult.put("clipboardRead", true)
-            clipboardResult.put("payloadPresent", payload != null)
-            clipboardResult.put("type", payload?.get("type") ?: "empty")
+            clipboardResult.put("payloadPresent", payload != null || uriCount > 0)
+            clipboardResult.put(
+                "type",
+                payload?.get("type") ?: if (uriCount > 0) "uri" else "empty"
+            )
             clipboardResult.put("contentLength", payload?.get("content")?.length ?: 0)
+            clipboardResult.put("uriCount", uriCount)
+            clipboardResult.put("mimeTypes", mimeTypes)
         } catch (security: SecurityException) {
             clipboardResult.put("clipboardRead", false)
             clipboardResult.put("error", "SecurityException:${security.message}")
