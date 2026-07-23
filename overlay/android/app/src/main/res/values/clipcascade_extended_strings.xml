@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="clipcascade_accessibility_label">ClipCascade copy detector</string>
+    <string name="clipcascade_accessibility_description">Detects copy actions and briefly reads the clipboard for synchronization. It does not inspect window content.</string>
+</resources>

@@ -30,5 +30,6 @@ mkdir -p "$DESTINATION"
 cp -a "$WORK_DIR/upstream/$UPSTREAM_MOBILE_PATH/." "$DESTINATION/"
 
 python3 "$ROOT_DIR/scripts/apply_overlay.py" "$DESTINATION"
+python3 "$ROOT_DIR/scripts/apply_accessibility_overlay.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/fix_upstream_js.py" "$DESTINATION"
 printf 'Materialized patched Android source at %s\n' "$DESTINATION"

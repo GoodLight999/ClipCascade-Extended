@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="clipcascade_accessibility_label">ClipCascade 复制检测</string>
+    <string name="clipcascade_accessibility_description">检测复制操作，并仅为同步短暂读取剪贴板。不会读取窗口内容。</string>
+</resources>

@@ -17,11 +17,8 @@ import com.facebook.react.bridge.ReactContext
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * A one-shot focus bridge for Android 10+ clipboard restrictions.
- *
- * Unlike the upstream activity, this never uses FLAG_ACTIVITY_CLEAR_TASK and
- * never assumes React Native is already alive. Captured data is queued when
- * necessary and delivered when the foreground service becomes ready.
+ * One-shot focus bridge for Android 10+ clipboard restrictions.
+ * Capture launches are serialized by ClipboardCaptureCoordinator.
  */
 class ClipboardFloatingActivity : AppCompatActivity() {
     private val completed = AtomicBoolean(false)
@@ -29,17 +26,19 @@ class ClipboardFloatingActivity : AppCompatActivity() {
     private lateinit var windowManager: WindowManager
     private lateinit var clipboardManager: ClipboardManager
     private var floatingView: View? = null
+    private var requestSequence: Long = 0L
     private val bridge by lazy { AsyncStorageBridge(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         overridePendingTransition(0, 0)
+        requestSequence = intent.getLongExtra(EXTRA_REQUEST_SEQUENCE, 0L)
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         if (!Settings.canDrawOverlays(this)) {
             bridge.setValue("clipboard_fallback_status", "capture-blocked;overlay-missing")
-            finishCapture()
+            finishCapture("capture-blocked;overlay-missing")
             return
         }
 
@@ -59,23 +58,22 @@ class ClipboardFloatingActivity : AppCompatActivity() {
             }
             floatingView = view
             windowManager.addView(view, params)
-            view.postDelayed(::captureClipboard, 60L)
-            handler.postDelayed(::captureClipboard, 500L)
+            view.postDelayed(::captureClipboard, 80L)
+            handler.postDelayed(::captureClipboard, 650L)
         } catch (error: Exception) {
-            bridge.setValue(
-                "clipboard_fallback_status",
-                "overlay-error:${error.javaClass.simpleName}"
-            )
-            finishCapture()
+            val outcome = "overlay-error:${error.javaClass.simpleName}"
+            bridge.setValue("clipboard_fallback_status", outcome)
+            finishCapture(outcome)
         }
     }
 
     private fun captureClipboard() {
         if (!completed.compareAndSet(false, true)) return
+        var outcome = "capture-empty"
         try {
             val payload = readClipboardPayload()
             if (payload == null) {
-                bridge.setValue("clipboard_fallback_status", "capture-empty")
+                bridge.setValue("clipboard_fallback_status", outcome)
             } else {
                 val delivered = PendingReactEventStore.emitOrQueue(
                     applicationContext,
@@ -83,19 +81,17 @@ class ClipboardFloatingActivity : AppCompatActivity() {
                     "onClipboardChange",
                     payload
                 )
-                bridge.setValue(
-                    "clipboard_fallback_status",
-                    if (delivered) "capture-delivered" else "capture-queued"
-                )
+                outcome = if (delivered) "capture-delivered" else "capture-queued"
+                bridge.setValue("clipboard_fallback_status", outcome)
             }
         } catch (security: SecurityException) {
-            bridge.setValue("clipboard_fallback_status", "capture-denied")
+            outcome = "capture-denied"
+            bridge.setValue("clipboard_fallback_status", outcome)
         } catch (error: Exception) {
-            bridge.setValue(
-                "clipboard_fallback_status",
-                "capture-error:${error.javaClass.simpleName}"
-            )
+            outcome = "capture-error:${error.javaClass.simpleName}"
+            bridge.setValue("clipboard_fallback_status", outcome)
         } finally {
+            ClipboardCaptureCoordinator.complete(applicationContext, requestSequence, outcome)
             cleanupOverlay()
             finish()
             overridePendingTransition(0, 0)
@@ -134,17 +130,17 @@ class ClipboardFloatingActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(null)
         floatingView?.let { view ->
             try {
-                if (view.isAttachedToWindow) {
-                    windowManager.removeViewImmediate(view)
-                }
+                if (view.isAttachedToWindow) windowManager.removeViewImmediate(view)
             } catch (_: Exception) {
             }
         }
         floatingView = null
     }
 
-    private fun finishCapture() {
-        completed.set(true)
+    private fun finishCapture(outcome: String) {
+        if (completed.compareAndSet(false, true)) {
+            ClipboardCaptureCoordinator.complete(applicationContext, requestSequence, outcome)
+        }
         cleanupOverlay()
         finish()
         overridePendingTransition(0, 0)
@@ -156,8 +152,11 @@ class ClipboardFloatingActivity : AppCompatActivity() {
     }
 
     companion object {
-        fun getIntent(context: Context): Intent =
+        private const val EXTRA_REQUEST_SEQUENCE = "capture_request_sequence"
+
+        fun getIntent(context: Context, requestSequence: Long = 0L): Intent =
             Intent(context.applicationContext, ClipboardFloatingActivity::class.java).apply {
+                putExtra(EXTRA_REQUEST_SEQUENCE, requestSequence)
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_NO_HISTORY or
                     Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS or
