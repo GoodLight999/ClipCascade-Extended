@@ -18,9 +18,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * One-shot focus bridge for Android 10+ clipboard restrictions.
- * Capture launches are serialized and watched by ClipboardCaptureCoordinator.
+ * URI bytes are copied into app-owned cache before the bridge loses focus.
  */
 class ClipboardFloatingActivity : AppCompatActivity() {
+    private val captureStarted = AtomicBoolean(false)
     private val completed = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
@@ -68,35 +69,53 @@ class ClipboardFloatingActivity : AppCompatActivity() {
     }
 
     private fun captureClipboard() {
-        if (!completed.compareAndSet(false, true)) return
-        var outcome = "capture-empty"
+        if (!captureStarted.compareAndSet(false, true) || completed.get()) return
         try {
-            val payload = ClipboardPayloadReader.read(applicationContext, clipboardManager)
-            if (payload == null) {
-                bridge.setValue("clipboard_fallback_status", outcome)
-            } else {
-                val delivered = PendingReactEventStore.emitOrQueue(
+            val containsUri = runCatching {
+                val clip = clipboardManager.primaryClip
+                clip != null && (0 until clip.itemCount).any { clip.getItemAt(it).uri != null }
+            }.getOrDefault(false)
+            if (containsUri && requestSequence > 0L) {
+                ClipboardCaptureCoordinator.extendForUriStaging(
                     applicationContext,
-                    currentReactContext(),
-                    "onClipboardChange",
-                    payload
+                    requestSequence
                 )
-                outcome = if (delivered) "capture-delivered" else "capture-queued"
-                bridge.setValue("clipboard_fallback_status", outcome)
+            }
+
+            ClipboardPayloadReader.readOrStage(
+                applicationContext,
+                clipboardManager
+            ) { result ->
+                handler.post { finishPayload(result) }
             }
         } catch (security: SecurityException) {
-            outcome = "capture-denied"
-            bridge.setValue("clipboard_fallback_status", outcome)
-        } catch (error: Exception) {
-            outcome = "capture-error:${error.javaClass.simpleName}"
-            bridge.setValue("clipboard_fallback_status", outcome)
-        } finally {
-            if (requestSequence > 0L) {
-                ClipboardCaptureCoordinator.complete(applicationContext, requestSequence, outcome)
+            finishCapture("capture-denied")
+        } catch (error: Throwable) {
+            finishCapture("capture-error:${error.javaClass.simpleName}:${error.message}".take(300))
+        }
+    }
+
+    private fun finishPayload(result: Result<Map<String, String>?>) {
+        if (completed.get()) return
+        result.onSuccess { payload ->
+            if (payload == null) {
+                finishCapture("capture-empty")
+                return
             }
-            cleanupOverlay()
-            finish()
-            overridePendingTransition(0, 0)
+            val delivered = PendingReactEventStore.emitOrQueue(
+                applicationContext,
+                currentReactContext(),
+                "onClipboardChange",
+                payload
+            )
+            val type = payload["type"].orEmpty()
+            finishCapture(
+                if (delivered) "capture-delivered:$type" else "capture-queued:$type"
+            )
+        }.onFailure { error ->
+            finishCapture(
+                "capture-staging-error:${error.javaClass.simpleName}:${error.message}".take(300)
+            )
         }
     }
 
@@ -120,7 +139,9 @@ class ClipboardFloatingActivity : AppCompatActivity() {
     }
 
     private fun finishCapture(outcome: String) {
-        if (completed.compareAndSet(false, true) && requestSequence > 0L) {
+        if (!completed.compareAndSet(false, true)) return
+        bridge.setValue("clipboard_fallback_status", outcome)
+        if (requestSequence > 0L) {
             ClipboardCaptureCoordinator.complete(applicationContext, requestSequence, outcome)
         }
         cleanupOverlay()
