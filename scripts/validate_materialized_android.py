@@ -34,6 +34,7 @@ def main() -> None:
     fragmenter_js = (root / "Utf8Fragmenter.js").read_text(encoding="utf-8")
     accumulator_js = (root / "P2PFragmentAccumulator.js").read_text(encoding="utf-8")
     channel_sender_js = (root / "P2PChannelSender.js").read_text(encoding="utf-8")
+    p2s_ack_js = (root / "P2SAckTracker.js").read_text(encoding="utf-8")
 
     require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
     require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
@@ -79,6 +80,15 @@ def main() -> None:
     require(foreground_js, "fragmentAccumulator.clearPeer", "peer fragment cleanup")
     require(foreground_js, "deliveryId || (await generateUuid())", "idempotent P2P retry ID")
     require(foreground_js, "sendP2PFragment(openChannels, messageJson)", "P2P backpressure send")
+    require(foreground_js, "createP2SAckTracker", "P2S server-echo acknowledgement")
+    require(foreground_js, "extendedDeliveryId", "P2S delivery metadata")
+    require(foreground_js, "awaiting-p2s-ack", "P2S durable acknowledgement state")
+    require(
+        foreground_js,
+        "p2s-echo-acknowledged",
+        "P2S queue release only after server echo",
+    )
+    require(foreground_js, "P2S server echo acknowledgement timed out", "P2S ACK timeout")
     forbid(foreground_js, "receivingFragments =", "single global fragment buffer")
     forbid(foreground_js, "await sendClipBoard(", "pre-initialization event dispatch")
     forbid(foreground_js, "textEncoder.encode(clipContent)", "unsafe P2P byte sizing")
@@ -90,6 +100,8 @@ def main() -> None:
     require(accumulator_js, "duplicate-complete", "completed fragment replay guard")
     require(channel_sender_js, "bufferedAmount", "DataChannel buffered amount guard")
     require(channel_sender_js, "backpressure timeout", "DataChannel timeout guard")
+    require(p2s_ack_js, "P2S acknowledgement ID is required", "P2S ACK input guard")
+    require(p2s_ack_js, "active?.id !== id", "P2S ACK identity guard")
 
     runtime_files = [
         android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt",
@@ -101,6 +113,7 @@ def main() -> None:
         root / "DurableOutboundQueue.js",
         root / "P2PFragmentAccumulator.js",
         root / "P2PChannelSender.js",
+        root / "P2SAckTracker.js",
     ]
     for path in runtime_files:
         text = path.read_text(encoding="utf-8")
