@@ -14,14 +14,47 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
-def remove_method(path: Path, marker: str, next_marker: str, label: str) -> None:
+def matching_brace(text: str, opening: int, label: str) -> int:
+    depth = 0
+    in_string = False
+    escaped = False
+    quote = ""
+    for index in range(opening, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                in_string = False
+            continue
+        if char in ('"', "'"):
+            in_string = True
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+    raise RuntimeError(f"{label}: unmatched braces")
+
+
+def remove_method(path: Path, marker: str, label: str) -> None:
     text = path.read_text(encoding="utf-8")
     start = text.find(marker)
     if start < 0:
         raise RuntimeError(f"{label}: method marker not found")
-    end = text.find(next_marker, start + len(marker))
-    if end < 0:
-        raise RuntimeError(f"{label}: following marker not found")
+    opening = text.find("{", start + len(marker) - 1)
+    if opening < 0:
+        raise RuntimeError(f"{label}: opening brace not found")
+    closing = matching_brace(text, opening, label)
+    end = closing + 1
+    while end < len(text) and text[end] in " \t":
+        end += 1
+    if end < len(text) and text[end] == "\n":
+        end += 1
     path.write_text(text[:start] + text[end:], encoding="utf-8")
 
 
@@ -49,8 +82,6 @@ def main() -> None:
         native_bridge,
         '''    @ReactMethod
     fun openNotificationListenerSettings(promise: Promise) {''',
-        '''    @ReactMethod
-    fun getReliabilityStatus(promise: Promise) {''',
         "deferred OTP settings method",
     )
     notification_status = '''            val component = ComponentName(
