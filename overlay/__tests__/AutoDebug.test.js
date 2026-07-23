@@ -14,6 +14,7 @@ describe('automatic diagnostics', () => {
     foregroundServiceError: '',
     foregroundServiceState: 'running',
     foregroundServiceHeartbeatAt: String(now - 1_000),
+    foregroundServiceRecoveryStatus: 'heartbeat-healthy:test',
     serviceRequested: true,
     connectionStatus: 'connected',
     sharedPayloadStatus: 'idle',
@@ -70,6 +71,22 @@ describe('automatic diagnostics', () => {
     );
     expect(result.overall).toBe('FAIL');
     expect(result.checks.find(item => item.id === 'foreground-service')).toMatchObject({
+      level: 'FAIL',
+    });
+  });
+
+  test('detects visible-capture recovery failures', () => {
+    const result = analyzeDiagnostics(
+      {
+        ...healthyStatus,
+        foregroundServiceRecoveryStatus:
+          'recovery-failed:ForegroundServiceStartNotAllowedException',
+      },
+      healthyProbe,
+      now,
+    );
+    expect(result.overall).toBe('FAIL');
+    expect(result.checks.find(item => item.id === 'foreground-recovery')).toMatchObject({
       level: 'FAIL',
     });
   });
