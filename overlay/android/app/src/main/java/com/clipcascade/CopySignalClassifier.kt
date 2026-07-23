@@ -1,6 +1,7 @@
 package com.clipcascade
 
 import android.view.accessibility.AccessibilityEvent
+import java.util.Locale
 
 /** Pure copy-signal policy separated from AccessibilityService lifecycle. */
 object CopySignalClassifier {
@@ -24,11 +25,11 @@ object CopySignalClassifier {
     )
 
     private val explicitCopyLabels = setOf(
-        "copy", "copy text", "copy link", "copy image",
-        "コピー", "テキストをコピー", "リンクをコピー", "画像をコピー",
-        "复制", "复制文本", "复制链接", "复制图片",
-        "複製", "複製文字", "複製連結", "複製圖片",
-        "복사", "텍스트 복사", "링크 복사", "이미지 복사"
+        "copy", "copy text", "copy link", "copy image", "copy address",
+        "コピー", "テキストをコピー", "リンクをコピー", "画像をコピー", "アドレスをコピー",
+        "复制", "复制文本", "复制链接", "复制图片", "复制地址",
+        "複製", "複製文字", "複製連結", "複製圖片", "複製位址",
+        "복사", "텍스트 복사", "링크 복사", "이미지 복사", "주소 복사"
     )
 
     fun classify(
@@ -48,7 +49,9 @@ object CopySignalClassifier {
             .toList()
         val joined = normalized.joinToString(" ")
         val strongPhrase = strongCopyPhrases.any { it.containsMatchIn(joined) }
-        val explicitLabel = normalized.any { it.lowercase() in explicitCopyLabels }
+        val explicitLabel = normalized.any {
+            it.lowercase(Locale.ROOT) in explicitCopyLabels
+        }
 
         return when (eventType) {
             AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED,
@@ -64,8 +67,10 @@ object CopySignalClassifier {
                 Decision(false, reason = "generic-click")
             }
 
+            // Selection is not evidence that the user pressed Copy. Probing here can send
+            // stale clipboard content and violates the no-copy/no-send acceptance case.
             AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED ->
-                Decision(true, delayMs = 420L, reason = "selection-change-probe")
+                Decision(false, reason = "selection-without-copy")
 
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> if (strongPhrase) {
                 Decision(true, delayMs = 220L, reason = "copy-feedback-content-change")
