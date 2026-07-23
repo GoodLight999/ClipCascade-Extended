@@ -41,12 +41,12 @@ def main() -> None:
     replace_exact(
         app,
         """      try {
-        // get Async Storage data""",
+        // enable websocket button""",
         """      try {
         await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
         );
-        // get Async Storage data""",
+        // enable websocket button""",
         1,
         "one-shot notification permission request",
     )
