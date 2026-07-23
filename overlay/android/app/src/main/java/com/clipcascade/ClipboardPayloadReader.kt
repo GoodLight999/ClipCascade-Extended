@@ -3,7 +3,6 @@ package com.clipcascade
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import org.json.JSONArray
 
 /** Shared clipboard parsing for foreground listeners and one-shot overlay capture. */
 object ClipboardPayloadReader {
@@ -23,18 +22,17 @@ object ClipboardPayloadReader {
             }
         }
 
-        val uris = buildList {
-            for (index in 0 until clip.itemCount) {
-                clip.getItemAt(index).uri?.toString()?.let(::add)
-            }
+        // Clipboard content URIs are often transient and may become unreadable before the
+        // durable queue drains. Image/file outbound therefore uses Android Share, where
+        // SharedPayloadStager copies the bytes into app-owned cache immediately.
+        val containsUri = (0 until clip.itemCount).any { clip.getItemAt(it).uri != null }
+        if (containsUri) {
+            AsyncStorageBridge(context.applicationContext).setValue(
+                "clipboard_fallback_status",
+                "nontext-clipboard-use-android-share"
+            )
         }
-        if (uris.isEmpty()) return null
-
-        return if (mimeTypes.any { it.startsWith("image/") } && uris.size == 1) {
-            mapOf("content" to uris.first(), "type" to "image")
-        } else {
-            mapOf("content" to JSONArray(uris).toString(), "type" to "files")
-        }
+        return null
     }
 
     private fun firstText(context: Context, clip: ClipData): String? {
