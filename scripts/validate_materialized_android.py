@@ -83,7 +83,11 @@ def main() -> None:
     require(all_native, "MAX_CACHE_BYTES", "shared cache total bound")
     require(all_native, "MAX_BATCH_BYTES", "shared batch bound")
     require(all_native, "JSONArray(staged.map(Uri::toString))", "JSON-safe staged file URIs")
-    require(all_native, "JSONArray(uris).toString()", "JSON-safe clipboard file URIs")
+    require(
+        all_native,
+        "nontext-clipboard-use-android-share",
+        "stable non-text outbound boundary",
+    )
     require(all_native, "acquireWakeLockNow", "Headless JS wake lock")
 
     require(foreground_js, "⏳ Connecting...", "fresh connection status")
