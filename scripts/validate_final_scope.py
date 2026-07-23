@@ -16,6 +16,13 @@ def forbid(text: str, needle: str, label: str) -> None:
         raise RuntimeError(f"forbidden {label}: {needle!r}")
 
 
+def require_before(text: str, first: str, second: str, label: str) -> None:
+    left = text.find(first)
+    right = text.find(second)
+    if left < 0 or right < 0 or left >= right:
+        raise RuntimeError(f"invalid ordering for {label}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
@@ -28,6 +35,8 @@ def main() -> None:
     native_bridge = (java_root / "NativeBridgeModule.kt").read_text(encoding="utf-8")
     foreground = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     app = (root / "App.js").read_text(encoding="utf-8")
+    control_panel = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
+    i18n = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
     sync_cache = (java_root / "SyncRequestCache.kt").read_text(encoding="utf-8")
     shizuku = (java_root / "ShizukuSetup.kt").read_text(encoding="utf-8")
 
@@ -50,12 +59,37 @@ def main() -> None:
     require(sync_cache, "lastCheckAt = null", "cache invalidation")
     require(shizuku, "activeConnection !== connection", "stale Shizuku connection guard")
     require(shizuku, "waitForVerification(app, connection)", "cancel-aware Shizuku verification")
+    require(shizuku, "addBinderReceivedListenerSticky", "sticky Shizuku Binder listener")
+    require(shizuku, "awaitBinder(BINDER_TIMEOUT_MS)", "bounded Shizuku Binder wait")
     require(native_bridge, "fun openOrGetShizuku", "Shizuku open/install action")
     require(native_bridge, "thedjchi/Shizuku/releases", "recommended Shizuku fork fallback")
-    require(app, "shizukuOpen", "localized Shizuku open button")
-    require(app, "shizukuGuide", "localized Shizuku guidance")
+    require(native_bridge, "fun runNativeAutoDebug", "native one-tap diagnostics")
+    require(control_panel, "text.shizukuOpen", "localized Shizuku open button")
+    require(control_panel, "text.shizukuGuide", "localized Shizuku guidance")
+    require(control_panel, "Clipboard.setString(dialog.copy)", "copyable reports and ADB commands")
+    require(i18n, "ja:", "Japanese product dictionary")
+    require(i18n, "zh:", "Chinese product dictionary")
+    require(i18n, "en:", "English product dictionary")
+    require_before(
+        foreground,
+        "const clipboardOnChange = clipboardListener.addListener(",
+        "await ClipboardListener.startListening();",
+        "native drain after JS callback registration",
+    )
     require(foreground, "p2s-late-echo-acknowledged", "late P2S ACK recovery")
     require(foreground, "queuedForAck?.id === echoedDeliveryId", "late P2S queue identity guard")
+    require(foreground, "quarantinedPeers", "P2P incompatible peer isolation")
+    require(foreground, "foreground_service_error", "foreground-service error persistence")
+    require(foreground, "shared_payload_pending", "share auto-start state")
+
+    for inherited in (
+        "New version available!",
+        "GITHUB",
+        "DONATE",
+        "HOMEPAGE",
+        "adb -d shell am force-stop",
+    ):
+        forbid(app, inherited, f"inherited upstream UI {inherited}")
 
     print("final generated scope and deferred-feature boundaries: OK")
 
