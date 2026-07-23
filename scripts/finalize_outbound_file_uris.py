@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 
@@ -12,14 +13,6 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     if count != 1:
         raise RuntimeError(f"{label}: expected one marker, found {count}")
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
-
-
-def replace_exact(path: Path, old: str, new: str, expected: int, label: str) -> None:
-    text = path.read_text(encoding="utf-8")
-    count = text.count(old)
-    if count != expected:
-        raise RuntimeError(f"{label}: expected {expected} markers, found {count}")
-    path.write_text(text.replace(old, new), encoding="utf-8")
 
 
 def main() -> None:
@@ -35,15 +28,26 @@ def main() -> None:
 import { parseOutboundFileUris } from './OutboundFileUris';""",
         "outbound file URI parser import",
     )
-    replace_exact(
-        service,
-        """                    const file_paths = clipContent
-                      .split(',')
-                      .filter(item => item.trim() !== '');""",
-        """                    const file_paths = parseOutboundFileUris(clipContent);""",
-        2,
-        "P2S/P2P file URI parsing",
+
+    text = service.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"(?P<indent>[ \t]*)const file_paths = clipContent\s*"
+        r"\.split\(','\)\s*"
+        r"\.filter\(item => item\.trim\(\) !== ''\);"
     )
+
+    def replacement(match: re.Match[str]) -> str:
+        return (
+            f"{match.group('indent')}const file_paths = "
+            "parseOutboundFileUris(clipContent);"
+        )
+
+    patched, count = pattern.subn(replacement, text)
+    if count != 3:
+        raise RuntimeError(
+            f"Outbound file URI parsing: expected 3 comma-split markers, found {count}"
+        )
+    service.write_text(patched, encoding="utf-8")
 
 
 if __name__ == "__main__":
