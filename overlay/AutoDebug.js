@@ -12,28 +12,37 @@ function check(id, level, detail) {
   return { id, level, detail: String(detail ?? '') };
 }
 
-export function analyzeDiagnostics(statusInput, nativeProbeInput = {}) {
+export function analyzeDiagnostics(
+  statusInput,
+  nativeProbeInput = {},
+  now = Date.now(),
+) {
   const status = parseObject(statusInput);
   const probe = parseObject(nativeProbeInput);
   const clipboardProbe = parseObject(probe.clipboard);
+  const eventBridge = parseObject(probe.eventBridge);
   const queue = parseObject(status.outboundQueueStatus);
   const checks = [];
 
+  const listenerStateReady =
+    status.nativeDeliveryReady &&
+    String(status.jsListenerStatus || '').includes('ready-after-registration');
   checks.push(
     check(
-      'event-listener-order',
-      status.nativeDeliveryReady &&
-        String(status.jsListenerStatus || '').includes('ready-after-registration')
-        ? 'PASS'
-        : 'FAIL',
-      `nativeReady=${status.nativeDeliveryReady}; js=${status.jsListenerStatus || 'missing'}`,
+      'native-react-event-bridge',
+      listenerStateReady && eventBridge.received === true ? 'PASS' : 'FAIL',
+      `nativeReady=${status.nativeDeliveryReady}; js=${
+        status.jsListenerStatus || 'missing'
+      }; activeProbe=${JSON.stringify(eventBridge)}`,
     ),
   );
   checks.push(
     check(
       'accessibility',
       status.accessibilityEnabled ? 'PASS' : 'WARN',
-      `${status.accessibilityEnabled}; ${status.accessibilityServiceStatus || 'idle'}`,
+      `${status.accessibilityEnabled}; ${
+        status.accessibilityServiceStatus || 'idle'
+      }`,
     ),
   );
   checks.push(
@@ -66,13 +75,29 @@ export function analyzeDiagnostics(statusInput, nativeProbeInput = {}) {
       JSON.stringify(queue),
     ),
   );
-  checks.push(
-    check(
-      'foreground-service',
-      status.foregroundServiceError ? 'FAIL' : status.serviceRequested ? 'PASS' : 'WARN',
-      status.foregroundServiceError || status.connectionStatus || 'not requested',
-    ),
-  );
+
+  const heartbeatAt = Number(status.foregroundServiceHeartbeatAt || 0);
+  const heartbeatAge = heartbeatAt > 0 ? Math.max(0, now - heartbeatAt) : null;
+  let foregroundLevel = 'WARN';
+  let foregroundDetail = 'synchronization is not requested';
+  if (status.foregroundServiceError) {
+    foregroundLevel = 'FAIL';
+    foregroundDetail = status.foregroundServiceError;
+  } else if (status.serviceRequested) {
+    if (heartbeatAge != null && heartbeatAge <= 15_000) {
+      foregroundLevel = 'PASS';
+      foregroundDetail = `heartbeatAgeMs=${heartbeatAge}; state=${
+        status.foregroundServiceState || 'unknown'
+      }`;
+    } else {
+      foregroundLevel = 'FAIL';
+      foregroundDetail = `requested but heartbeat is ${
+        heartbeatAge == null ? 'missing' : `${heartbeatAge} ms old`
+      }; state=${status.foregroundServiceState || 'unknown'}`;
+    }
+  }
+  checks.push(check('foreground-service', foregroundLevel, foregroundDetail));
+
   checks.push(
     check(
       'shared-payload',
@@ -84,7 +109,9 @@ export function analyzeDiagnostics(statusInput, nativeProbeInput = {}) {
     check(
       'p2p-compatibility',
       Number(status.p2pIncompatiblePeers || 0) > 0 ? 'WARN' : 'PASS',
-      `compatible=${status.p2pCompatiblePeers || 0}; incompatible=${status.p2pIncompatiblePeers || 0}; candidates=${status.p2pCandidatePeers || 0}`,
+      `compatible=${status.p2pCompatiblePeers || 0}; incompatible=${
+        status.p2pIncompatiblePeers || 0
+      }; candidates=${status.p2pCandidatePeers || 0}`,
     ),
   );
   checks.push(
@@ -104,11 +131,19 @@ export function analyzeDiagnostics(statusInput, nativeProbeInput = {}) {
     : checks.some(item => item.level === 'WARN')
       ? 'WARN'
       : 'PASS';
-  return { overall, checks, status, probe, generatedAt: new Date().toISOString() };
+  return { overall, checks, status, probe, generatedAt: new Date(now).toISOString() };
 }
 
-export function formatDiagnosticsReport(report, title = 'ClipCascade Extended diagnostics') {
-  const lines = [title, `Overall: ${report.overall}`, `Generated: ${report.generatedAt}`, ''];
+export function formatDiagnosticsReport(
+  report,
+  title = 'ClipCascade Extended diagnostics',
+) {
+  const lines = [
+    title,
+    `Overall: ${report.overall}`,
+    `Generated: ${report.generatedAt}`,
+    '',
+  ];
   for (const item of report.checks) {
     lines.push(`[${item.level}] ${item.id}`);
     lines.push(`  ${item.detail}`);
