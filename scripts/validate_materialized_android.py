@@ -67,10 +67,11 @@ def main() -> None:
     require(foreground_js, "waiting-for-transport", "offline queue state")
     require(foreground_js, "enqueueOutboundClipboard", "early durable event enqueue")
     require(foreground_js, "p2pTransportReady", "cross-scope P2P readiness")
+    require(foreground_js, "scheduleOutboundRetry", "bounded retry scheduling")
     require(foreground_js, "for (const channel of openChannels)", "observed P2P sends")
     forbid(foreground_js, "await sendClipBoard(", "pre-initialization event dispatch")
     forbid(foreground_js, "textEncoder.encode(clipContent)", "unsafe P2P byte sizing")
-    require(queue_js, "MAX_FAILURES = 3", "finite permanent failure policy")
+    require(queue_js, "MAX_FAILURES = 8", "finite permanent failure policy")
     require(queue_js, "raw.scope === scope", "server-scoped outbound queue")
     require(fragmenter_js, "bytes[end] & 0xc0", "UTF-8 code-point boundary guard")
 
