@@ -133,11 +133,17 @@ object ShizukuSetup {
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, binder: IBinder) {
                 val connection = this
+                synchronized(this@ShizukuSetup) {
+                    if (setupPromise == null || activeConnection !== connection) return
+                }
                 setupExecutor.execute {
+                    synchronized(this@ShizukuSetup) {
+                        if (setupPromise == null || activeConnection !== connection) return@execute
+                    }
                     try {
                         val service = IClipCascadeSetupService.Stub.asInterface(binder)
                         val remote = JSONObject(service.applySetup(app.packageName))
-                        val verified = waitForVerification(app)
+                        val verified = waitForVerification(app, connection)
                         remote.put("verified", verified)
                         if (!verified.getBoolean("readLogs") || !verified.getBoolean("overlay")) {
                             throw IllegalStateException(
@@ -225,10 +231,15 @@ object ShizukuSetup {
         }
     }
 
-    private fun waitForVerification(context: Context): JSONObject {
+    private fun waitForVerification(context: Context, connection: ServiceConnection): JSONObject {
         val deadline = System.currentTimeMillis() + 5_000L
         var latest = JSONObject(status(context))
         while (System.currentTimeMillis() < deadline) {
+            synchronized(this@ShizukuSetup) {
+                if (setupPromise == null || activeConnection !== connection) {
+                    throw IllegalStateException("Shizuku setup was cancelled before verification")
+                }
+            }
             if (latest.optBoolean("readLogs") && latest.optBoolean("overlay")) return latest
             Thread.sleep(150L)
             latest = JSONObject(status(context))
