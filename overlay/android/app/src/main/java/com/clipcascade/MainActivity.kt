@@ -181,7 +181,7 @@ class MainActivity : ReactActivity() {
                     if (!isFinishing && !isDestroyed) {
                         Toast.makeText(
                             this,
-                            "ClipCascade Extended could not prepare the shared file.",
+                            getString(R.string.clipcascade_share_prepare_failed),
                             Toast.LENGTH_LONG
                         ).show()
                     }
