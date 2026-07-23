@@ -99,12 +99,11 @@ const RUNTIME_TEXT = getExtendedStrings();""",
         2,
         "localized lost notifications",
     )
-    replace_exact(
+    replace_once(
         service,
         "showFilesDownloadNotification('📥 Download File(s)')",
         "showFilesDownloadNotification(RUNTIME_TEXT.notificationDownloadFiles)",
-        2,
-        "localized received-file notifications",
+        "localized received-file notification",
     )
     replace_once(
         service,
