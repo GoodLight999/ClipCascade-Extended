@@ -38,6 +38,45 @@ def main() -> None:
     parser.add_argument("destination", type=Path)
     root = parser.parse_args().destination.resolve()
     panel = root / "ExtendedControlPanel.js"
+    i18n = root / "ExtendedI18n.js"
+
+    locale_additions = (
+        (
+            "    restartLabel: '再起動レシーバー',\n",
+            """    restartLabel: '再起動レシーバー',
+    accessibilityStateLabel: 'ユーザー補助サービス状態',
+    nativeDeliveryLabel: 'ネイティブイベント配送準備',
+    readLogsLabel: 'READ_LOGS権限',
+    overlayLabel: 'オーバーレイ権限',
+    shizukuLabel: 'Shizuku状態',
+""",
+            "Japanese diagnostic labels",
+        ),
+        (
+            "    restartLabel: '重启接收器',\n",
+            """    restartLabel: '重启接收器',
+    accessibilityStateLabel: '无障碍服务状态',
+    nativeDeliveryLabel: '原生事件传递就绪',
+    readLogsLabel: 'READ_LOGS 权限',
+    overlayLabel: '悬浮窗权限',
+    shizukuLabel: 'Shizuku 状态',
+""",
+            "Chinese diagnostic labels",
+        ),
+        (
+            "    restartLabel: 'Restart receiver',\n",
+            """    restartLabel: 'Restart receiver',
+    accessibilityStateLabel: 'Accessibility Service state',
+    nativeDeliveryLabel: 'Native event delivery ready',
+    readLogsLabel: 'READ_LOGS permission',
+    overlayLabel: 'Overlay permission',
+    shizukuLabel: 'Shizuku state',
+""",
+            "English diagnostic labels",
+        ),
+    )
+    for old, new, label in locale_additions:
+        replace_once(i18n, old, new, label)
 
     replacement = """    const lines = [
       `${text.packageLabel}: ${status.packageName}`,
