@@ -32,9 +32,9 @@ export function analyzeDiagnostics(
     check(
       'native-react-event-bridge',
       listenerStateReady && eventBridge.received === true ? 'PASS' : 'FAIL',
-      `nativeReady=${status.nativeDeliveryReady}; js=${
+      `nativeReady=${status.nativeDeliveryReady}; js=$...{
         status.jsListenerStatus || 'missing'
-      }; activeProbe=${JSON.stringify(eventBridge)}`,
+      }; activeProbe=${JSON.stringify(eventBridge)}`.replace('$...', '$'),
     ),
   );
   checks.push(
@@ -87,9 +87,12 @@ export function analyzeDiagnostics(
   } else if (status.serviceRequested) {
     if (heartbeatAge != null && heartbeatAge <= 15_000) {
       foregroundLevel = 'PASS';
-      foregroundDetail = `heartbeatAgeMs=${heartbeatAge}; state=${
+      foregroundDetail = `heartbeatAgeMs=${heartbeatAge}; state=$...{
         status.foregroundServiceState || 'unknown'
-      }; instance=${status.foregroundServiceInstanceId || 'missing'}`;
+      }; instance=${status.foregroundServiceInstanceId || 'missing'}`.replace(
+        '$...',
+        '$',
+      );
     } else {
       foregroundLevel = 'FAIL';
       foregroundDetail = `requested but heartbeat is ${
@@ -152,21 +155,68 @@ export function analyzeDiagnostics(
   return { overall, checks, status, probe, generatedAt: new Date(now).toISOString() };
 }
 
-export function formatDiagnosticsReport(
-  report,
-  title = 'ClipCascade Extended diagnostics',
-) {
+const DEFAULT_REPORT_TEXT = {
+  reportTitle: 'ClipCascade Extended diagnostics',
+  diagnosticsOverall: 'Overall',
+  diagnosticsGenerated: 'Generated',
+  diagnosticsRawStatus: 'Raw status',
+  diagnosticsNativeProbe: 'Native probe',
+  pass: 'PASS',
+  warn: 'CHECK',
+  fail: 'FAIL',
+  diagnosticNativeReact: 'Native → React event bridge',
+  diagnosticAccessibility: 'Accessibility copy detection',
+  diagnosticOverlay: 'Overlay permission',
+  diagnosticCapture: 'Clipboard capture coordinator',
+  diagnosticNativeEvents: 'Pending native events',
+  diagnosticOutboundQueue: 'Durable outbound queue',
+  diagnosticForeground: 'Foreground Service heartbeat',
+  diagnosticSingleton: 'Foreground runtime singleton',
+  diagnosticSharedPayload: 'Android Share / staged payload',
+  diagnosticP2P: 'P2P compatibility',
+  diagnosticClipboardProbe: 'Foreground clipboard probe',
+};
+
+const CHECK_LABEL_KEYS = {
+  'native-react-event-bridge': 'diagnosticNativeReact',
+  accessibility: 'diagnosticAccessibility',
+  overlay: 'diagnosticOverlay',
+  'capture-coordinator': 'diagnosticCapture',
+  'native-events': 'diagnosticNativeEvents',
+  'outbound-queue': 'diagnosticOutboundQueue',
+  'foreground-service': 'diagnosticForeground',
+  'foreground-runtime-singleton': 'diagnosticSingleton',
+  'shared-payload': 'diagnosticSharedPayload',
+  'p2p-compatibility': 'diagnosticP2P',
+  'foreground-clipboard-probe': 'diagnosticClipboardProbe',
+};
+
+export function formatDiagnosticsReport(report, textInput = DEFAULT_REPORT_TEXT) {
+  const supplied =
+    typeof textInput === 'string' ? { reportTitle: textInput } : textInput || {};
+  const text = { ...DEFAULT_REPORT_TEXT, ...supplied };
+  const levels = { PASS: text.pass, WARN: text.warn, FAIL: text.fail };
   const lines = [
-    title,
-    `Overall: ${report.overall}`,
-    `Generated: ${report.generatedAt}`,
+    text.reportTitle,
+    `${text.diagnosticsOverall}: ${levels[report.overall] || report.overall}`,
+    `${text.diagnosticsGenerated}: ${report.generatedAt}`,
     '',
   ];
   for (const item of report.checks) {
-    lines.push(`[${item.level}] ${item.id}`);
+    const key = CHECK_LABEL_KEYS[item.id];
+    const label = (key && text[key]) || item.id;
+    lines.push(`[${levels[item.level] || item.level}] ${label}`);
     lines.push(`  ${item.detail}`);
   }
-  lines.push('', 'Raw status:', JSON.stringify(report.status, null, 2));
-  lines.push('', 'Native probe:', JSON.stringify(report.probe, null, 2));
+  lines.push(
+    '',
+    `${text.diagnosticsRawStatus}:`,
+    JSON.stringify(report.status, null, 2),
+  );
+  lines.push(
+    '',
+    `${text.diagnosticsNativeProbe}:`,
+    JSON.stringify(report.probe, null, 2),
+  );
   return lines.join('\n');
 }
