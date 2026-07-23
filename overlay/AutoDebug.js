@@ -32,9 +32,9 @@ export function analyzeDiagnostics(
     check(
       'native-react-event-bridge',
       listenerStateReady && eventBridge.received === true ? 'PASS' : 'FAIL',
-      `nativeReady=${status.nativeDeliveryReady}; js=$...{
+      `nativeReady=${status.nativeDeliveryReady}; js=${
         status.jsListenerStatus || 'missing'
-      }; activeProbe=${JSON.stringify(eventBridge)}`.replace('$...', '$'),
+      }; activeProbe=${JSON.stringify(eventBridge)}`,
     ),
   );
   checks.push(
@@ -87,12 +87,9 @@ export function analyzeDiagnostics(
   } else if (status.serviceRequested) {
     if (heartbeatAge != null && heartbeatAge <= 15_000) {
       foregroundLevel = 'PASS';
-      foregroundDetail = `heartbeatAgeMs=${heartbeatAge}; state=$...{
+      foregroundDetail = `heartbeatAgeMs=${heartbeatAge}; state=${
         status.foregroundServiceState || 'unknown'
-      }; instance=${status.foregroundServiceInstanceId || 'missing'}`.replace(
-        '$...',
-        '$',
-      );
+      }; instance=${status.foregroundServiceInstanceId || 'missing'}`;
     } else {
       foregroundLevel = 'FAIL';
       foregroundDetail = `requested but heartbeat is ${
