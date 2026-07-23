@@ -50,6 +50,7 @@ Implemented one-time Shizuku setup:
 - transient non-daemon AIDL UserService applies `READ_LOGS` and overlay app-op;
 - every command exit code is checked;
 - Extended polls its own real permission/app-op state and refuses to report success unless both are retained;
+- synchronous Binder/command/verification work runs on a dedicated worker thread, not the UI thread;
 - UserService is removed after setup; status explicitly reports `runtimeDependency=false` and `usage=one-time-setup-only`.
 
 Setup UI includes direct Accessibility/overlay buttons, one-time Shizuku setup, PC ADB second-choice guidance, and Reliability Self-Test. OTP setup is not in the core flow.
@@ -59,20 +60,20 @@ Existing foundation retained: pending native-event FIFO, task/lifecycle correcti
 ## Current validated build
 
 ```text
-Implementation commit: 886c155e56187c0b814460c095857845e6a52b1e
-CI run: 29970261242
+Implementation commit: 257dc2d83f3f8d2f972c2b7f2dffdea2dc3bde84
+CI run: 29970990520
 Version: 3.2.0-extended.2
 versionCode: 320002
 Application ID: com.clipcascade.extended
 APK size: 93,595,251 bytes
 Run-specific APK SHA-256:
-d7ce5149d4503a88f376a0b3902cb5986686951210c2e812364027aa8e14b77f
+4951029a94a81485f54881aa1b3f16298d936515e9374b7d9a108c58649b4a19
 Signing: APK Signature Scheme v2
 Signer certificate SHA-256:
 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 ```
 
-Run `29970261242` passed exact materialization, signing-key inspection, `npm ci`, ESLint, Jest, `testExtendedUnitTest`, `assembleExtended`, `apksigner verify`, checksum, and artifact upload. APK hashes are per-run; bit-for-bit reproducibility is not claimed.
+Run `29970990520` passed exact materialization, signing-key inspection, `npm ci`, ESLint, Jest, `testExtendedUnitTest`, `assembleExtended`, `apksigner verify`, checksum, and artifact upload. APK hashes are per-run; bit-for-bit reproducibility is not claimed.
 
 ## Permission/update semantics
 
