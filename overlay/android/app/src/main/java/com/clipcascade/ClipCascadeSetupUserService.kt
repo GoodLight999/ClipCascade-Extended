@@ -56,7 +56,7 @@ class ClipCascadeSetupUserService() : IClipCascadeSetupService.Stub() {
 
     private fun runCommand(command: List<String>): JSONObject {
         val process = ProcessBuilder(command).redirectErrorStream(true).start()
-        val finished = process.waitFor(12, TimeUnit.SECONDS)
+        val finished = process.waitFor(8, TimeUnit.SECONDS)
         if (!finished) process.destroyForcibly()
         val output = process.inputStream.bufferedReader().use { it.readText().trim() }
         return JSONObject().apply {

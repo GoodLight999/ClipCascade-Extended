@@ -11,11 +11,15 @@ import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.Promise
 import org.json.JSONObject
 import rikka.shizuku.Shizuku
+import java.util.concurrent.Executors
 
 /** One-shot setup helper. ClipCascade runtime must never depend on Shizuku staying alive. */
 object ShizukuSetup {
     private const val REQUEST_CODE = 7342
     private val handler = Handler(Looper.getMainLooper())
+    private val setupExecutor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "ClipCascade-ShizukuSetup").apply { isDaemon = true }
+    }
     private var permissionPromise: Promise? = null
     private var setupPromise: Promise? = null
     private var activeConnection: ServiceConnection? = null
@@ -104,19 +108,24 @@ object ShizukuSetup {
 
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-                try {
-                    val service = IClipCascadeSetupService.Stub.asInterface(binder)
-                    val remote = JSONObject(service.applySetup(app.packageName))
-                    val verified = waitForVerification(app)
-                    remote.put("verified", verified)
-                    if (!verified.getBoolean("readLogs") || !verified.getBoolean("overlay")) {
-                        throw IllegalStateException(
-                            "Shizuku commands returned but Android did not retain the required grants: $verified"
-                        )
+                val connection = this
+                setupExecutor.execute {
+                    try {
+                        val service = IClipCascadeSetupService.Stub.asInterface(binder)
+                        val remote = JSONObject(service.applySetup(app.packageName))
+                        val verified = waitForVerification(app)
+                        remote.put("verified", verified)
+                        if (!verified.getBoolean("readLogs") || !verified.getBoolean("overlay")) {
+                            throw IllegalStateException(
+                                "Shizuku commands returned but Android did not retain the required grants: $verified"
+                            )
+                        }
+                        handler.post {
+                            finishSetup(args, connection, result = remote.toString())
+                        }
+                    } catch (error: Throwable) {
+                        handler.post { finishSetup(args, connection, error = error) }
                     }
-                    finishSetup(args, this, result = remote.toString())
-                } catch (error: Throwable) {
-                    finishSetup(args, this, error = error)
                 }
             }
 
@@ -144,7 +153,7 @@ object ShizukuSetup {
                         )
                     }
                 }
-            }, 20_000L)
+            }, 30_000L)
         } catch (error: Throwable) {
             finishSetup(args, connection, error = error)
         }
