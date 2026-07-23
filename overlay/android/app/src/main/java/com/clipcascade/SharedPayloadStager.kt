@@ -15,9 +15,17 @@ import java.util.concurrent.Executors
 object SharedPayloadStager {
     private const val ROOT = "shared_outbound"
     private const val RETENTION_MS = 24L * 60L * 60L * 1000L
+    private const val MAX_FILES = 64
     private const val MAX_SINGLE_FILE_BYTES = 512L * 1024L * 1024L
+    private const val MAX_BATCH_BYTES = 512L * 1024L * 1024L
+    private const val MAX_CACHE_BYTES = 768L * 1024L * 1024L
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "ClipCascade-ShareStager").apply { isDaemon = true }
+    }
+
+    fun cleanup(context: Context) {
+        val app = context.applicationContext
+        executor.execute { cleanupExpired(app) }
     }
 
     fun stage(
@@ -33,11 +41,19 @@ object SharedPayloadStager {
 
     private fun stageBlocking(context: Context, uris: List<Uri>): List<Uri> {
         require(uris.isNotEmpty()) { "No shared URI supplied" }
+        require(uris.size <= MAX_FILES) { "Too many shared files: ${uris.size} > $MAX_FILES" }
         cleanupExpired(context)
 
-        val batch = File(context.cacheDir, "$ROOT/${UUID.randomUUID()}")
+        val root = File(context.cacheDir, ROOT)
+        val existingBytes = directorySize(root)
+        check(existingBytes <= MAX_CACHE_BYTES) {
+            "Shared-payload cache already exceeds ${MAX_CACHE_BYTES} bytes"
+        }
+
+        val batch = File(root, UUID.randomUUID().toString())
         check(batch.mkdirs()) { "Unable to create shared-payload cache" }
         val staged = mutableListOf<Uri>()
+        var batchBytes = 0L
         try {
             uris.forEachIndexed { index, source ->
                 val displayName = safeDisplayName(context, source, index)
@@ -45,13 +61,20 @@ object SharedPayloadStager {
                 context.contentResolver.openInputStream(source)?.use { input ->
                     target.outputStream().buffered().use { output ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        var total = 0L
+                        var fileBytes = 0L
                         while (true) {
                             val read = input.read(buffer)
                             if (read < 0) break
-                            total += read
-                            check(total <= MAX_SINGLE_FILE_BYTES) {
+                            fileBytes += read
+                            batchBytes += read
+                            check(fileBytes <= MAX_SINGLE_FILE_BYTES) {
                                 "Shared file exceeds ${MAX_SINGLE_FILE_BYTES} bytes"
+                            }
+                            check(batchBytes <= MAX_BATCH_BYTES) {
+                                "Shared batch exceeds ${MAX_BATCH_BYTES} bytes"
+                            }
+                            check(existingBytes + batchBytes <= MAX_CACHE_BYTES) {
+                                "Shared-payload cache exceeds ${MAX_CACHE_BYTES} bytes"
                             }
                             output.write(buffer, 0, read)
                         }
@@ -114,5 +137,11 @@ object SharedPayloadStager {
         root.listFiles()?.forEach { batch ->
             if (batch.lastModified() < cutoff) batch.deleteRecursively()
         }
+    }
+
+    private fun directorySize(file: File): Long {
+        if (!file.exists()) return 0L
+        if (file.isFile) return file.length().coerceAtLeast(0L)
+        return file.listFiles()?.sumOf(::directorySize) ?: 0L
     }
 }
