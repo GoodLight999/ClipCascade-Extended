@@ -7,7 +7,7 @@ import android.view.accessibility.AccessibilityEvent
 /** ADB-free copy-signal detector modeled on, then hardened beyond, ClipCascade Go. */
 class ClipCascadeAccessibilityService : AccessibilityService() {
     private val bridge by lazy { AsyncStorageBridge(applicationContext) }
-    private var lastSyncCheckAt = Long.MIN_VALUE
+    private var lastSyncCheckAt = 0L
     private var cachedSyncRequested = false
 
     override fun onServiceConnected() {
@@ -45,7 +45,7 @@ class ClipCascadeAccessibilityService : AccessibilityService() {
 
     private fun isSyncRequested(): Boolean {
         val now = SystemClock.elapsedRealtime()
-        if (now - lastSyncCheckAt >= SYNC_CHECK_CACHE_MS) {
+        if (lastSyncCheckAt == 0L || now - lastSyncCheckAt >= SYNC_CHECK_CACHE_MS) {
             cachedSyncRequested = bridge.getValue("wsIsRunning")?.toBoolean() == true
             lastSyncCheckAt = now
         }
