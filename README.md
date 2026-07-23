@@ -20,6 +20,7 @@ The app provides direct Accessibility/overlay buttons, one-time Shizuku setup, P
 - Native events persist until React Native is ready.
 - One-shot capture and notifications never clear the Android task.
 - Shizuku uses a transient UserService only for setup; command exit codes and actual retained grants are verified before success.
+- Shizuku Binder/command work runs off the UI thread and is not used by routine clipboard/network runtime.
 - Protocol/authentication/encryption/P2S/P2P remain based on pinned `Sathvik-Rao/ClipCascade` source.
 
 ## Build
@@ -56,6 +57,8 @@ An in-place same-signer update normally retains configuration and grants, but th
 
 ## Status
 
-CI run `29970261242` compiles/tests the Accessibility path and transient Shizuku UserService and produces a verified v2-signed APK. Real-device HONOR acceptance is the next gate; compilation is not presented as proof of OEM background reliability. OTP/SMS/email remains deferred.
+Implementation commit `257dc2d83f3f8d2f972c2b7f2dffdea2dc3bde84` passed CI run `29970990520`, including Accessibility/Shizuku compilation, unit tests, signed APK assembly, signature verification, and artifact upload. The run-specific APK SHA-256 is `4951029a94a81485f54881aa1b3f16298d936515e9374b7d9a108c58649b4a19`.
+
+Real-device HONOR acceptance is the next gate; compilation is not presented as proof of OEM background reliability or grant persistence. OTP/SMS/email remains deferred.
 
 See `HANDOFF.md`, `WORKLOG.md`, and `docs/TEST_PLAN.md`.
