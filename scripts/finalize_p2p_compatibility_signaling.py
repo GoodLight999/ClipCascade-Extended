@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Negotiate compatibility through signaling so legacy peers never parse control frames as clipboard data."""
+"""Negotiate P2P compatibility through forwarded OFFER/ANSWER metadata.
+
+The upstream signaling server forwards only OFFER, ANSWER and ICE_CANDIDATE.
+Unknown message types are discarded. Compatibility therefore travels as an
+optional top-level field on OFFER/ANSWER: Extended peers consume it, while
+legacy peers ignore it and continue to read only the SDP field.
+"""
 from __future__ import annotations
 
 import argparse
@@ -43,7 +49,7 @@ def main() -> None:
             cipherEnabled: cipher_enabled === 'true',
             keyFingerprint: localKeyFingerprint,
           };""",
-        "signaling-only compatibility payload",
+        "legacy-safe local compatibility descriptor",
     )
 
     replace_once(
@@ -68,7 +74,7 @@ def main() -> None:
             }
             // Never send private control frames over the clipboard DataChannel:
             // upstream clients would parse them as clipboard payloads. Liveness is
-            // observed through readyState/onclose and the signaling server heartbeat.
+            // observed through readyState/onclose and the signaling-server heartbeat.
             dataChannelHeartbeatTimers[remotePeerId] = setInterval(() => {
               if (channel.readyState !== 'open') {
                 clearInterval(dataChannelHeartbeatTimers[remotePeerId]);
@@ -81,14 +87,14 @@ def main() -> None:
 
     replace_once(
         service,
-        """                    case 'ICE_CANDIDATE':
-                      await handleIceCandidate(data.fromPeerId, data.candidate);
-                      break;""",
-        """                    case 'ICE_CANDIDATE':
-                      await handleIceCandidate(data.fromPeerId, data.candidate);
+        """                    case 'OFFER':
+                      await handleOffer(data.fromPeerId, data.offer);
                       break;
 
-                    case 'COMPATIBILITY': {
+                    case 'ANSWER':
+                      await handleAnswer(data.fromPeerId, data.answer);
+                      break;""",
+        """                    case 'OFFER': {
                       const compatibility = evaluateP2PCompatibility(
                         localCompatibility,
                         data.compatibility,
@@ -98,9 +104,64 @@ def main() -> None:
                         compatibility.state,
                         compatibility.reason,
                       );
+                      if (compatibility.state !== 'incompatible') {
+                        await handleOffer(data.fromPeerId, data.offer);
+                      }
+                      break;
+                    }
+
+                    case 'ANSWER': {
+                      const compatibility = evaluateP2PCompatibility(
+                        localCompatibility,
+                        data.compatibility,
+                      );
+                      await markPeerCompatibility(
+                        data.fromPeerId,
+                        compatibility.state,
+                        compatibility.reason,
+                      );
+                      if (compatibility.state !== 'incompatible') {
+                        await handleAnswer(data.fromPeerId, data.answer);
+                      }
                       break;
                     }""",
-        "signaling compatibility receiver",
+        "OFFER/ANSWER compatibility receiver",
+    )
+
+    replace_once(
+        service,
+        """            await signalingSend({
+              type: 'OFFER',
+              fromPeerId: myPeerId,
+              toPeerId: remotePeerId,
+              offer: pc.localDescription,
+            });""",
+        """            await signalingSend({
+              type: 'OFFER',
+              fromPeerId: myPeerId,
+              toPeerId: remotePeerId,
+              offer: pc.localDescription,
+              compatibility: localCompatibility,
+            });""",
+        "OFFER compatibility metadata",
+    )
+
+    replace_once(
+        service,
+        """              await signalingSend({
+                type: 'ANSWER',
+                fromPeerId: myPeerId,
+                toPeerId: fromPeerId,
+                answer: pc.localDescription,
+              });""",
+        """              await signalingSend({
+                type: 'ANSWER',
+                fromPeerId: myPeerId,
+                toPeerId: fromPeerId,
+                answer: pc.localDescription,
+                compatibility: localCompatibility,
+              });""",
+        "ANSWER compatibility metadata",
     )
 
     replace_once(
@@ -110,23 +171,39 @@ def main() -> None:
               channel.send(P2P_COMPATIBILITY_JSON);
               startDataChannelHeartbeat(remotePeerId, channel);""",
         """            channel.onopen = async () => {
-              compatibilityByPeer.set(remotePeerId, 'unknown');
-              await signalingSend({
-                type: 'COMPATIBILITY',
-                fromPeerId: myPeerId,
-                toPeerId: remotePeerId,
-                compatibility: localCompatibility,
-              });
+              if (!compatibilityByPeer.has(remotePeerId)) {
+                compatibilityByPeer.set(remotePeerId, 'unknown');
+              }
               startDataChannelHeartbeat(remotePeerId, channel);""",
-        "send compatibility through signaling",
+        "do not overwrite negotiated compatibility on channel open",
     )
 
-    # New clients still understand control frames emitted by already-installed .3 builds,
-    # but this build does not create any such frames itself.
+    replace_once(
+        service,
+        """                    const openChannels = Object.values(dataChannels).filter(
+                      channel => channel && channel.readyState === 'open',
+                    );""",
+        """                    const openChannels = Object.entries(dataChannels)
+                      .filter(
+                        ([peerId, channel]) =>
+                          channel &&
+                          channel.readyState === 'open' &&
+                          !quarantinedPeers.has(peerId),
+                      )
+                      .map(([, channel]) => channel);""",
+        "exclude quarantined peers from outbound P2P send",
+    )
+
     text = service.read_text(encoding="utf-8")
-    for forbidden in ("P2P_COMPATIBILITY_JSON", "P2P_DC_KEEPALIVE_JSON", "channel.send(P2P_COMPATIBILITY_JSON)"):
+    for forbidden in (
+        "P2P_COMPATIBILITY_JSON",
+        "P2P_DC_KEEPALIVE_JSON",
+        "type: 'COMPATIBILITY'",
+        "case 'COMPATIBILITY'",
+        "channel.send(P2P_COMPATIBILITY_JSON)",
+    ):
         if forbidden in text:
-            raise RuntimeError(f"legacy-unsafe data channel control remained: {forbidden}")
+            raise RuntimeError(f"legacy-unsafe or unforwarded control remained: {forbidden}")
 
 
 if __name__ == "__main__":
