@@ -32,6 +32,7 @@ def main() -> None:
     headless_js = (root / "HeadlessTask.js").read_text(encoding="utf-8")
     queue_js = (root / "DurableOutboundQueue.js").read_text(encoding="utf-8")
     fragmenter_js = (root / "Utf8Fragmenter.js").read_text(encoding="utf-8")
+    accumulator_js = (root / "P2PFragmentAccumulator.js").read_text(encoding="utf-8")
 
     require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
     require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
@@ -69,11 +70,22 @@ def main() -> None:
     require(foreground_js, "p2pTransportReady", "cross-scope P2P readiness")
     require(foreground_js, "scheduleOutboundRetry", "bounded retry scheduling")
     require(foreground_js, "for (const channel of openChannels)", "observed P2P sends")
+    require(foreground_js, "createP2PFragmentAccumulator", "concurrent fragment integration")
+    require(
+        foreground_js,
+        "onDataChannelMessage(e.data, remotePeerId)",
+        "peer-scoped fragment identity",
+    )
+    require(foreground_js, "fragmentAccumulator.clearPeer", "peer fragment cleanup")
+    forbid(foreground_js, "receivingFragments =", "single global fragment buffer")
     forbid(foreground_js, "await sendClipBoard(", "pre-initialization event dispatch")
     forbid(foreground_js, "textEncoder.encode(clipContent)", "unsafe P2P byte sizing")
     require(queue_js, "MAX_FAILURES = 8", "finite permanent failure policy")
     require(queue_js, "raw.scope === scope", "server-scoped outbound queue")
     require(fragmenter_js, "bytes[end] & 0xc0", "UTF-8 code-point boundary guard")
+    require(accumulator_js, "Too many concurrent fragmented", "fragment concurrency bound")
+    require(accumulator_js, "Conflicting duplicate fragment", "fragment conflict guard")
+    require(accumulator_js, "duplicate-complete", "completed fragment replay guard")
 
     runtime_files = [
         android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt",
@@ -83,6 +95,7 @@ def main() -> None:
         android / "java/com/clipcascade/SharedPayloadStager.kt",
         root / "StartForegroundService.js",
         root / "DurableOutboundQueue.js",
+        root / "P2PFragmentAccumulator.js",
     ]
     for path in runtime_files:
         text = path.read_text(encoding="utf-8")
