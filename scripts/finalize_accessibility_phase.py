@@ -15,16 +15,16 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("destination", type=Path)
     root = parser.parse_args().destination.resolve()
-    replace_once(root / "android/app/build.gradle", "versionCode 320001", "versionCode 320002")
+    replace_once(root / "android/app/build.gradle", "versionCode 320001", "versionCode 320003")
     replace_once(
         root / "android/app/build.gradle",
         'versionName "3.2.0-extended.1"',
-        'versionName "3.2.0-extended.2"',
+        'versionName "3.2.0-extended.3"',
     )
     replace_once(
         root / "App.js",
         "const APP_VERSION = '3.2.0-extended.1';",
-        "const APP_VERSION = '3.2.0-extended.2';",
+        "const APP_VERSION = '3.2.0-extended.3';",
     )
 
 
