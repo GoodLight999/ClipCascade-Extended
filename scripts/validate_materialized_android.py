@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Fail CI when the generated Android tree violates reliability invariants."""
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+
+def require(text: str, needle: str, label: str) -> None:
+    if needle not in text:
+        raise RuntimeError(f"missing {label}: {needle!r}")
+
+
+def forbid(text: str, needle: str, label: str) -> None:
+    if needle in text:
+        raise RuntimeError(f"forbidden {label}: {needle!r}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("root", type=Path)
+    root = parser.parse_args().root.resolve()
+
+    android = root / "android/app/src/main"
+    manifest = (android / "AndroidManifest.xml").read_text(encoding="utf-8")
+    accessibility_xml = (
+        android / "res/xml/clipcascade_accessibility_service.xml"
+    ).read_text(encoding="utf-8")
+    build_gradle = (root / "android/app/build.gradle").read_text(encoding="utf-8")
+    app_js = (root / "App.js").read_text(encoding="utf-8")
+
+    require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
+    require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
+    require(accessibility_xml, 'android:canRetrieveWindowContent="false"', "privacy setting")
+    require(build_gradle, 'applicationId "com.clipcascade.extended"', "permanent package")
+    require(build_gradle, "versionCode 320003", "monotonic versionCode")
+    require(build_gradle, 'versionName "3.2.0-extended.3"', "versionName")
+    require(app_js, "const APP_VERSION = '3.2.0-extended.3';", "UI version")
+
+    kotlin_files = list((android / "java/com/clipcascade").glob("*.kt"))
+    all_native = "\n".join(path.read_text(encoding="utf-8") for path in kotlin_files)
+    forbid(all_native, "FLAG_ACTIVITY_CLEAR_TASK", "task-destructive launch flag")
+    require(all_native, "selection-without-copy", "selection false-positive guard")
+    require(all_native, "activateAndDrain", "React listener readiness gate")
+    require(all_native, "capture-timeout", "capture watchdog")
+    require(all_native, "one-time-setup-only", "one-time Shizuku contract")
+
+    runtime_files = [
+        android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt",
+        android / "java/com/clipcascade/ClipboardCaptureCoordinator.kt",
+        android / "java/com/clipcascade/ClipboardFloatingActivity.kt",
+        android / "java/com/clipcascade/ClipboardListenerModule.kt",
+        root / "StartForegroundService.js",
+    ]
+    for path in runtime_files:
+        text = path.read_text(encoding="utf-8")
+        forbid(text, "rikka.shizuku", f"runtime Shizuku dependency in {path.name}")
+        forbid(text, "Shizuku.", f"runtime Shizuku call in {path.name}")
+
+    print("materialized Android reliability invariants: OK")
+
+
+if __name__ == "__main__":
+    main()
