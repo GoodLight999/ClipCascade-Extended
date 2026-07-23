@@ -33,6 +33,11 @@ def main() -> None:
 
     require(service, "activeForegroundRuntimeId", "single foreground runtime lease")
     require(service, "duplicate-runtime-suppressed", "duplicate runtime suppression")
+    require(service, "void pollFlagsLoop().catch", "supervised foreground polling loop")
+    require(service, "foreground_service_loop_failed_at", "poll-loop failure evidence")
+    require(service, "finishForegroundRuntime('failed')", "poll-loop lease release")
+    forbid(service, "        pollFlagsLoop();", "unsupervised foreground polling loop")
+
     require(service, "localCompatibility", "local compatibility descriptor")
     require(service, "case 'OFFER': {", "OFFER compatibility receiver")
     require(service, "case 'ANSWER': {", "ANSWER compatibility receiver")
