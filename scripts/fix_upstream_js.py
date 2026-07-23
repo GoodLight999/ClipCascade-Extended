@@ -81,17 +81,36 @@ def patch_foreground_service(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     text = replace_exact(
         text,
-        "        const textEncoder = new TextEncoder();",
-        "        const textEncoder = new encoding.TextEncoder();",
+        "import * as encoding from 'text-encoding'; //do not remove this (polyfills for TextEncoder/TextDecoder stompjs)",
+        "import { fragmentUtf8String } from './Utf8Fragmenter';",
         1,
-        "TextEncoder namespace",
+        "UTF-8 fragmenter import",
     )
     text = replace_exact(
         text,
-        "        const textDecoder = new TextDecoder();",
-        "        const textDecoder = new encoding.TextDecoder();",
+        """        const textEncoder = new TextEncoder();
+        const textDecoder = new TextDecoder();
+
+""",
+        "",
         1,
-        "TextDecoder namespace",
+        "remove unsafe per-fragment codec instances",
+    )
+    text = replace_exact(
+        text,
+        """        const fragmentString = async (str, fragmentSize) => {
+          const bytes = textEncoder.encode(str); // convert to UTF-8 bytes
+          const fragments = [];
+          for (let i = 0; i < bytes.length; i += fragmentSize) {
+            const chunk = bytes.slice(i, i + fragmentSize);
+            fragments.push(textDecoder.decode(chunk));
+          }
+          return fragments;
+        };""",
+        """        const fragmentString = async (str, fragmentSize) =>
+          fragmentUtf8String(str, fragmentSize);""",
+        1,
+        "UTF-8 safe P2P fragmentation",
     )
     text = replace_exact(
         text,
@@ -110,9 +129,7 @@ def patch_foreground_service(path: Path) -> None:
     text = replace_exact(
         text,
         """        const maxsize = Number(maxsizeStr);
-        let max_clipboard_size_local_limit_bytes = Number(MaxClipboardLimitStr);""".replace(
-            "MaxClipboardLimitStr", "maxClipboardLimitStr"
-        ),
+        let max_clipboard_size_local_limit_bytes = Number(maxClipboardLimitStr);""",
         """        const maxsize = Number(maxsizeStr);
         await setDataInAsyncStorage('wsStatusMessage', '⏳ Connecting...');
         await setDataInAsyncStorage('p2pStatusMessage', '');
