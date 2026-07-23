@@ -47,21 +47,23 @@ class ClipboardListenerModule(
                     reactApplicationContext,
                     clipboardManager
                 ) { result ->
-                    result.onSuccess { payload ->
-                        payload?.let {
-                            PendingReactEventStore.emitOrQueue(
-                                reactApplicationContext,
-                                reactApplicationContext,
-                                "onClipboardChange",
-                                it
+                    reactApplicationContext.runOnUiQueueThread {
+                        result.onSuccess { payload ->
+                            payload?.let {
+                                PendingReactEventStore.emitOrQueue(
+                                    reactApplicationContext,
+                                    reactApplicationContext,
+                                    "onClipboardChange",
+                                    it
+                                )
+                            }
+                        }.onFailure { error ->
+                            bridge.setValue(
+                                "clipboard_fallback_status",
+                                "native-listener-error:${error.javaClass.simpleName}:${error.message}"
+                                    .take(300)
                             )
                         }
-                    }.onFailure { error ->
-                        bridge.setValue(
-                            "clipboard_fallback_status",
-                            "native-listener-error:${error.javaClass.simpleName}:${error.message}"
-                                .take(300)
-                        )
                     }
                 }
             } catch (security: SecurityException) {
