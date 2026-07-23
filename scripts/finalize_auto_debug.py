@@ -88,6 +88,8 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
                 put("foregroundServiceError", bridge.getValue("foreground_service_error").orEmpty())
                 put("foregroundServiceState", bridge.getValue("foreground_service_state").orEmpty())
                 put("foregroundServiceHeartbeatAt", bridge.getValue("foreground_service_heartbeat_at").orEmpty())
+                put("foregroundServiceInstanceId", bridge.getValue("foreground_service_instance_id").orEmpty())
+                put("foregroundServiceDuplicateSuppressedAt", bridge.getValue("foreground_service_duplicate_suppressed_at").orEmpty())
                 put("foregroundServiceLastStartedAt", bridge.getValue("foreground_service_last_started_at").orEmpty())
                 put("foregroundServiceLastStoppedAt", bridge.getValue("foreground_service_last_stopped_at").orEmpty())
                 put("p2pCandidatePeers", bridge.getValue("p2p_candidate_peers")?.toIntOrNull() ?: 0)
