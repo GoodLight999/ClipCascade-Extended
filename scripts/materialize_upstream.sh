@@ -31,6 +31,7 @@ cp -a "$WORK_DIR/upstream/$UPSTREAM_MOBILE_PATH/." "$DESTINATION/"
 
 python3 "$ROOT_DIR/scripts/apply_overlay.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/apply_accessibility_overlay.py" "$DESTINATION"
+python3 "$ROOT_DIR/scripts/finalize_deferred_otp.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_accessibility_phase.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/fix_upstream_js.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_transport_retry_safety.py" "$DESTINATION"
