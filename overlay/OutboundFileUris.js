@@ -16,6 +16,9 @@ export function parseOutboundFileUris(serialized) {
     }
     return uris;
   }
+  if (value.startsWith('{')) {
+    throw new Error('Outbound file URI JSON payload must be an array');
+  }
 
   // Backward compatibility for queued events created by older Extended builds.
   return value
