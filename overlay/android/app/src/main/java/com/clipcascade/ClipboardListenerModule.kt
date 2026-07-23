@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.ReactApplicationContext
@@ -42,13 +43,26 @@ class ClipboardListenerModule(
 
         clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
             try {
-                ClipboardPayloadReader.read(reactApplicationContext, clipboardManager)?.let { payload ->
-                    PendingReactEventStore.emitOrQueue(
-                        reactApplicationContext,
-                        reactApplicationContext,
-                        "onClipboardChange",
-                        payload
-                    )
+                ClipboardPayloadReader.readOrStage(
+                    reactApplicationContext,
+                    clipboardManager
+                ) { result ->
+                    result.onSuccess { payload ->
+                        payload?.let {
+                            PendingReactEventStore.emitOrQueue(
+                                reactApplicationContext,
+                                reactApplicationContext,
+                                "onClipboardChange",
+                                it
+                            )
+                        }
+                    }.onFailure { error ->
+                        bridge.setValue(
+                            "clipboard_fallback_status",
+                            "native-listener-error:${error.javaClass.simpleName}:${error.message}"
+                                .take(300)
+                        )
+                    }
                 }
             } catch (security: SecurityException) {
                 bridge.setValue("clipboard_fallback_status", "native-listener-denied")
@@ -133,7 +147,7 @@ class ClipboardListenerModule(
 
     @Synchronized
     private fun requestSerializedCapture() {
-        val now = System.currentTimeMillis()
+        val now = SystemClock.elapsedRealtime()
         if (now - lastLogcatTrigger < 180L) return
         lastLogcatTrigger = now
         ClipboardCaptureCoordinator.request(
