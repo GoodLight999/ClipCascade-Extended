@@ -43,7 +43,7 @@ module.exports = async (inputData = null) => {""",
     replace_once(
         path,
         """    notifee.registerForegroundService(notification => {
-      return new Promise(async () => {
+    return new Promise(async () => {
       try {
         await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
         """    notifee.registerForegroundService(notification => {
@@ -70,8 +70,8 @@ module.exports = async (inputData = null) => {""",
           resolve();
         };
         try {
-        await setDataInAsyncStorage('foreground_service_instance_id', runtimeId);
-        await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
+          await setDataInAsyncStorage('foreground_service_instance_id', runtimeId);
+          await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
         "foreground runtime lease",
     )
 
