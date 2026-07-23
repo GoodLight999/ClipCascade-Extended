@@ -3,6 +3,7 @@ package com.clipcascade
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import org.json.JSONArray
 
 /** Shared clipboard parsing for foreground listeners and one-shot overlay capture. */
 object ClipboardPayloadReader {
@@ -32,7 +33,7 @@ object ClipboardPayloadReader {
         return if (mimeTypes.any { it.startsWith("image/") } && uris.size == 1) {
             mapOf("content" to uris.first(), "type" to "image")
         } else {
-            mapOf("content" to uris.joinToString(","), "type" to "files")
+            mapOf("content" to JSONArray(uris).toString(), "type" to "files")
         }
     }
 
