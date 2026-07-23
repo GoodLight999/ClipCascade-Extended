@@ -69,7 +69,7 @@ export function createDurableOutboundQueue(scope) {
         const state = await load(scope);
         const itemFingerprint = fingerprint(content, type);
         const last = state.items[state.items.length - 1];
-        if (last && last.fingerprint === itemFingerprint) {
+        if (last && last.type === type && last.content === content) {
           return {queued: false, duplicate: true, id: last.id, count: state.items.length};
         }
 
@@ -139,7 +139,7 @@ export function createDurableOutboundQueue(scope) {
       return serialize(async () => {
         const state = await load(scope);
         return {
-          scope: state.scope,
+          scopeFingerprint: String(xxHash32(scope, 0)),
           count: state.items.length,
           dropped: Number(state.dropped || 0),
           oldestCreatedAt: state.items[0]?.createdAt || null,
