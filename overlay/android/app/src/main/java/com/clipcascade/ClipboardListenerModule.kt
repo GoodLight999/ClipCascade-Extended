@@ -42,7 +42,7 @@ class ClipboardListenerModule(
 
         clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
             try {
-                readClipboardPayload()?.let { payload ->
+                ClipboardPayloadReader.read(reactApplicationContext, clipboardManager)?.let { payload ->
                     PendingReactEventStore.emitOrQueue(
                         reactApplicationContext,
                         reactApplicationContext,
@@ -63,7 +63,7 @@ class ClipboardListenerModule(
         listening = true
         ClipboardCaptureCoordinator.resumePending(reactApplicationContext)
 
-        val delivered = PendingReactEventStore.drain(
+        val delivered = PendingReactEventStore.activateAndDrain(
             reactApplicationContext,
             reactApplicationContext
         )
@@ -144,31 +144,10 @@ class ClipboardListenerModule(
         bridge.setValue("clipboard_fallback_status", "capture-queued-from-logcat")
     }
 
-    private fun readClipboardPayload(): Map<String, String>? {
-        val clip = clipboardManager.primaryClip ?: return null
-        if (clip.itemCount <= 0 || clip.description.mimeTypeCount <= 0) return null
-        val item = clip.getItemAt(0)
-        val mimeType = clip.description.getMimeType(0).orEmpty()
-        return when {
-            mimeType.startsWith("text/") && item.text != null -> mapOf(
-                "content" to item.text.toString(),
-                "type" to "text"
-            )
-            mimeType.startsWith("image/") && item.uri != null -> mapOf(
-                "content" to item.uri.toString(),
-                "type" to "image"
-            )
-            item.uri != null -> mapOf(
-                "content" to item.uri.toString(),
-                "type" to "files"
-            )
-            else -> null
-        }
-    }
-
     @ReactMethod
     @Synchronized
     fun stopListening() {
+        PendingReactEventStore.deactivate()
         clipboardListener?.let { clipboardManager.removePrimaryClipChangedListener(it) }
         clipboardListener = null
         listening = false
