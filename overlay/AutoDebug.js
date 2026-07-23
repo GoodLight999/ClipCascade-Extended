@@ -89,7 +89,7 @@ export function analyzeDiagnostics(
       foregroundLevel = 'PASS';
       foregroundDetail = `heartbeatAgeMs=${heartbeatAge}; state=${
         status.foregroundServiceState || 'unknown'
-      }`;
+      }; instance=${status.foregroundServiceInstanceId || 'missing'}`;
     } else {
       foregroundLevel = 'FAIL';
       foregroundDetail = `requested but heartbeat is ${
@@ -98,6 +98,23 @@ export function analyzeDiagnostics(
     }
   }
   checks.push(check('foreground-service', foregroundLevel, foregroundDetail));
+
+  const duplicateSuppressedAt = Number(
+    status.foregroundServiceDuplicateSuppressedAt || 0,
+  );
+  const duplicateAge =
+    duplicateSuppressedAt > 0 ? Math.max(0, now - duplicateSuppressedAt) : null;
+  checks.push(
+    check(
+      'foreground-runtime-singleton',
+      duplicateAge != null && duplicateAge <= 10 * 60_000 ? 'WARN' : 'PASS',
+      duplicateAge == null
+        ? `instance=${status.foregroundServiceInstanceId || 'none'}; no duplicate observed`
+        : `duplicate runtime suppressed ${duplicateAge} ms ago; instance=${
+            status.foregroundServiceInstanceId || 'none'
+          }`,
+    ),
+  );
 
   checks.push(
     check(
