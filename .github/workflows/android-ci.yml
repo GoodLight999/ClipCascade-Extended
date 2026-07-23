@@ -129,7 +129,9 @@ jobs:
           grep -Fq 'android.permission.BIND_ACCESSIBILITY_SERVICE' apk-manifest.xml
           grep -Fq 'android.permission.READ_LOGS' apk-manifest.xml
           grep -Fq 'android.permission.SYSTEM_ALERT_WINDOW' apk-manifest.xml
-          grep -Fq 'rikka.shizuku.ShizukuProvider' apk-manifest.xml
+          grep -Fq 'moe.shizuku.manager.permission.API_V23' apk-manifest.xml
+          grep -Fq 'moe.shizuku.client.V3_SUPPORT' apk-manifest.xml
+          grep -Fq 'moe.shizuku.privileged.api' apk-manifest.xml
           ! grep -Fq 'NotificationCaptureService' apk-manifest.xml
           ! grep -Fq 'BIND_NOTIFICATION_LISTENER_SERVICE' apk-manifest.xml
           if grep -Fq 'android:debuggable="true"' apk-manifest.xml; then
