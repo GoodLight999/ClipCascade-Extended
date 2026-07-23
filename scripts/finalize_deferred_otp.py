@@ -117,15 +117,16 @@ def main() -> None:
         "deferred OTP capture status field",
     )
 
+    # Historical overlay files may exist on older branches. The current branch no longer
+    # stores them, but deletion remains idempotent for upgrade/materialization safety.
     for relative in (
         "android/app/src/main/java/com/clipcascade/NotificationCaptureService.kt",
         "android/app/src/main/java/com/clipcascade/OtpExtractor.kt",
         "android/app/src/test/java/com/clipcascade/OtpExtractorTest.kt",
     ):
         path = root / relative
-        if not path.is_file():
-            raise RuntimeError(f"Deferred OTP source missing before removal: {path}")
-        path.unlink()
+        if path.exists():
+            path.unlink()
 
     app_js = root / "App.js"
     app_text = app_js.read_text(encoding="utf-8")
