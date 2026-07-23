@@ -16,6 +16,13 @@ def forbid(text: str, needle: str, label: str) -> None:
         raise RuntimeError(f"forbidden {label}: {needle!r}")
 
 
+def require_before(text: str, first: str, second: str, label: str) -> None:
+    first_index = text.find(first)
+    second_index = text.find(second)
+    if first_index < 0 or second_index < 0 or first_index >= second_index:
+        raise RuntimeError(f"invalid ordering for {label}: {first!r} before {second!r}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
@@ -25,6 +32,9 @@ def main() -> None:
     manifest = (android / "AndroidManifest.xml").read_text(encoding="utf-8")
     accessibility_xml = (
         android / "res/xml/clipcascade_accessibility_service.xml"
+    ).read_text(encoding="utf-8")
+    accessibility_service = (
+        android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt"
     ).read_text(encoding="utf-8")
     build_gradle = (root / "android/app/build.gradle").read_text(encoding="utf-8")
     app_js = (root / "App.js").read_text(encoding="utf-8")
@@ -41,6 +51,18 @@ def main() -> None:
     require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
     require(manifest, "android.intent.action.MY_PACKAGE_REPLACED", "package update restart")
     require(accessibility_xml, 'android:canRetrieveWindowContent="false"', "privacy setting")
+    forbid(
+        accessibility_xml,
+        "typeViewTextSelectionChanged",
+        "selection-only Accessibility subscription",
+    )
+    require(accessibility_service, "SYNC_CHECK_CACHE_MS = 250L", "bounded sync-state lookup")
+    require_before(
+        accessibility_service,
+        "if (!decision.capture) return",
+        "if (!isSyncRequested())",
+        "copy classification before AsyncStorage lookup",
+    )
     require(build_gradle, 'applicationId "com.clipcascade.extended"', "permanent package")
     require(build_gradle, "versionCode 320003", "monotonic versionCode")
     require(build_gradle, 'versionName "3.2.0-extended.3"', "versionName")
