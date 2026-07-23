@@ -185,7 +185,7 @@ module.exports = async (inputData = null) => {""",
               await setDataInAsyncStorage('wsIsRunning', 'true');
               await setDataInAsyncStorage('wsForegroundServiceTerminated', 'false');
               setWsIsRunning('true');
-              const sharedStart = await onDisplayNotification();
+              await onDisplayNotification();
               await setDataInAsyncStorage('shared_payload_status', 'service-started-for-share');
             } else if (
               foregroundServiceStoppedRunning &&
