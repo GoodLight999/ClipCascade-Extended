@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prevent stale service toggles, unbounded stop waits and data-channel control frames."""
+"""Prevent stale service toggles, unbounded stop waits and unsafe P2P controls."""
 from __future__ import annotations
 
 import argparse
@@ -33,10 +33,15 @@ def main() -> None:
 
     require(service, "activeForegroundRuntimeId", "single foreground runtime lease")
     require(service, "duplicate-runtime-suppressed", "duplicate runtime suppression")
-    require(service, "case 'COMPATIBILITY'", "signaling compatibility receiver")
-    require(service, "type: 'COMPATIBILITY'", "signaling compatibility sender")
     require(service, "localCompatibility", "local compatibility descriptor")
+    require(service, "case 'OFFER': {", "OFFER compatibility receiver")
+    require(service, "case 'ANSWER': {", "ANSWER compatibility receiver")
+    require(service, "compatibility: localCompatibility", "forwarded compatibility metadata")
+    require(service, "compatibility.state !== 'incompatible'", "pre-connection mismatch guard")
+    require(service, "!quarantinedPeers.has(peerId)", "quarantined outbound peer filter")
     require(service, "Never send private control frames over the clipboard DataChannel", "legacy-safe liveness")
+    forbid(service, "type: 'COMPATIBILITY'", "unforwarded custom signaling type")
+    forbid(service, "case 'COMPATIBILITY'", "unforwarded custom signaling receiver")
     forbid(service, "P2P_COMPATIBILITY_JSON", "data-channel compatibility frame")
     forbid(service, "P2P_DC_KEEPALIVE_JSON", "data-channel keepalive frame")
     forbid(service, "channel.send(P2P_COMPATIBILITY_JSON)", "compatibility frame send")
