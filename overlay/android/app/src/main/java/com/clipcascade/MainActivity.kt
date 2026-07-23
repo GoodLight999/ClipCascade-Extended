@@ -81,6 +81,16 @@ class MainActivity : ReactActivity() {
 
     @Suppress("DEPRECATION")
     private fun handleIntent(intent: Intent) {
+        val isShareIntent = intent.action == Intent.ACTION_SEND ||
+            intent.action == Intent.ACTION_SEND_MULTIPLE ||
+            intent.action == Intent.ACTION_PROCESS_TEXT
+        if (isShareIntent) {
+            AsyncStorageBridge(applicationContext).apply {
+                setValue("shared_payload_pending", "true")
+                setValue("shared_payload_status", "intent-received:${intent.action}:${intent.type}")
+            }
+        }
+
         when {
             Intent.ACTION_SEND == intent.action && intent.type == "text/plain" -> {
                 intent.getStringExtra(Intent.EXTRA_TEXT)?.let {
@@ -147,12 +157,15 @@ class MainActivity : ReactActivity() {
                     dispatch(eventName, key, value)
                 }.onFailure { error ->
                     val outcome = "staging-error:${error.javaClass.simpleName}:${error.message}"
-                    AsyncStorageBridge(app).setValue("shared_payload_status", outcome.take(300))
+                    AsyncStorageBridge(app).apply {
+                        setValue("shared_payload_status", outcome.take(300))
+                        setValue("shared_payload_pending", "false")
+                    }
                     Log.e(TAG, "Unable to stage shared payload", error)
                     if (!isFinishing && !isDestroyed) {
                         Toast.makeText(
                             this,
-                            "ClipCascade could not prepare the shared file.",
+                            "ClipCascade Extended could not prepare the shared file.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
