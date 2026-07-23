@@ -81,8 +81,11 @@ module.exports = async (inputData = null) => {""",
         await notifee.stopForegroundService();
       }""",
         """        cleanupClipboardListeners();
-        await notifee.stopForegroundService();
-        await finishForegroundRuntime('failed');
+        try {
+          await notifee.stopForegroundService();
+        } finally {
+          await finishForegroundRuntime('failed');
+        }
       }""",
         "release foreground runtime after fatal failure",
     )
@@ -93,8 +96,11 @@ module.exports = async (inputData = null) => {""",
             await notifee.stopForegroundService();
           };""",
         """            cleanupClipboardListeners();
-            await notifee.stopForegroundService();
-            await finishForegroundRuntime('stopped');
+            try {
+              await notifee.stopForegroundService();
+            } finally {
+              await finishForegroundRuntime('stopped');
+            }
           };""",
         2,
         "release P2S/P2P foreground runtime on stop",
