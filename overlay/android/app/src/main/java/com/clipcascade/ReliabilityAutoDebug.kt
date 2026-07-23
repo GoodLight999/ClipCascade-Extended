@@ -23,6 +23,8 @@ object ReliabilityAutoDebug {
         "foreground_service_error",
         "foreground_service_state",
         "foreground_service_heartbeat_at",
+        "foreground_service_instance_id",
+        "foreground_service_duplicate_suppressed_at",
         "foreground_service_last_started_at",
         "foreground_service_last_stopped_at",
         "p2p_candidate_peers",
