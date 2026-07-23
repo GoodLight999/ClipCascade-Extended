@@ -7,11 +7,11 @@ import android.view.accessibility.AccessibilityEvent
 /** ADB-free copy-signal detector modeled on, then hardened beyond, ClipCascade Go. */
 class ClipCascadeAccessibilityService : AccessibilityService() {
     private val bridge by lazy { AsyncStorageBridge(applicationContext) }
-    private var lastSyncCheckAt = 0L
-    private var cachedSyncRequested = false
+    private val syncRequestCache = SyncRequestCache(SYNC_CHECK_CACHE_MS)
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        syncRequestCache.invalidate()
         bridge.setValue("accessibility_service_status", "enabled")
         ClipboardCaptureCoordinator.resumePending(this)
     }
@@ -43,13 +43,8 @@ class ClipCascadeAccessibilityService : AccessibilityService() {
         ClipboardCaptureCoordinator.request(this, source, decision.delayMs)
     }
 
-    private fun isSyncRequested(): Boolean {
-        val now = SystemClock.elapsedRealtime()
-        if (lastSyncCheckAt == 0L || now - lastSyncCheckAt >= SYNC_CHECK_CACHE_MS) {
-            cachedSyncRequested = bridge.getValue("wsIsRunning")?.toBoolean() == true
-            lastSyncCheckAt = now
-        }
-        return cachedSyncRequested
+    private fun isSyncRequested(): Boolean = syncRequestCache.get(SystemClock.elapsedRealtime()) {
+        bridge.getValue("wsIsRunning")?.toBoolean() == true
     }
 
     override fun onInterrupt() {
@@ -57,6 +52,7 @@ class ClipCascadeAccessibilityService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
+        syncRequestCache.invalidate()
         bridge.setValue("accessibility_service_status", "disabled-or-unbound")
         return super.onUnbind(intent)
     }
