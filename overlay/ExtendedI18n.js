@@ -49,6 +49,37 @@ const STRINGS = {
     warn: '要確認',
     fail: '失敗',
     reportTitle: 'ClipCascade Extended 自動診断レポート',
+    connected: '接続済み',
+    disconnected: '切断済み',
+    connecting: '接続中…',
+    reconnecting: '再接続中…',
+    signalingWaiting: 'シグナリング接続済み・Peer待機中',
+    peerConnected: 'P2P Peer接続済み',
+    connectionFailed: '接続失敗',
+    outboundError: '送信エラー',
+    inboundError: '受信エラー',
+    serviceError: 'Foreground Serviceエラー',
+    stoppingService: 'Foreground Serviceを停止中…',
+    startingService: 'Foreground Serviceを開始中…',
+    ignoredIncompatible: '互換性のないP2P Peerを除外',
+    peers: 'Peer数',
+    sending: '送信中',
+    receiving: '受信中',
+    packageLabel: 'パッケージ',
+    requestedLabel: '同期要求',
+    accessibilityLabel: 'ユーザー補助',
+    captureLabel: '取得処理',
+    coordinatorLabel: '取得コーディネーター',
+    listenerLabel: 'JSイベントリスナー',
+    pendingEventsLabel: '保留中のネイティブイベント',
+    sharedPayloadLabel: '共有送信',
+    outboundQueueLabel: '送信キュー',
+    foregroundStateLabel: 'Foreground Service状態',
+    foregroundHeartbeatLabel: 'Foreground Service heartbeat',
+    foregroundErrorLabel: 'Foreground Service最終エラー',
+    p2pCompatibilityLabel: 'P2P候補／互換／非互換',
+    p2pLastErrorLabel: 'P2P最終互換性エラー',
+    restartLabel: '再起動レシーバー',
   },
   zh: {
     languageName: '简体中文',
@@ -100,6 +131,37 @@ const STRINGS = {
     warn: '需确认',
     fail: '失败',
     reportTitle: 'ClipCascade Extended 自动诊断报告',
+    connected: '已连接',
+    disconnected: '已断开',
+    connecting: '正在连接…',
+    reconnecting: '正在重新连接…',
+    signalingWaiting: '信令已连接，正在等待 Peer',
+    peerConnected: 'P2P Peer 已连接',
+    connectionFailed: '连接失败',
+    outboundError: '发送错误',
+    inboundError: '接收错误',
+    serviceError: 'Foreground Service 错误',
+    stoppingService: '正在停止 Foreground Service…',
+    startingService: '正在启动 Foreground Service…',
+    ignoredIncompatible: '已忽略不兼容的 P2P Peer',
+    peers: 'Peer 数',
+    sending: '正在发送',
+    receiving: '正在接收',
+    packageLabel: '软件包',
+    requestedLabel: '同步请求',
+    accessibilityLabel: '无障碍服务',
+    captureLabel: '捕获处理',
+    coordinatorLabel: '捕获协调器',
+    listenerLabel: 'JS 事件监听器',
+    pendingEventsLabel: '待处理原生事件',
+    sharedPayloadLabel: '系统分享发送',
+    outboundQueueLabel: '发送队列',
+    foregroundStateLabel: 'Foreground Service 状态',
+    foregroundHeartbeatLabel: 'Foreground Service heartbeat',
+    foregroundErrorLabel: 'Foreground Service 最后错误',
+    p2pCompatibilityLabel: 'P2P 候选／兼容／不兼容',
+    p2pLastErrorLabel: 'P2P 最后兼容性错误',
+    restartLabel: '重启接收器',
   },
   en: {
     languageName: 'English',
@@ -151,11 +213,44 @@ const STRINGS = {
     warn: 'CHECK',
     fail: 'FAIL',
     reportTitle: 'ClipCascade Extended automatic diagnostic report',
+    connected: 'Connected',
+    disconnected: 'Disconnected',
+    connecting: 'Connecting…',
+    reconnecting: 'Reconnecting…',
+    signalingWaiting: 'Signaling connected; waiting for peer',
+    peerConnected: 'P2P peer connected',
+    connectionFailed: 'Connection failed',
+    outboundError: 'Outbound error',
+    inboundError: 'Inbound error',
+    serviceError: 'Foreground Service error',
+    stoppingService: 'Stopping Foreground Service…',
+    startingService: 'Starting Foreground Service…',
+    ignoredIncompatible: 'Ignored incompatible P2P peer',
+    peers: 'Peers',
+    sending: 'Sending',
+    receiving: 'Receiving',
+    packageLabel: 'Package',
+    requestedLabel: 'Synchronization requested',
+    accessibilityLabel: 'Accessibility',
+    captureLabel: 'Capture',
+    coordinatorLabel: 'Capture coordinator',
+    listenerLabel: 'JS event listener',
+    pendingEventsLabel: 'Pending native events',
+    sharedPayloadLabel: 'Shared payload',
+    outboundQueueLabel: 'Outbound queue',
+    foregroundStateLabel: 'Foreground Service state',
+    foregroundHeartbeatLabel: 'Foreground Service heartbeat',
+    foregroundErrorLabel: 'Foreground Service last error',
+    p2pCompatibilityLabel: 'P2P candidates / compatible / incompatible',
+    p2pLastErrorLabel: 'P2P last compatibility error',
+    restartLabel: 'Restart receiver',
   },
 };
 
 export function detectExtendedLocale() {
-  const locale = (Intl.DateTimeFormat().resolvedOptions().locale || 'en').toLowerCase();
+  const locale = (
+    Intl.DateTimeFormat().resolvedOptions().locale || 'en'
+  ).toLowerCase();
   if (locale.startsWith('ja')) return 'ja';
   if (locale.startsWith('zh')) return 'zh';
   return 'en';
@@ -168,10 +263,24 @@ export function getExtendedStrings(locale = detectExtendedLocale()) {
 export function localizeRuntimeMessage(value, strings = getExtendedStrings()) {
   if (value == null || value === '') return strings.noStatus;
   return String(value)
-    .replace('Foreground service stopped running', strings.fail + ': foreground service')
-    .replace('Please wait...', strings.working)
-    .replace('Starting foreground service...', strings.working)
-    .replace('Stopping foreground service...', strings.working);
+    .replace(/✅ Signaling connected; waiting for peer/g, `✅ ${strings.signalingWaiting}`)
+    .replace(/✅ P2P peer connected/g, `✅ ${strings.peerConnected}`)
+    .replace(/✅ Connected/g, `✅ ${strings.connected}`)
+    .replace(/✅ Disconnected/g, `✅ ${strings.disconnected}`)
+    .replace(/⏳ Connecting\.\.\./g, `⏳ ${strings.connecting}`)
+    .replace(/⌛ Reconnecting\.\.\./g, `⌛ ${strings.reconnecting}`)
+    .replace(/Starting foreground service\.\.\./gi, strings.startingService)
+    .replace(/Stopping foreground service\.\.\./gi, strings.stoppingService)
+    .replace(/Foreground service stopped running/gi, `${strings.fail}: ${strings.serviceError}`)
+    .replace(/❌ Connection Failed:/g, `❌ ${strings.connectionFailed}:`)
+    .replace(/❌ Outbound Error:/g, `❌ ${strings.outboundError}:`)
+    .replace(/❌ Inbound Error:/g, `❌ ${strings.inboundError}:`)
+    .replace(/❌ Foreground service:/gi, `❌ ${strings.serviceError}:`)
+    .replace(/⚠️ Ignored (\d+) incompatible P2P peer\(s\)/g, `⚠️ ${strings.ignoredIncompatible}: $1`)
+    .replace(/Peers:/g, `${strings.peers}:`)
+    .replace(/Sending:/g, `${strings.sending}:`)
+    .replace(/Receiving:/g, `${strings.receiving}:`)
+    .replace(/Please wait\.\.\./gi, strings.working);
 }
 
 export { STRINGS };
