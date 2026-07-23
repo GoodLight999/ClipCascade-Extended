@@ -100,7 +100,7 @@ def main() -> None:
     ):
         replace_once(i18n, old, new, label)
 
-    old_function = """export function localizeRuntimeMessage(value, strings = getExtendedStrings()) {
+    old_function = r"""export function localizeRuntimeMessage(value, strings = getExtendedStrings()) {
   if (value == null || value === '') return strings.noStatus;
   return String(value)
     .replace(/✅ Signaling connected; waiting for peer/g, `✅ ${strings.signalingWaiting}`)
@@ -116,13 +116,13 @@ def main() -> None:
     .replace(/❌ Outbound Error:/g, `❌ ${strings.outboundError}:`)
     .replace(/❌ Inbound Error:/g, `❌ ${strings.inboundError}:`)
     .replace(/❌ Foreground service:/gi, `❌ ${strings.serviceError}:`)
-    .replace(/⚠️ Ignored (\\d+) incompatible P2P peer\\(s\\)/g, `⚠️ ${strings.ignoredIncompatible}: $1`)
+    .replace(/⚠️ Ignored (\d+) incompatible P2P peer\(s\)/g, `⚠️ ${strings.ignoredIncompatible}: $1`)
     .replace(/Peers:/g, `${strings.peers}:`)
     .replace(/Sending:/g, `${strings.sending}:`)
     .replace(/Receiving:/g, `${strings.receiving}:`)
     .replace(/Please wait\.\.\./gi, strings.working);
 }"""
-    new_function = """export function localizeRuntimeMessage(value, strings = getExtendedStrings()) {
+    new_function = r"""export function localizeRuntimeMessage(value, strings = getExtendedStrings()) {
   if (value == null || value === '') return strings.noStatus;
   return String(value)
     .replace(/✅ Signaling connected; waiting for peer/g, `✅ ${strings.signalingWaiting}`)
@@ -157,7 +157,7 @@ def main() -> None:
     .replace(/❌ Inbound Error:/g, `❌ ${strings.inboundError}:`)
     .replace(/❌ Foreground service:/gi, `❌ ${strings.serviceError}:`)
     .replace(/❌ Error:/gi, `❌ ${strings.genericError}:`)
-    .replace(/⚠️ Ignored (\\d+) incompatible P2P peer\\(s\\)/g, `⚠️ ${strings.ignoredIncompatible}: $1`)
+    .replace(/⚠️ Ignored (\d+) incompatible P2P peer\(s\)/g, `⚠️ ${strings.ignoredIncompatible}: $1`)
     .replace(/Peers:/g, `${strings.peers}:`)
     .replace(/Sending:/g, `${strings.sending}:`)
     .replace(/Receiving:/g, `${strings.receiving}:`)
