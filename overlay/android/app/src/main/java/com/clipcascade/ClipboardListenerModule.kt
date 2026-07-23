@@ -3,7 +3,6 @@ package com.clipcascade
 import android.Manifest
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
@@ -25,7 +24,7 @@ class ClipboardListenerModule(
     private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
     private var logcatThread: Thread? = null
     private var logcatProcess: Process? = null
-    private var lastOverlayLaunch = 0L
+    private var lastLogcatTrigger = 0L
 
     @Volatile
     private var listening = false
@@ -37,6 +36,7 @@ class ClipboardListenerModule(
     fun startListening() {
         if (listening) {
             PendingReactEventStore.drain(reactApplicationContext, reactApplicationContext)
+            ClipboardCaptureCoordinator.resumePending(reactApplicationContext)
             return
         }
 
@@ -61,6 +61,7 @@ class ClipboardListenerModule(
         }
         clipboardManager.addPrimaryClipChangedListener(clipboardListener)
         listening = true
+        ClipboardCaptureCoordinator.resumePending(reactApplicationContext)
 
         val delivered = PendingReactEventStore.drain(
             reactApplicationContext,
@@ -84,11 +85,11 @@ class ClipboardListenerModule(
         when {
             !readLogsGranted -> bridge.setValue(
                 "clipboard_fallback_status",
-                "manual-share-or-notification;READ_LOGS-missing"
+                "accessibility-primary;READ_LOGS-fallback-missing"
             )
             !overlayGranted -> bridge.setValue(
                 "clipboard_fallback_status",
-                "manual-share-or-notification;overlay-missing"
+                "accessibility-primary;overlay-missing"
             )
             else -> startLogcatFallback()
         }
@@ -107,7 +108,7 @@ class ClipboardListenerModule(
                     while (!stopLogcat.get()) {
                         val line = reader.readLine() ?: break
                         if (ClipboardAccessPolicy.isClipboardDenialLine(line, BuildConfig.APPLICATION_ID)) {
-                            launchClipboardCapture()
+                            requestSerializedCapture()
                         }
                     }
                 }
@@ -131,20 +132,16 @@ class ClipboardListenerModule(
     }
 
     @Synchronized
-    private fun launchClipboardCapture() {
+    private fun requestSerializedCapture() {
         val now = System.currentTimeMillis()
-        if (now - lastOverlayLaunch < 750L) return
-        lastOverlayLaunch = now
-        try {
-            val intent: Intent = ClipboardFloatingActivity.getIntent(reactApplicationContext)
-            reactApplicationContext.startActivity(intent)
-            bridge.setValue("clipboard_fallback_status", "capture-requested")
-        } catch (error: Exception) {
-            bridge.setValue(
-                "clipboard_fallback_status",
-                "capture-launch-error:${error.javaClass.simpleName}"
-            )
-        }
+        if (now - lastLogcatTrigger < 180L) return
+        lastLogcatTrigger = now
+        ClipboardCaptureCoordinator.request(
+            reactApplicationContext,
+            "read-logs-denial",
+            100L
+        )
+        bridge.setValue("clipboard_fallback_status", "capture-queued-from-logcat")
     }
 
     private fun readClipboardPayload(): Map<String, String>? {

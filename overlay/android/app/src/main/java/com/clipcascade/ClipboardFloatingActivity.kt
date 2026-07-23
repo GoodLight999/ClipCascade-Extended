@@ -91,7 +91,9 @@ class ClipboardFloatingActivity : AppCompatActivity() {
             outcome = "capture-error:${error.javaClass.simpleName}"
             bridge.setValue("clipboard_fallback_status", outcome)
         } finally {
-            ClipboardCaptureCoordinator.complete(applicationContext, requestSequence, outcome)
+            if (requestSequence > 0L) {
+                ClipboardCaptureCoordinator.complete(applicationContext, requestSequence, outcome)
+            }
             cleanupOverlay()
             finish()
             overridePendingTransition(0, 0)
@@ -138,7 +140,7 @@ class ClipboardFloatingActivity : AppCompatActivity() {
     }
 
     private fun finishCapture(outcome: String) {
-        if (completed.compareAndSet(false, true)) {
+        if (completed.compareAndSet(false, true) && requestSequence > 0L) {
             ClipboardCaptureCoordinator.complete(applicationContext, requestSequence, outcome)
         }
         cleanupOverlay()
