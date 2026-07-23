@@ -45,9 +45,12 @@ describe('DurableOutboundQueue', () => {
   test('drops a permanently failing head after finite retries', async () => {
     const queue = createDurableOutboundQueue('scope');
     const queued = await queue.enqueue('broken-uri', 'files');
-    expect((await queue.recordFailure(queued.id, 'one')).dropped).toBe(false);
-    expect((await queue.recordFailure(queued.id, 'two')).dropped).toBe(false);
-    expect((await queue.recordFailure(queued.id, 'three')).dropped).toBe(true);
+    for (let attempt = 1; attempt < 8; attempt += 1) {
+      expect(
+        (await queue.recordFailure(queued.id, `failure-${attempt}`)).dropped,
+      ).toBe(false);
+    }
+    expect((await queue.recordFailure(queued.id, 'failure-8')).dropped).toBe(true);
     expect(await queue.peek()).toBeNull();
   });
 
