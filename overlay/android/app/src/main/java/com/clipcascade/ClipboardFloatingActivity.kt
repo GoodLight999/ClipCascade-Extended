@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * One-shot focus bridge for Android 10+ clipboard restrictions.
- * Capture launches are serialized by ClipboardCaptureCoordinator.
+ * Capture launches are serialized and watched by ClipboardCaptureCoordinator.
  */
 class ClipboardFloatingActivity : AppCompatActivity() {
     private val completed = AtomicBoolean(false)
@@ -71,7 +71,7 @@ class ClipboardFloatingActivity : AppCompatActivity() {
         if (!completed.compareAndSet(false, true)) return
         var outcome = "capture-empty"
         try {
-            val payload = readClipboardPayload()
+            val payload = ClipboardPayloadReader.read(applicationContext, clipboardManager)
             if (payload == null) {
                 bridge.setValue("clipboard_fallback_status", outcome)
             } else {
@@ -100,28 +100,6 @@ class ClipboardFloatingActivity : AppCompatActivity() {
         }
     }
 
-    private fun readClipboardPayload(): Map<String, String>? {
-        val clip = clipboardManager.primaryClip ?: return null
-        if (clip.itemCount <= 0 || clip.description.mimeTypeCount <= 0) return null
-        val item = clip.getItemAt(0)
-        val mimeType = clip.description.getMimeType(0).orEmpty()
-        return when {
-            mimeType.startsWith("text/") && item.text != null -> mapOf(
-                "content" to item.text.toString(),
-                "type" to "text"
-            )
-            mimeType.startsWith("image/") && item.uri != null -> mapOf(
-                "content" to item.uri.toString(),
-                "type" to "image"
-            )
-            item.uri != null -> mapOf(
-                "content" to item.uri.toString(),
-                "type" to "files"
-            )
-            else -> null
-        }
-    }
-
     private fun currentReactContext(): ReactContext? {
         val manager: ReactInstanceManager =
             (applicationContext as MainApplication).reactNativeHost.reactInstanceManager
@@ -130,10 +108,12 @@ class ClipboardFloatingActivity : AppCompatActivity() {
 
     private fun cleanupOverlay() {
         handler.removeCallbacksAndMessages(null)
-        floatingView?.let { view ->
-            try {
-                if (view.isAttachedToWindow) windowManager.removeViewImmediate(view)
-            } catch (_: Exception) {
+        if (::windowManager.isInitialized) {
+            floatingView?.let { view ->
+                try {
+                    if (view.isAttachedToWindow) windowManager.removeViewImmediate(view)
+                } catch (_: Exception) {
+                }
             }
         }
         floatingView = null
@@ -149,6 +129,13 @@ class ClipboardFloatingActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (completed.compareAndSet(false, true) && requestSequence > 0L) {
+            ClipboardCaptureCoordinator.fail(
+                applicationContext,
+                requestSequence,
+                "activity-destroyed-before-capture"
+            )
+        }
         cleanupOverlay()
         super.onDestroy()
     }
