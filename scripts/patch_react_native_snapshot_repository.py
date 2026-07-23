@@ -2,10 +2,10 @@
 """Constrain React Native's injected Sonatype snapshot repository.
 
 React Native 0.80.x may classify its bundled Hermes coordinate as a snapshot and
-add Sonatype's snapshot repository to every auto-linked project. Upstream's
-filter excludes only org.webkit, so unrelated stable dependencies (Guava,
-Kotlin, etc.) are also queried there and can make builds fail when the snapshot
-service is slow. Keep the repository for the two React publishing groups only.
+add Sonatype's snapshot repository to every auto-linked project. The upstream
+filter is broad enough that unrelated stable dependencies (Guava, Kotlin, etc.)
+can also be queried there. Keep the repository available only for React Native
+and Hermes artifacts.
 """
 from __future__ import annotations
 
@@ -13,15 +13,38 @@ import argparse
 from pathlib import Path
 
 
-OLD = '''          mavenRepoFromUrl("https://central.sonatype.com/repository/maven-snapshots/") { repo ->
-            repo.content { it.excludeGroup("org.webkit") }
-          }'''
-NEW = '''          mavenRepoFromUrl("https://central.sonatype.com/repository/maven-snapshots/") { repo ->
-            repo.content {
-              it.includeGroup("com.facebook.react")
-              it.includeGroup("com.facebook.hermes")
-            }
-          }'''
+SNAPSHOT_URL = "https://central.sonatype.com/repository/maven-snapshots/"
+REQUIRED_GROUPS = (
+    'includeGroup("com.facebook.react")',
+    'includeGroup("com.facebook.hermes")',
+)
+
+
+def find_matching_brace(text: str, opening: int) -> int:
+    depth = 0
+    in_string = False
+    escaped = False
+    quote = ""
+    for index in range(opening, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                in_string = False
+            continue
+        if char in ('"', "'"):
+            in_string = True
+            quote = char
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+    raise RuntimeError("React Native snapshot repository block has unmatched braces")
 
 
 def main() -> None:
@@ -38,20 +61,42 @@ def main() -> None:
         raise RuntimeError(f"React Native Gradle source not found: {path}")
 
     text = path.read_text(encoding="utf-8")
-    count = text.count(OLD)
-    if count != 1:
+    if text.count(SNAPSHOT_URL) != 1:
         raise RuntimeError(
-            f"React Native snapshot repository marker drifted: expected 1, found {count}"
+            "React Native snapshot repository URL drifted: "
+            f"expected 1, found {text.count(SNAPSHOT_URL)}"
         )
-    path.write_text(text.replace(OLD, NEW, 1), encoding="utf-8")
 
-    patched = path.read_text(encoding="utf-8")
-    for required in (
-        'includeGroup("com.facebook.react")',
-        'includeGroup("com.facebook.hermes")',
-    ):
-        if required not in patched:
-            raise RuntimeError(f"Missing repository filter after patch: {required}")
+    url_index = text.index(SNAPSHOT_URL)
+    line_start = text.rfind("\n", 0, url_index) + 1
+    call_start = text.rfind("mavenRepoFromUrl", line_start, url_index)
+    if call_start < 0:
+        raise RuntimeError("Snapshot URL is not inside mavenRepoFromUrl on its line")
+    opening = text.find("{", url_index)
+    if opening < 0:
+        raise RuntimeError("Snapshot repository block opening brace not found")
+    closing = find_matching_brace(text, opening)
+    block = text[call_start : closing + 1]
+    if "repo.content" not in block:
+        raise RuntimeError("Snapshot repository no longer contains a content filter")
+
+    if all(required in block for required in REQUIRED_GROUPS):
+        print(f"React Native snapshot repository already scoped in {path}")
+        return
+
+    indent = text[line_start:call_start]
+    replacement = f'''mavenRepoFromUrl("{SNAPSHOT_URL}") {{ repo ->
+{indent}  repo.content {{
+{indent}    it.includeGroup("com.facebook.react")
+{indent}    it.includeGroup("com.facebook.hermes")
+{indent}  }}
+{indent}}}'''
+    patched = text[:call_start] + replacement + text[closing + 1 :]
+
+    for required in REQUIRED_GROUPS:
+        if patched.count(required) != 1:
+            raise RuntimeError(f"Missing or duplicated repository filter: {required}")
+    path.write_text(patched, encoding="utf-8")
     print(f"Scoped React Native snapshot repository in {path}")
 
 
