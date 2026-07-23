@@ -4,10 +4,12 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Serializes Android 10+ focus-bridge captures and persists the newest request.
- * A newer request arriving during a capture is never dropped; it runs next.
+ * A newer request arriving during a capture runs next. A launch that Android accepts
+ * but never creates is recovered by a watchdog instead of wedging all future copies.
  */
 object ClipboardCaptureCoordinator {
     private const val PREFS = "clipcascade_capture_coordinator"
@@ -17,11 +19,15 @@ object ClipboardCaptureCoordinator {
     private const val KEY_SOURCE = "source"
     private const val KEY_ATTEMPTS = "attempts"
     private const val MAX_ATTEMPTS = 3
+    private const val CAPTURE_TIMEOUT_MS = 3_500L
     private val mainHandler = Handler(Looper.getMainLooper())
     private val inFlight = AtomicBoolean(false)
+    private val activeSequence = AtomicLong(0L)
     private val scheduleLock = Any()
     private var scheduledRunnable: Runnable? = null
+    private var watchdogRunnable: Runnable? = null
 
+    @Synchronized
     fun request(context: Context, source: String, delayMs: Long) {
         val app = context.applicationContext
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -35,22 +41,30 @@ object ClipboardCaptureCoordinator {
             .putInt(KEY_ATTEMPTS, 0)
             .apply()
         AsyncStorageBridge(app).setValue("accessibility_capture_status", "queued:$source")
-        schedulePending(app)
+        if (!inFlight.get()) schedulePending(app)
     }
 
+    @Synchronized
     fun resumePending(context: Context) {
         val app = context.applicationContext
+        clearActiveCapture()
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_PENDING, false)) {
-            inFlight.set(false)
-            schedulePending(app)
-        }
+        if (prefs.getBoolean(KEY_PENDING, false)) schedulePending(app)
     }
 
+    @Synchronized
     fun complete(context: Context, completedSequence: Long, outcome: String) {
         val app = context.applicationContext
+        if (activeSequence.get() != completedSequence) {
+            AsyncStorageBridge(app).setValue(
+                "accessibility_capture_status",
+                "$outcome;stale-completion:$completedSequence"
+            )
+            return
+        }
+
+        clearActiveCapture()
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        inFlight.set(false)
         val newestSequence = prefs.getLong(KEY_SEQUENCE, 0L)
         if (newestSequence <= completedSequence) {
             prefs.edit()
@@ -67,12 +81,22 @@ object ClipboardCaptureCoordinator {
         }
     }
 
+    @Synchronized
+    fun fail(context: Context, failedSequence: Long, outcome: String) {
+        val app = context.applicationContext
+        if (activeSequence.get() != failedSequence) return
+        clearActiveCapture()
+        retryOrStop(app, failedSequence, outcome)
+    }
+
     fun status(context: Context): String {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return buildString {
             append(if (prefs.getBoolean(KEY_PENDING, false)) "pending" else "idle")
             append(";inFlight=").append(inFlight.get())
+            append(";activeSeq=").append(activeSequence.get())
             append(";seq=").append(prefs.getLong(KEY_SEQUENCE, 0L))
+            append(";attempts=").append(prefs.getInt(KEY_ATTEMPTS, 0))
             prefs.getString(KEY_SOURCE, null)?.let { append(";source=").append(it) }
         }
     }
@@ -89,39 +113,89 @@ object ClipboardCaptureCoordinator {
         }
     }
 
+    @Synchronized
     private fun launchPending(context: Context) {
         synchronized(scheduleLock) { scheduledRunnable = null }
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean(KEY_PENDING, false)) return
-        if (!inFlight.compareAndSet(false, true)) {
-            prefs.edit().putLong(KEY_DUE_AT, System.currentTimeMillis() + 180L).apply()
-            schedulePending(context)
-            return
-        }
+        if (!prefs.getBoolean(KEY_PENDING, false) || inFlight.get()) return
 
         val sequence = prefs.getLong(KEY_SEQUENCE, 0L)
+        inFlight.set(true)
+        activeSequence.set(sequence)
         try {
             context.startActivity(ClipboardFloatingActivity.getIntent(context, sequence))
             AsyncStorageBridge(context).setValue(
                 "accessibility_capture_status",
                 "capture-launched:$sequence"
             )
+            scheduleWatchdog(context.applicationContext, sequence)
         } catch (error: Exception) {
-            inFlight.set(false)
-            val attempts = prefs.getInt(KEY_ATTEMPTS, 0) + 1
-            if (attempts >= MAX_ATTEMPTS) {
-                prefs.edit().putBoolean(KEY_PENDING, false).putInt(KEY_ATTEMPTS, attempts).apply()
-                AsyncStorageBridge(context).setValue(
-                    "accessibility_capture_status",
-                    "capture-launch-failed:${error.javaClass.simpleName}"
-                )
-            } else {
-                prefs.edit()
-                    .putInt(KEY_ATTEMPTS, attempts)
-                    .putLong(KEY_DUE_AT, System.currentTimeMillis() + attempts * 350L)
-                    .apply()
-                schedulePending(context)
+            clearActiveCapture()
+            retryOrStop(
+                context.applicationContext,
+                sequence,
+                "capture-launch-failed:${error.javaClass.simpleName}"
+            )
+        }
+    }
+
+    private fun scheduleWatchdog(context: Context, sequence: Long) {
+        synchronized(scheduleLock) {
+            watchdogRunnable?.let(mainHandler::removeCallbacks)
+            val runnable = Runnable {
+                synchronized(this@ClipboardCaptureCoordinator) {
+                    if (inFlight.get() && activeSequence.get() == sequence) {
+                        clearActiveCapture()
+                        retryOrStop(context, sequence, "capture-timeout")
+                    }
+                }
             }
+            watchdogRunnable = runnable
+            mainHandler.postDelayed(runnable, CAPTURE_TIMEOUT_MS)
+        }
+    }
+
+    private fun retryOrStop(context: Context, failedSequence: Long, outcome: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val newestSequence = prefs.getLong(KEY_SEQUENCE, 0L)
+        if (newestSequence > failedSequence) {
+            AsyncStorageBridge(context).setValue(
+                "accessibility_capture_status",
+                "$outcome;newer-request-pending"
+            )
+            schedulePending(context)
+            return
+        }
+
+        val attempts = prefs.getInt(KEY_ATTEMPTS, 0) + 1
+        if (attempts >= MAX_ATTEMPTS) {
+            prefs.edit()
+                .putBoolean(KEY_PENDING, false)
+                .putInt(KEY_ATTEMPTS, attempts)
+                .apply()
+            AsyncStorageBridge(context).setValue(
+                "accessibility_capture_status",
+                "$outcome;abandoned-after:$attempts"
+            )
+        } else {
+            prefs.edit()
+                .putInt(KEY_ATTEMPTS, attempts)
+                .putLong(KEY_DUE_AT, System.currentTimeMillis() + attempts * 350L)
+                .apply()
+            AsyncStorageBridge(context).setValue(
+                "accessibility_capture_status",
+                "$outcome;retry:$attempts"
+            )
+            schedulePending(context)
+        }
+    }
+
+    private fun clearActiveCapture() {
+        inFlight.set(false)
+        activeSequence.set(0L)
+        synchronized(scheduleLock) {
+            watchdogRunnable?.let(mainHandler::removeCallbacks)
+            watchdogRunnable = null
         }
     }
 }
