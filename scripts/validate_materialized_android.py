@@ -30,6 +30,8 @@ def main() -> None:
     app_js = (root / "App.js").read_text(encoding="utf-8")
     foreground_js = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     headless_js = (root / "HeadlessTask.js").read_text(encoding="utf-8")
+    queue_js = (root / "DurableOutboundQueue.js").read_text(encoding="utf-8")
+    fragmenter_js = (root / "Utf8Fragmenter.js").read_text(encoding="utf-8")
 
     require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
     require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
@@ -41,6 +43,7 @@ def main() -> None:
     require(app_js, "const APP_VERSION = '3.2.0-extended.3';", "UI version")
     require(app_js, "JS event listener ready", "listener readiness self-test")
     require(app_js, "Shared payload staging", "shared payload self-test")
+    require(app_js, "Outbound queue", "outbound queue self-test")
     require(headless_js, "android.intent.action.MY_PACKAGE_REPLACED", "update headless restart")
 
     kotlin_files = list((android / "java/com/clipcascade").glob("*.kt"))
@@ -60,6 +63,13 @@ def main() -> None:
         "truthful P2P signaling status",
     )
     require(foreground_js, "✅ P2P peer connected", "truthful P2P peer status")
+    require(foreground_js, "createDurableOutboundQueue", "durable outbound integration")
+    require(foreground_js, "waiting-for-transport", "offline queue state")
+    require(foreground_js, "for (const channel of openChannels)", "observed P2P sends")
+    forbid(foreground_js, "textEncoder.encode(clipContent)", "unsafe P2P byte sizing")
+    require(queue_js, "MAX_FAILURES = 3", "finite permanent failure policy")
+    require(queue_js, "raw.scope === scope", "server-scoped outbound queue")
+    require(fragmenter_js, "bytes[end] & 0xc0", "UTF-8 code-point boundary guard")
 
     runtime_files = [
         android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt",
@@ -68,6 +78,7 @@ def main() -> None:
         android / "java/com/clipcascade/ClipboardListenerModule.kt",
         android / "java/com/clipcascade/SharedPayloadStager.kt",
         root / "StartForegroundService.js",
+        root / "DurableOutboundQueue.js",
     ]
     for path in runtime_files:
         text = path.read_text(encoding="utf-8")
