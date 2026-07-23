@@ -166,7 +166,10 @@ jobs:
           grep -Fq 'foreground_service_loop_failed_at' apk-js-bundle.txt
           grep -Fq 'service-started-for-share' apk-js-bundle.txt
           grep -Fq 'notificationConnectionRestored' apk-js-bundle.txt
-          grep -Fq '自動診断レポート' apk-js-bundle.txt
+          grep -Fq 'diagnosticsOverall' apk-js-bundle.txt
+          grep -Fq 'diagnosticRecovery' apk-js-bundle.txt
+          grep -Fq 'notificationDownloadFiles' apk-js-bundle.txt
+          grep -Fq 'checkingService' apk-js-bundle.txt
           ! grep -Fq 'New version available!' apk-js-bundle.txt
           ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/version.json' apk-js-bundle.txt
           ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/metadata.json' apk-js-bundle.txt
