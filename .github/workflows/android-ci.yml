@@ -123,8 +123,8 @@ jobs:
           "$apkanalyzer" manifest print "$apk" | tee apk-manifest.xml
 
           grep -Fq 'package="com.clipcascade.extended"' apk-manifest.xml
-          grep -Fq 'android:versionCode="320003"' apk-manifest.xml
-          grep -Fq 'android:versionName="3.2.0-extended.3"' apk-manifest.xml
+          grep -Fq 'android:versionCode="320004"' apk-manifest.xml
+          grep -Fq 'android:versionName="3.2.0-extended.4"' apk-manifest.xml
           grep -Fq 'com.clipcascade.ClipCascadeAccessibilityService' apk-manifest.xml
           grep -Fq 'android.permission.BIND_ACCESSIBILITY_SERVICE' apk-manifest.xml
           grep -Fq 'android.permission.READ_LOGS' apk-manifest.xml
@@ -148,6 +148,11 @@ jobs:
           grep -Fq 'activity-destroyed-before-capture' apk-dex-strings.txt
           grep -Fq 'one-time-setup-only' apk-dex-strings.txt
           grep -Fq 'ClipCascade-ShizukuSetup' apk-dex-strings.txt
+          grep -Fq 'addBinderReceivedListenerSticky' apk-dex-strings.txt
+          grep -Fq 'ReliabilityAutoDebug' apk-dex-strings.txt
+          grep -Fq 'ready-after-registration' apk-dex-strings.txt
+          grep -Fq 'foreground_service_error' apk-dex-strings.txt
+          grep -Fq 'p2p_incompatible_peers' apk-dex-strings.txt
           grep -Fq 'activateAndDrain' apk-dex-strings.txt
           ! grep -Fq 'NotificationCaptureService' apk-dex-strings.txt
           ! grep -Fq 'OtpExtractor' apk-dex-strings.txt
@@ -185,11 +190,16 @@ jobs:
             build/mobile/gradle-repository-audit.txt
             build/mobile/App.js
             build/mobile/StartForegroundService.js
+            build/mobile/ExtendedControlPanel.js
+            build/mobile/ExtendedI18n.js
+            build/mobile/AutoDebug.js
+            build/mobile/P2PCompatibility.js
             build/mobile/android/app/build.gradle
             build/mobile/android/app/src/main/AndroidManifest.xml
             build/mobile/android/app/src/main/java/com/clipcascade/NativeBridgeModule.kt
             build/mobile/android/app/src/main/java/com/clipcascade/ClipCascadeAccessibilityService.kt
             build/mobile/android/app/src/main/java/com/clipcascade/ShizukuSetup.kt
+            build/mobile/android/app/src/main/java/com/clipcascade/ReliabilityAutoDebug.kt
             build/mobile/android/app/build/reports/**
             build/mobile/android/build/reports/**
             apk-signature.txt
