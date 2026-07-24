@@ -7,6 +7,7 @@ from pathlib import Path
 
 from foreground_async_supervision import apply as apply_detached_supervision
 from guard_runtime_queue_admission import apply as guard_runtime_queue_admission
+from guard_runtime_transport_activity import apply as guard_runtime_transport_activity
 from supervise_error_handlers import apply as supervise_error_handlers
 from supervise_host_callbacks import apply as supervise_host_callbacks
 from wire_detached_task_supervisor import apply as wire_detached_supervisor
@@ -64,6 +65,7 @@ def main() -> None:
     guard_runtime_queue_admission(root)
     supervise_host_callbacks(root)
     supervise_error_handlers(root)
+    guard_runtime_transport_activity(root)
 
 
 if __name__ == "__main__":
