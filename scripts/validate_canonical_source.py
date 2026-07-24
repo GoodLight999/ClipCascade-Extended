@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MAX_FINALIZERS = 32
+MAX_FINALIZERS = 30
 
 
 def require(condition: bool, message: str) -> None:
@@ -22,6 +22,8 @@ def main() -> None:
     removed_files = (
         "scripts/finalize_deferred_otp.py",
         "scripts/finalize_accessibility_phase.py",
+        "scripts/finalize_control_panel_localization.py",
+        "scripts/finalize_runtime_recovery_localization.py",
     )
     for relative in removed_files:
         require(not (ROOT / relative).exists(), f"obsolete pipeline file returned: {relative}")
@@ -41,6 +43,8 @@ def main() -> None:
         "EXTENDED_SETUP_TEXT",
         "finalize_deferred_otp.py",
         "finalize_accessibility_phase.py",
+        "finalize_control_panel_localization.py",
+        "finalize_runtime_recovery_localization.py",
     )
     for relative in generation_files:
         text = read(relative)
@@ -81,6 +85,28 @@ def main() -> None:
     ):
         require(stale not in panel, f"hard-coded English status field remained: {stale}")
 
+    i18n = read("overlay/ExtendedI18n.js")
+    canonical_locale_keys = (
+        "diagnosticsOverall",
+        "diagnosticNativeReact",
+        "foregroundRecoveryLabel",
+        "diagnosticRecovery",
+        "checkingService",
+        "loginServerModeError",
+        "notificationMonitorChannel",
+        "notificationConnectionRestored",
+        "downloadFilesFailed",
+    )
+    for key in canonical_locale_keys:
+        require(
+            i18n.count(f"    {key}:") == 3,
+            f"canonical locale key {key!r} must exist exactly once per locale",
+        )
+    require(
+        "Checking foreground service" in i18n and "Login successful:" in i18n,
+        "canonical runtime-message translation rules are incomplete",
+    )
+
     materialize = read("scripts/materialize_upstream.sh")
     finalizer_count = materialize.count('python3 "$ROOT_DIR/scripts/finalize_')
     require(
@@ -104,7 +130,8 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        f"no forbidden-project input, finalizers={finalizer_count}/{MAX_FINALIZERS}"
+        f"canonical i18n complete, no forbidden-project input, "
+        f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
 
 
