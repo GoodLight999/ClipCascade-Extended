@@ -20,7 +20,6 @@ def main() -> None:
     path = root / "StartForegroundService.js"
     text = path.read_text(encoding="utf-8")
 
-    # P2S: do not mark content sent or enter echo-wait mode before publish succeeds.
     text = replace_once(
         text,
         """                  if (await newCB(hcb)) {
@@ -63,7 +62,6 @@ def main() -> None:
         "commit P2S state after publish",
     )
 
-    # P2P: keep an interrupted or failed fragmented send eligible for queue retry.
     text = replace_once(
         text,
         """                if (await newCB(hcb)) {
@@ -81,11 +79,11 @@ def main() -> None:
     )
     text = replace_once(
         text,
-        """                      if (sendingFragmentId != metadata.id) {
+        """                      if (sendingFragmentId !== metadata.id) {
                         loopBroken = true;
                         return;
                       }""",
-        """                      if (sendingFragmentId != metadata.id) {
+        """                      if (sendingFragmentId !== metadata.id) {
                         loopBroken = true;
                         return false;
                       }""",
