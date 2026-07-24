@@ -60,30 +60,31 @@ def main() -> None:
     require(detached_supervisor, "Promise.resolve()", "safe detached task chain")
     require(detached_supervisor, ".catch(() => undefined)", "failure-recorder rejection guard")
     require(service, "foreground_service_detached_error", "detached callback evidence")
+    require(service, "const runRuntimeDetached = (scope, task) =>", "runtime-scoped callback helper")
 
     for marker, label in (
-        ("runDetached('shared-text'", "shared-text callback"),
-        ("runDetached('shared-image'", "shared-image callback"),
-        ("runDetached('shared-files'", "shared-files callback"),
-        ("runDetached('native-clipboard-change'", "native clipboard callback"),
-        ("runDetached('outbound-retry', flushOutboundQueue)", "retry timer"),
+        ("runRuntimeDetached('shared-text'", "shared-text callback"),
+        ("runRuntimeDetached('shared-image'", "shared-image callback"),
+        ("runRuntimeDetached('shared-files'", "shared-files callback"),
+        ("runRuntimeDetached('native-clipboard-change'", "native clipboard callback"),
+        ("runRuntimeDetached('outbound-retry', flushOutboundQueue)", "retry timer"),
         ("`quarantine-dispose:${peerId}`", "quarantine disposal"),
-        ("runDetached('p2s-connect'", "P2S connect callback"),
-        ("runDetached('p2s-disconnect'", "P2S disconnect callback"),
-        ("runDetached('p2s-stomp-error'", "P2S STOMP error callback"),
-        ("runDetached('p2s-websocket-error'", "P2S WebSocket error callback"),
-        ("runDetached('p2s-websocket-close'", "P2S WebSocket close callback"),
-        ("runDetached('p2s-subscription-message'", "P2S subscription callback"),
-        ("runDetached('p2s-ack-timeout'", "P2S ACK timeout callback"),
-        ("runDetached('signaling-reconnect'", "signaling reconnect"),
-        ("runDetached('signaling-open'", "signaling open"),
-        ("runDetached('signaling-message'", "signaling message"),
-        ("runDetached('signaling-error'", "signaling error"),
-        ("runDetached('signaling-close'", "signaling close"),
-        ("`ice-candidate:${remotePeerId}`", "ICE callback"),
-        ("`datachannel-message:${remotePeerId}`", "DataChannel message"),
+        ("runRuntimeDetached('p2s-connect'", "P2S connect callback"),
+        ("runRuntimeDetached('p2s-disconnect'", "P2S disconnect callback"),
+        ("runRuntimeDetached('p2s-stomp-error'", "P2S STOMP error callback"),
+        ("runRuntimeDetached('p2s-websocket-error'", "P2S WebSocket error callback"),
+        ("runRuntimeDetached('p2s-websocket-close'", "P2S WebSocket close callback"),
+        ("runRuntimeDetached('p2s-subscription-message'", "P2S subscription callback"),
+        ("runRuntimeDetached('p2s-ack-timeout'", "P2S ACK timeout callback"),
+        ("runRuntimeDetached('signaling-reconnect'", "signaling reconnect"),
+        ("runRuntimeDetached('signaling-open'", "signaling open"),
+        ("runRuntimeDetached('signaling-message'", "signaling message"),
+        ("runRuntimeDetached('signaling-error'", "signaling error"),
+        ("runRuntimeDetached('signaling-close'", "signaling close"),
+        ("runRuntimeDetached(`ice-candidate:${remotePeerId}`", "ICE callback"),
+        ("runRuntimeDetached(`datachannel-message:${remotePeerId}`", "DataChannel message"),
     ):
-        require(service, marker, f"supervised {label}")
+        require(service, marker, f"runtime-supervised {label}")
 
     forbid(
         service,
@@ -157,8 +158,8 @@ def main() -> None:
     )
     require(
         service,
-        "wsSignalingClient.onopen = () => {\n                runDetached('signaling-open'",
-        "reconnect cancellation within supervised successful open",
+        "wsSignalingClient.onopen = () => {\n                runRuntimeDetached('signaling-open'",
+        "reconnect cancellation within runtime-supervised successful open",
     )
     forbid(service, "setTimeout(async () =>", "detached async reconnect timer")
     forbid(
@@ -182,7 +183,7 @@ def main() -> None:
     forbid(service, "localKeyFingerprint", "local password-derived verifier")
 
     print(
-        "service state, owned listeners, tested host-callback supervision and secret-free P2P controls: OK"
+        "service state, owned listeners, runtime-scoped host callbacks and secret-free P2P controls: OK"
     )
 
 
