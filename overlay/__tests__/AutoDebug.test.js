@@ -12,6 +12,8 @@ describe('automatic diagnostics', () => {
     pendingEvents: 0,
     outboundQueueStatus: JSON.stringify({ count: 0, state: 'idle' }),
     foregroundServiceError: '',
+    foregroundServiceDetachedError: '',
+    foregroundServiceDetachedErrorAt: '',
     foregroundServiceState: 'running',
     foregroundServiceHeartbeatAt: String(now - 1_000),
     foregroundServiceRecoveryStatus: 'heartbeat-healthy:test',
@@ -76,6 +78,26 @@ describe('automatic diagnostics', () => {
     expect(
       result.checks.find(item => item.id === 'foreground-service'),
     ).toMatchObject({ level: 'FAIL' });
+  });
+
+  test('detects detached timer or WebRTC callback failures', () => {
+    const result = analyzeDiagnostics(
+      {
+        ...healthyStatus,
+        foregroundServiceDetachedError:
+          'datachannel-message:peer-a:malformed fragment metadata',
+        foregroundServiceDetachedErrorAt: String(now - 25),
+      },
+      healthyProbe,
+      now,
+    );
+    expect(result.overall).toBe('FAIL');
+    expect(
+      result.checks.find(item => item.id === 'foreground-service'),
+    ).toMatchObject({
+      level: 'FAIL',
+      detail: expect.stringContaining('datachannel-message:peer-a'),
+    });
   });
 
   test('detects visible-capture recovery failures', () => {
