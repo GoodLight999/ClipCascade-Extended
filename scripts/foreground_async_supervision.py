@@ -22,12 +22,8 @@ def apply(root: Path) -> None:
 
     text = replace_once(
         text,
-        """const RUNTIME_TEXT = getExtendedStrings();
-
-const activeClipboardSubscriptions = new Set();""",
-        """const RUNTIME_TEXT = getExtendedStrings();
-
-function runDetached(scope, task) {
+        """const activeClipboardSubscriptions = new Set();""",
+        """function runDetached(scope, task) {
   Promise.resolve()
     .then(task)
     .catch(error => {
