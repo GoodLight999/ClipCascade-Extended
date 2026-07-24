@@ -136,9 +136,10 @@ export function analyzeDiagnostics(
 
   const peerSetupError = String(status.p2pLastPeerSetupError || '');
   const peerOperationError = String(status.p2pLastPeerOperationError || '');
+  const signalingError = String(status.p2pLastSignalingError || '');
   const incompatiblePeers = Number(status.p2pIncompatiblePeers || 0);
   const p2pLevel =
-    peerSetupError || peerOperationError
+    peerSetupError || peerOperationError || signalingError
       ? 'FAIL'
       : incompatiblePeers > 0
         ? 'WARN'
@@ -149,9 +150,11 @@ export function analyzeDiagnostics(
       p2pLevel,
       `compatible=${status.p2pCompatiblePeers || 0}; incompatible=${
         status.p2pIncompatiblePeers || 0
-      }; candidates=${status.p2pCandidatePeers || 0}; setupError=${
-        peerSetupError || 'none'
-      }; operationError=${peerOperationError || 'none'}`,
+      }; candidates=${status.p2pCandidatePeers || 0}; signalingError=${
+        signalingError || 'none'
+      }; setupError=${peerSetupError || 'none'}; operationError=${
+        peerOperationError || 'none'
+      }`,
     ),
   );
 
