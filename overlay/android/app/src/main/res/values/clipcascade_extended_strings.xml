@@ -3,4 +3,7 @@
     <string name="clipcascade_accessibility_label">ClipCascade copy detector</string>
     <string name="clipcascade_accessibility_description">Detects copy actions and briefly reads the clipboard for synchronization. It does not inspect window content.</string>
     <string name="clipcascade_share_prepare_failed">ClipCascade Extended could not prepare the shared file.</string>
+    <string name="clipcascade_service_alert_channel">ClipCascade service alerts</string>
+    <string name="clipcascade_service_inactive_title">ClipCascade service inactive</string>
+    <string name="clipcascade_service_inactive_text">Tap to reopen the app and restart synchronization.</string>
 </resources>
