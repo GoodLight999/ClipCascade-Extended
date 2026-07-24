@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Repair verified correctness defects in the pinned upstream JavaScript.
 
-These edits are kept separate from product-specific UI patches so each upstream
-repair has a narrow, guarded marker and can be removed independently when the
-primary project incorporates an equivalent fix.
+These guarded edits are limited to the pinned upstream source and are removable
+when upstream incorporates equivalent fixes. Besides correctness, the phase
+keeps inherited warnings from hiding Extended regressions in ESLint output.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -27,6 +26,29 @@ def replace_exact(
 
 def patch_app(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
+    text = replace_exact(
+        text,
+        """  const fetchTimeout = async (input, init, timeout_ms = FETCH_TIMEOUT) => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout_ms);
+      return await fetch(input, { ...init, signal: controller.signal });
+    } catch (e) {
+      throw e;
+    }
+  };""",
+        """  const fetchTimeout = async (input, init, timeout_ms = FETCH_TIMEOUT) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout_ms);
+    try {
+      return await fetch(input, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };""",
+        1,
+        "fetch timeout cleanup",
+    )
     text = replace_exact(
         text,
         "          validResult = await validateSession(data_s);",
@@ -77,6 +99,25 @@ def patch_app(path: Path) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def patch_headless(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    text = replace_exact(
+        text,
+        """import {
+  setDataInAsyncStorage,
+  getDataFromAsyncStorage,
+  clearAsyncStorage,
+} from './AsyncStorageManagement'; // persistent storage""",
+        """import {
+  setDataInAsyncStorage,
+  getDataFromAsyncStorage,
+} from './AsyncStorageManagement'; // persistent storage""",
+        1,
+        "unused HeadlessTask storage import",
+    )
+    path.write_text(text, encoding="utf-8")
+
+
 def patch_foreground_service(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     text = replace_exact(
@@ -85,6 +126,22 @@ def patch_foreground_service(path: Path) -> None:
         "import { fragmentUtf8String } from './Utf8Fragmenter';",
         1,
         "UTF-8 fragmenter import",
+    )
+    text = replace_exact(
+        text,
+        """import {
+  setDataInAsyncStorage,
+  getDataFromAsyncStorage,
+  getMultipleDataFromAsyncStorage,
+  clearAsyncStorage,
+} from './AsyncStorageManagement';""",
+        """import {
+  setDataInAsyncStorage,
+  getDataFromAsyncStorage,
+  getMultipleDataFromAsyncStorage,
+} from './AsyncStorageManagement';""",
+        1,
+        "unused foreground storage import",
     )
     text = replace_exact(
         text,
@@ -125,17 +182,96 @@ def patch_foreground_service(path: Path) -> None:
     )
     text = replace_exact(
         text,
-        "temp = {};",
-        "const temp = {};",
-        2,
-        "file payload temporary declarations",
+        "encryptedData['ciphertext']",
+        "encryptedData.ciphertext",
+        1,
+        "encrypted payload dot notation",
     )
+    text = replace_exact(
+        text,
+        "encryptedData['nonce']",
+        "encryptedData.nonce",
+        1,
+        "encrypted nonce dot notation",
+    )
+    text = replace_exact(
+        text,
+        "encryptedData['tag']",
+        "encryptedData.tag",
+        1,
+        "encrypted tag dot notation",
+    )
+    text = replace_exact(
+        text,
+        "const padding = (base64Str.match(/=/g) || []).length;",
+        "const padding = (base64Str.match(/[=]/g) || []).length;",
+        1,
+        "unambiguous base64 padding regex",
+    )
+    text = replace_exact(
+        text,
+        """            const r = (Math.random() * 16) | 0;
+            const v = c === 'x' ? r : (r & 0x3) | 0x8;""",
+        """            const r = Math.floor(Math.random() * 16);
+            const v = c === 'x' ? r : (r % 4) + 8;""",
+        1,
+        "UUID nibble calculation without implicit signed bitwise coercion",
+    )
+    text = replace_exact(text, "temp = {};", "const temp = {};", 2, "file payload declarations")
     text = replace_exact(
         text,
         "              await clearFiles((expensiveCall = true));",
         "              await clearFiles(true);",
         1,
         "clearFiles argument assignment",
+    )
+    text = replace_exact(
+        text,
+        "websocket_status_notification_toggle == true",
+        "websocket_status_notification_toggle === true",
+        2,
+        "strict notification-enabled comparisons",
+    )
+    text = replace_exact(
+        text,
+        "websocket_status_notification_toggle == false",
+        "websocket_status_notification_toggle === false",
+        2,
+        "strict notification-disabled comparisons",
+    )
+    text = replace_exact(
+        text,
+        "sendingFragmentId != metadata.id",
+        "sendingFragmentId !== metadata.id",
+        1,
+        "strict P2P fragment cancellation comparison",
+    )
+    text = replace_exact(
+        text,
+        "metadata['combinedRawPayloadSizeInBytes']",
+        "metadata.combinedRawPayloadSizeInBytes",
+        1,
+        "P2P metadata dot notation",
+    )
+    text = replace_exact(
+        text,
+        """              {
+                if (
+                  (type_ === 'image' && enable_image_sharing === 'false') ||""",
+        """              if (
+                  (type_ === 'image' && enable_image_sharing === 'false') ||""",
+        1,
+        "remove redundant P2S send block opening",
+    )
+    text = replace_exact(
+        text,
+        """                }
+              }
+            } catch (e) {""",
+        """                }
+            } catch (e) {""",
+        1,
+        "remove redundant P2S send block closing",
     )
     text = replace_exact(
         text,
@@ -268,9 +404,9 @@ def patch_foreground_service(path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("destination", type=Path)
-    args = parser.parse_args()
-    destination = args.destination.resolve()
+    destination = parser.parse_args().destination.resolve()
     patch_app(destination / "App.js")
+    patch_headless(destination / "HeadlessTask.js")
     patch_foreground_service(destination / "StartForegroundService.js")
 
 
