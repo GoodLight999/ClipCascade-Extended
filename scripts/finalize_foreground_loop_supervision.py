@@ -23,7 +23,7 @@ def main() -> None:
     replace_once(
         service,
         """        pollFlagsLoop();""",
-        """        void pollFlagsLoop().catch(async error => {
+        """        pollFlagsLoop().catch(async error => {
           const detail = String(error?.stack || error);
           await setDataInAsyncStorage(
             'foreground_service_error',
