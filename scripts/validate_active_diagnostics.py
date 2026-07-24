@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require active event, heartbeat, visible recovery and localized report diagnostics."""
+"""Require active event, heartbeat, detached-error and recovery diagnostics."""
 from __future__ import annotations
 
 import argparse
@@ -36,6 +36,7 @@ def main() -> None:
     require(panel, "foregroundServiceRecoveryStatus", "recovery state in self-test")
     require(analyzer, "native-react-event-bridge", "active event verdict")
     require(analyzer, "heartbeatAgeMs", "heartbeat freshness verdict")
+    require(analyzer, "foregroundServiceDetachedError", "detached callback verdict")
     require(analyzer, "foreground-runtime-singleton", "foreground runtime singleton verdict")
     require(analyzer, "foreground-recovery", "visible recovery verdict")
     require(analyzer, "CHECK_LABEL_KEYS", "localized diagnostic check mapping")
@@ -55,10 +56,13 @@ def main() -> None:
         require(i18n, f"{key}:", f"localized diagnostic key {key}")
 
     require(foreground, "foreground_service_heartbeat_at", "foreground loop heartbeat")
+    require(foreground, "foreground_service_detached_error", "detached callback failure evidence")
     require(foreground, "activeForegroundRuntimeId", "single foreground runtime lease")
     require(foreground, "duplicate-runtime-suppressed", "duplicate runtime suppression")
     require(foreground, "finishForegroundRuntime", "runtime lease release")
     require(native_bridge, "foregroundServiceHeartbeatAt", "heartbeat status bridge")
+    require(native_bridge, "foregroundServiceDetachedError", "detached error status bridge")
+    require(native_bridge, "foregroundServiceDetachedErrorAt", "detached error time bridge")
     require(native_bridge, "foregroundServiceInstanceId", "runtime instance status bridge")
     require(native_bridge, "foregroundServiceDuplicateSuppressedAt", "duplicate status bridge")
     require(native_bridge, "foregroundServiceRecoveryStatus", "recovery status bridge")
@@ -77,7 +81,7 @@ def main() -> None:
     require(headless, "restartFromVisibleCapture", "Headless capture recovery")
     require(headless, "foreground-start-requested", "Headless recovery evidence")
 
-    print("active localized automatic diagnostics and visible recovery: OK")
+    print("active localized automatic diagnostics, detached failures and visible recovery: OK")
 
 
 if __name__ == "__main__":
