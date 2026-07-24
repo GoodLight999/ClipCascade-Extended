@@ -146,6 +146,7 @@ jobs:
           grep -Fq 'selection-without-copy' apk-dex-strings.txt
           grep -Fq 'capture-timeout' apk-dex-strings.txt
           grep -Fq 'activity-destroyed-before-capture' apk-dex-strings.txt
+          grep -Fq 'retry-scheduled' apk-dex-strings.txt
           grep -Fq 'one-time-setup-only' apk-dex-strings.txt
           grep -Fq 'ClipCascade-ShizukuSetup' apk-dex-strings.txt
           grep -Fq 'addBinderReceivedListenerSticky' apk-dex-strings.txt
@@ -156,6 +157,7 @@ jobs:
           grep -Fq 'foreground_service_error' apk-dex-strings.txt
           grep -Fq 'p2p_incompatible_peers' apk-dex-strings.txt
           grep -Fq 'activateAndDrain' apk-dex-strings.txt
+          grep -Fq 'drainInOrder' apk-dex-strings.txt
           ! grep -Fq 'NotificationCaptureService' apk-dex-strings.txt
           ! grep -Fq 'OtpExtractor' apk-dex-strings.txt
 
@@ -231,3 +233,122 @@ jobs:
             build/mobile/npm-debug.log
           if-no-files-found: ignore
           retention-days: 14
+
+  emulator-smoke:
+    name: Emulator smoke API ${{ matrix.api-level }}
+    needs: build-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [35, 36]
+
+    steps:
+      - name: Download signed APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ClipCascade-Extended-${{ github.sha }}
+          path: artifact
+
+      - name: Verify downloaded APK checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifact
+          sha256sum -c dist/ClipCascade-Extended.apk.sha256
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install and exercise release APK
+        uses: ReactiveCircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 2
+          ram-size: 4096M
+          heap-size: 512M
+          disable-animations: true
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+            -camera-back none -camera-front none
+          script: |
+            set -euo pipefail
+            package='com.clipcascade.extended'
+            component='com.clipcascade.extended/com.clipcascade.MainActivity'
+            api='${{ matrix.api-level }}'
+            out="emulator-smoke/api-${api}"
+            mkdir -p "$out"
+
+            adb logcat -c
+            adb install -r artifact/dist/ClipCascade-Extended.apk \
+              | tee "$out/install.txt"
+            adb shell pm path "$package" | tee "$out/package-path.txt"
+            adb shell dumpsys package "$package" > "$out/package.txt"
+            grep -Fq 'com.clipcascade.ClipCascadeAccessibilityService' "$out/package.txt"
+            grep -Fq 'com.clipcascade.BootReceiver' "$out/package.txt"
+
+            adb shell cmd uimode night no || true
+            adb shell am force-stop "$package"
+            adb shell am start -W -n "$component" | tee "$out/launch-light.txt"
+            grep -Fq 'Status: ok' "$out/launch-light.txt"
+            sleep 4
+
+            adb shell am start -W \
+              -a android.intent.action.SEND \
+              -t text/plain \
+              --es android.intent.extra.TEXT "ClipCascade CI share API ${api}" \
+              -n "$component" | tee "$out/share-text.txt"
+            grep -Fq 'Status: ok' "$out/share-text.txt"
+            sleep 2
+
+            adb shell am start -W \
+              -a android.intent.action.PROCESS_TEXT \
+              -t text/plain \
+              --es android.intent.extra.PROCESS_TEXT "ClipCascade CI process text API ${api}" \
+              -n "$component" | tee "$out/process-text.txt"
+            grep -Fq 'Status: ok' "$out/process-text.txt"
+            sleep 2
+
+            adb shell cmd uimode night yes || true
+            adb shell am force-stop "$package"
+            adb shell am start -W -n "$component" | tee "$out/launch-dark.txt"
+            grep -Fq 'Status: ok' "$out/launch-dark.txt"
+            sleep 4
+
+            pid="$(adb shell pidof "$package" | tr -d '\r')"
+            test -n "$pid"
+            printf '%s\n' "$pid" > "$out/pid.txt"
+            adb exec-out screencap -p > "$out/dark-mode.png"
+            adb shell dumpsys activity exit-info "$package" > "$out/exit-info.txt" || true
+            adb logcat -d -v threadtime > "$out/logcat.txt"
+
+            if grep -Fq 'Process: com.clipcascade.extended' "$out/logcat.txt"; then
+              echo 'ClipCascade process crash detected in emulator logcat' >&2
+              exit 1
+            fi
+            if grep -Fq 'ANR in com.clipcascade.extended' "$out/logcat.txt"; then
+              echo 'ClipCascade ANR detected in emulator logcat' >&2
+              exit 1
+            fi
+            if grep -Eq 'reason=REASON_(CRASH|CRASH_NATIVE|ANR)' "$out/exit-info.txt"; then
+              echo 'ClipCascade abnormal exit detected by ActivityManager' >&2
+              exit 1
+            fi
+
+      - name: Upload emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipCascade-Extended-emulator-api-${{ matrix.api-level }}-${{ github.sha }}
+          path: emulator-smoke/api-${{ matrix.api-level }}/**
+          if-no-files-found: warn
+          retention-days: 30
