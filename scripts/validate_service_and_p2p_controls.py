@@ -23,6 +23,7 @@ def main() -> None:
     app = (root / "App.js").read_text(encoding="utf-8")
     service = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     policy = (root / "ServiceControlPolicy.js").read_text(encoding="utf-8")
+    detached_supervisor = (root / "DetachedTaskSupervisor.js").read_text(encoding="utf-8")
 
     require(app, "nextRequestedServiceState(persistedWsIsRunning)", "persisted service toggle")
     require(app, "hasForegroundStopTimedOut", "bounded stop policy")
@@ -46,7 +47,18 @@ def main() -> None:
     )
     forbid(service, "removeAllListeners(", "global listener deletion")
 
-    require(service, "function runDetached(scope, task)", "detached callback supervisor")
+    require(
+        service,
+        "import { createDetachedTaskSupervisor } from './DetachedTaskSupervisor';",
+        "canonical detached supervisor import",
+    )
+    require(
+        service,
+        "const runDetached = createDetachedTaskSupervisor(async (scope, error) => {",
+        "canonical detached supervisor instance",
+    )
+    require(detached_supervisor, "Promise.resolve()", "safe detached task chain")
+    require(detached_supervisor, ".catch(() => undefined)", "failure-recorder rejection guard")
     require(service, "foreground_service_detached_error", "detached callback evidence")
     require(service, "runDetached('outbound-retry', flushOutboundQueue)", "supervised retry timer")
     require(service, "`quarantine-dispose:${peerId}`", "supervised quarantine disposal")
@@ -141,7 +153,7 @@ def main() -> None:
     forbid(service, "localKeyFingerprint", "local password-derived verifier")
 
     print(
-        "service state, owned listeners, supervised async flow and secret-free P2P controls: OK"
+        "service state, owned listeners, tested async supervision and secret-free P2P controls: OK"
     )
 
 
