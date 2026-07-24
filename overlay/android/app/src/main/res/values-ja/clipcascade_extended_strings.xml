@@ -3,4 +3,7 @@
     <string name="clipcascade_accessibility_label">ClipCascade コピー検知</string>
     <string name="clipcascade_accessibility_description">コピー操作を検知し、同期のため一瞬だけクリップボードを読み取ります。画面内容は取得しません。</string>
     <string name="clipcascade_share_prepare_failed">共有ファイルを送信用に準備できませんでした。</string>
+    <string name="clipcascade_service_alert_channel">ClipCascade サービス警告</string>
+    <string name="clipcascade_service_inactive_title">ClipCascade サービスが停止しています</string>
+    <string name="clipcascade_service_inactive_text">タップしてアプリを開き、同期を再開してください。</string>
 </resources>
