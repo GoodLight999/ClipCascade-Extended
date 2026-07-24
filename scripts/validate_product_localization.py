@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject label-only localization and inherited visible English regressions."""
+"""Reject label-only localization, unsafe adaptive colors, and inherited UI regressions."""
 from __future__ import annotations
 
 import argparse
@@ -36,6 +36,23 @@ def main() -> None:
         require(app, expression, label)
     forbid(app, "Alert.alert('Error'", "hard-coded English Alert title")
     forbid(app, "Unknown error: ' +", "hard-coded English Alert body")
+
+    require(app, "const extendedColorScheme = useColorScheme();", "runtime color-scheme hook")
+    require(
+        app,
+        "backgroundColor={extendedColorScheme === 'dark' ? '#121212' : '#ffffff'}",
+        "concrete StatusBar background colors",
+    )
+    require(
+        app,
+        "barStyle={extendedColorScheme === 'dark' ? 'light-content' : 'dark-content'}",
+        "adaptive StatusBar icon style",
+    )
+    forbid(
+        app,
+        "backgroundColor={PlatformColor('?android:attr/colorBackground')}",
+        "PlatformColor object passed to StatusBar",
+    )
 
     for key in (
         "checkingService",
