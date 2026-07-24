@@ -53,11 +53,35 @@ def main() -> None:
     require(service, "p2p_last_peer_operation_error", "serialized peer-operation evidence")
     require(
         service,
-        "previous.catch(() => undefined).then(() => op())",
+        "previous.catch(() => undefined).then(async () => {",
         "recoverable peer-operation chain with caller-visible failure",
     )
+    require(service, "clearPeerErrorIfOwned", "same-peer error recovery policy")
     forbid(service, "peers.forEach(async", "detached peer-list reconciliation")
     forbid(service, ".then(() => op()).catch(() => {})", "swallowed peer-operation failure")
+
+    require(service, "let signalingReconnectTimer = null", "single signaling reconnect timer")
+    require(service, "const clearSignalingReconnect", "signaling reconnect cancellation")
+    require(service, "const scheduleSignalingReconnect", "signaling reconnect scheduler")
+    require(service, "await startSignalingConnection();", "supervised initial signaling connection")
+    require(service, "p2p_last_signaling_error", "signaling failure evidence")
+    require(
+        service,
+        "stopServicesP2P = async () => {\n            clearSignalingReconnect();",
+        "reconnect cancellation on P2P stop",
+    )
+    require(
+        service,
+        "wsSignalingClient.onopen = async () => {\n                clearSignalingReconnect();",
+        "reconnect cancellation on successful open",
+    )
+    forbid(service, "setTimeout(async () =>", "detached async reconnect timer")
+    forbid(
+        service,
+        "\n          initializeWebSocketSignalingClient();",
+        "bare unsupervised signaling initialization",
+    )
+
     require(
         service,
         "Never send private control frames over the clipboard DataChannel",
