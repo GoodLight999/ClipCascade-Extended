@@ -79,17 +79,21 @@ export function analyzeDiagnostics(
 
   const heartbeatAt = Number(status.foregroundServiceHeartbeatAt || 0);
   const heartbeatAge = heartbeatAt > 0 ? Math.max(0, now - heartbeatAt) : null;
+  const detachedError = String(status.foregroundServiceDetachedError || '');
+  const detachedErrorAt = String(status.foregroundServiceDetachedErrorAt || '');
   let foregroundLevel = 'WARN';
   let foregroundDetail = 'synchronization is not requested';
-  if (status.foregroundServiceError) {
+  if (status.foregroundServiceError || detachedError) {
     foregroundLevel = 'FAIL';
-    foregroundDetail = status.foregroundServiceError;
+    foregroundDetail = status.foregroundServiceError
+      ? String(status.foregroundServiceError)
+      : `detached=${detachedError}; at=${detachedErrorAt || 'unknown'}`;
   } else if (status.serviceRequested) {
     if (heartbeatAge != null && heartbeatAge <= 15_000) {
       foregroundLevel = 'PASS';
-      foregroundDetail = `heartbeatAgeMs=${heartbeatAge}; state=${
+      foregroundDetail = `heartbeatAgeMs=${heartbeatAge}; state=$ {
         status.foregroundServiceState || 'unknown'
-      }; instance=${status.foregroundServiceInstanceId || 'missing'}`;
+      }; instance=${status.foregroundServiceInstanceId || 'missing'}`.replace('$ {', '${');
     } else {
       foregroundLevel = 'FAIL';
       foregroundDetail = `requested but heartbeat is ${
