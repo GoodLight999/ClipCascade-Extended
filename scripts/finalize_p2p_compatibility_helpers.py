@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Replace inline P2P compatibility decisions with unit-tested helpers."""
+"""Replace inline P2P compatibility decisions with unit-tested helpers.
+
+Compatibility signaling contains only protocol and encryption-mode metadata.
+Wrong keys are detected by authenticated decryption and quarantined per peer;
+no password-derived fingerprint is generated or transmitted.
+"""
 from __future__ import annotations
 
 import argparse
@@ -31,6 +36,66 @@ import {
         "P2P compatibility helper imports",
     )
 
+    replace_once(
+        service,
+        """          websocket_url,
+          username,
+          hashed_password,
+          cipher_enabled,""",
+        """          websocket_url,
+          username,
+          cipher_enabled,""",
+        "remove password-derived compatibility input",
+    )
+    replace_once(
+        service,
+        """          'websocket_url',
+          'username',
+          'hashed_password',
+          'cipher_enabled',""",
+        """          'websocket_url',
+          'username',
+          'cipher_enabled',""",
+        "remove password-derived compatibility storage key",
+    )
+
+    replace_once(
+        service,
+        """          const localKeyFingerprint =
+            cipher_enabled === 'true'
+              ? await hashCB(hashed_password || '', 7342)
+              : 'none';
+          const P2P_COMPATIBILITY_PROTOCOL = 1;
+          const P2P_COMPATIBILITY_JSON = JSON.stringify({
+            _cc_compat: true,
+            protocol: P2P_COMPATIBILITY_PROTOCOL,
+            cipherEnabled: cipher_enabled === 'true',
+            keyFingerprint: localKeyFingerprint,
+          });
+          const P2P_DC_KEEPALIVE_JSON = JSON.stringify({
+            _cc_keepalive: true,
+            compatibility: {
+              protocol: P2P_COMPATIBILITY_PROTOCOL,
+              cipherEnabled: cipher_enabled === 'true',
+              keyFingerprint: localKeyFingerprint,
+            },
+          });""",
+        """          const P2P_COMPATIBILITY_PROTOCOL = 1;
+          const P2P_COMPATIBILITY_JSON = JSON.stringify({
+            _cc_compat: true,
+            protocol: P2P_COMPATIBILITY_PROTOCOL,
+            cipherEnabled: cipher_enabled === 'true',
+          });
+          const P2P_DC_KEEPALIVE_JSON = JSON.stringify({
+            _cc_keepalive: true,
+            compatibility: {
+              protocol: P2P_COMPATIBILITY_PROTOCOL,
+              cipherEnabled: cipher_enabled === 'true',
+            },
+          });""",
+        "remove password-derived P2P fingerprint descriptor",
+    )
+
     inline_message = """                const mismatch =
                   Number(message.protocol) !== P2P_COMPATIBILITY_PROTOCOL
                     ? 'protocol-version'
@@ -49,7 +114,6 @@ import {
                   {
                     protocol: P2P_COMPATIBILITY_PROTOCOL,
                     cipherEnabled: cipher_enabled === 'true',
-                    keyFingerprint: localKeyFingerprint,
                   },
                   message,
                 );
@@ -78,7 +142,6 @@ import {
                     {
                       protocol: P2P_COMPATIBILITY_PROTOCOL,
                       cipherEnabled: cipher_enabled === 'true',
-                      keyFingerprint: localKeyFingerprint,
                     },
                     hello,
                   );
