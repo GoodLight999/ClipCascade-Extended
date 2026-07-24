@@ -48,34 +48,36 @@ module.exports = async (inputData = null) => {""",
         await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
         """    notifee.registerForegroundService(notification => {
       return new Promise(resolve => {
-        void (async () => {
-          const runtimeId = `runtime-${Date.now()}-${Math.random()}`;
-          if (activeForegroundRuntimeId != null) {
-            await setDataInAsyncStorage(
-              'foreground_service_state',
-              'duplicate-runtime-suppressed',
-            );
-            await setDataInAsyncStorage(
-              'foreground_service_duplicate_suppressed_at',
-              String(Date.now()),
-            );
-            resolve();
-            return;
-          }
-          activeForegroundRuntimeId = runtimeId;
-          const finishForegroundRuntime = async state => {
-            if (activeForegroundRuntimeId !== runtimeId) {
+        let runtimeId = null;
+        Promise.resolve()
+          .then(async () => {
+            runtimeId = `runtime-${Date.now()}-${Math.random()}`;
+            if (activeForegroundRuntimeId != null) {
+              await setDataInAsyncStorage(
+                'foreground_service_state',
+                'duplicate-runtime-suppressed',
+              );
+              await setDataInAsyncStorage(
+                'foreground_service_duplicate_suppressed_at',
+                String(Date.now()),
+              );
               resolve();
               return;
             }
-            activeForegroundRuntimeId = null;
-            await setDataInAsyncStorage('foreground_service_state', state);
-            await setDataInAsyncStorage('foreground_service_instance_id', '');
-            resolve();
-          };
-          try {
-            await setDataInAsyncStorage('foreground_service_instance_id', runtimeId);
-            await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
+            activeForegroundRuntimeId = runtimeId;
+            const finishForegroundRuntime = async state => {
+              if (activeForegroundRuntimeId !== runtimeId) {
+                resolve();
+                return;
+              }
+              activeForegroundRuntimeId = null;
+              await setDataInAsyncStorage('foreground_service_state', state);
+              await setDataInAsyncStorage('foreground_service_instance_id', '');
+              resolve();
+            };
+            try {
+              await setDataInAsyncStorage('foreground_service_instance_id', runtimeId);
+              await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
         "foreground runtime lease",
     )
 
@@ -116,31 +118,35 @@ module.exports = async (inputData = null) => {""",
       });
     });""",
         """      }
-        })().catch(async error => {
-          const detail = String(error?.stack || error);
-          if (activeForegroundRuntimeId === runtimeId) {
-            activeForegroundRuntimeId = null;
-          }
-          try {
-            await setDataInAsyncStorage(
-              'foreground_service_error',
-              detail.slice(0, 4000),
-            );
-            await setDataInAsyncStorage(
-              'foreground_service_state',
-              'handler-unhandled-failure',
-            );
-            await setDataInAsyncStorage('foreground_service_instance_id', '');
-            await setDataInAsyncStorage('wsIsRunning', 'false');
-            await setDataInAsyncStorage(
-              'wsForegroundServiceTerminated',
-              'true',
-            );
-          } finally {
-            cleanupClipboardListeners();
-            resolve();
-          }
-        });
+          })
+          .catch(async error => {
+            const detail = String(error?.stack || error);
+            if (
+              runtimeId != null &&
+              activeForegroundRuntimeId === runtimeId
+            ) {
+              activeForegroundRuntimeId = null;
+            }
+            try {
+              await setDataInAsyncStorage(
+                'foreground_service_error',
+                detail.slice(0, 4000),
+              );
+              await setDataInAsyncStorage(
+                'foreground_service_state',
+                'handler-unhandled-failure',
+              );
+              await setDataInAsyncStorage('foreground_service_instance_id', '');
+              await setDataInAsyncStorage('wsIsRunning', 'false');
+              await setDataInAsyncStorage(
+                'wsForegroundServiceTerminated',
+                'true',
+              );
+            } finally {
+              cleanupClipboardListeners();
+              resolve();
+            }
+          });
       });
     });""",
         "synchronous Promise executor with terminal async catch",
