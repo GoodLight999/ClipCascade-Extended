@@ -15,7 +15,6 @@ import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.ReactInstanceManager
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
-import com.facebook.react.devsupport.interfaces.DevSupportManager
 import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
@@ -66,8 +65,8 @@ class MainActivity : ReactActivity() {
 
     override fun onPause() {
         super.onPause()
-        val manager: ReactInstanceManager = reactNativeHost.reactInstanceManager
-        val devSupport: DevSupportManager = manager.devSupportManager
+        val manager = applicationReactInstanceManager() ?: return
+        val devSupport = manager.devSupportManager
         if (devSupport.devSupportEnabled) {
             devSupport.hideRedboxDialog()
         }
@@ -193,9 +192,21 @@ class MainActivity : ReactActivity() {
     private fun dispatch(eventName: String, key: String, value: String) {
         PendingReactEventStore.emitOrQueue(
             applicationContext,
-            reactInstanceManager.currentReactContext,
+            applicationReactInstanceManager()?.currentReactContext,
             eventName,
             mapOf(key to value)
         )
+    }
+
+    /**
+     * ReactActivity's delegate can transiently expose a null ReactNativeHost while a new
+     * Intent is delivered. The Application-owned host is stable for the whole process;
+     * if it is not ready yet, PendingReactEventStore durably queues the event instead.
+     */
+    private fun applicationReactInstanceManager(): ReactInstanceManager? = runCatching {
+        (applicationContext as MainApplication).reactNativeHost.reactInstanceManager
+    }.getOrElse { error ->
+        Log.w(TAG, "React runtime is not ready; native event will remain queued", error)
+        null
     }
 }
