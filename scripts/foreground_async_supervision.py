@@ -107,6 +107,278 @@ const activeClipboardSubscriptions = new Set();""",
 
     text = replace_once(
         text,
+        """              wsSignalingClient.onopen = async () => {
+                clearSignalingReconnect();
+                await setDataInAsyncStorage('p2p_last_signaling_error', '');
+                await cleanupPeerConnections();
+
+                await setDataInAsyncStorage(
+                  'wsStatusMessage',
+                  '✅ Signaling connected; waiting for peer',
+                );
+
+                if (enable_websocket_status_notification === 'true') {
+                  if (websocket_status_notification_toggle === true) {
+                    websocket_status_notification_toggle = false;
+                    await showWebSocketStatusNotification(
+                      'WebSocket Connection Restored 🔗',
+                    );
+                  } else {
+                    await notifee.cancelNotification(
+                      'ClipCascade_WebSocket_Status_Notification_Id',
+                    );
+                  }
+                }
+              };""",
+        """              wsSignalingClient.onopen = () => {
+                runDetached('signaling-open', async () => {
+                  clearSignalingReconnect();
+                  await setDataInAsyncStorage('p2p_last_signaling_error', '');
+                  await cleanupPeerConnections();
+
+                  await setDataInAsyncStorage(
+                    'wsStatusMessage',
+                    '✅ Signaling connected; waiting for peer',
+                  );
+
+                  if (enable_websocket_status_notification === 'true') {
+                    if (websocket_status_notification_toggle === true) {
+                      websocket_status_notification_toggle = false;
+                      await showWebSocketStatusNotification(
+                        'WebSocket Connection Restored 🔗',
+                      );
+                    } else {
+                      await notifee.cancelNotification(
+                        'ClipCascade_WebSocket_Status_Notification_Id',
+                      );
+                    }
+                  }
+                });
+              };""",
+        "supervised signaling open callback",
+    )
+
+    text = replace_once(
+        text,
+        """              wsSignalingClient.onmessage = async event => {
+                try {
+                  const data = JSON.parse(event.data);
+                  switch (data.type) {
+                    case 'ASSIGNED_ID':
+                      if (myPeerId && myPeerId !== data.peerId) {
+                        await cleanupPeerConnections();
+                      }
+                      myPeerId = data.peerId;
+                      if (pendingPeerList != null) {
+                        const pending = pendingPeerList;
+                        pendingPeerList = null;
+                        await handlePeerList(pending);
+                      }
+                      break;
+
+                    case 'PEER_LIST':
+                      await handlePeerList(data.peers);
+                      break;
+
+                    case 'OFFER': {
+                      const compatibility = evaluateP2PCompatibility(
+                        localCompatibility,
+                        data.compatibility,
+                      );
+                      await markPeerCompatibility(
+                        data.fromPeerId,
+                        compatibility.state,
+                        compatibility.reason,
+                      );
+                      if (compatibility.state !== 'incompatible') {
+                        await handleOffer(data.fromPeerId, data.offer);
+                      }
+                      break;
+                    }
+
+                    case 'ANSWER': {
+                      const compatibility = evaluateP2PCompatibility(
+                        localCompatibility,
+                        data.compatibility,
+                      );
+                      await markPeerCompatibility(
+                        data.fromPeerId,
+                        compatibility.state,
+                        compatibility.reason,
+                      );
+                      if (compatibility.state !== 'incompatible') {
+                        await handleAnswer(data.fromPeerId, data.answer);
+                      }
+                      break;
+                    }
+
+                    case 'ICE_CANDIDATE':
+                      await handleIceCandidate(data.fromPeerId, data.candidate);
+                      break;
+                  }
+
+                  await setDataInAsyncStorage(
+                    'wsStatusMessage',
+                    liveConnectionsCount > 0
+                      ? '✅ P2P peer connected'
+                      : '✅ Signaling connected; waiting for peer',
+                  );
+                } catch (e) {
+                  await setDataInAsyncStorage(
+                    'wsStatusMessage',
+                    '❌ Inbound Error: ' + e,
+                  );
+                }
+              };""",
+        """              wsSignalingClient.onmessage = event => {
+                runDetached('signaling-message', async () => {
+                  try {
+                    const data = JSON.parse(event.data);
+                    switch (data.type) {
+                      case 'ASSIGNED_ID':
+                        if (myPeerId && myPeerId !== data.peerId) {
+                          await cleanupPeerConnections();
+                        }
+                        myPeerId = data.peerId;
+                        if (pendingPeerList != null) {
+                          const pending = pendingPeerList;
+                          pendingPeerList = null;
+                          await handlePeerList(pending);
+                        }
+                        break;
+
+                      case 'PEER_LIST':
+                        await handlePeerList(data.peers);
+                        break;
+
+                      case 'OFFER': {
+                        const compatibility = evaluateP2PCompatibility(
+                          localCompatibility,
+                          data.compatibility,
+                        );
+                        await markPeerCompatibility(
+                          data.fromPeerId,
+                          compatibility.state,
+                          compatibility.reason,
+                        );
+                        if (compatibility.state !== 'incompatible') {
+                          await handleOffer(data.fromPeerId, data.offer);
+                        }
+                        break;
+                      }
+
+                      case 'ANSWER': {
+                        const compatibility = evaluateP2PCompatibility(
+                          localCompatibility,
+                          data.compatibility,
+                        );
+                        await markPeerCompatibility(
+                          data.fromPeerId,
+                          compatibility.state,
+                          compatibility.reason,
+                        );
+                        if (compatibility.state !== 'incompatible') {
+                          await handleAnswer(data.fromPeerId, data.answer);
+                        }
+                        break;
+                      }
+
+                      case 'ICE_CANDIDATE':
+                        await handleIceCandidate(data.fromPeerId, data.candidate);
+                        break;
+                    }
+
+                    await setDataInAsyncStorage(
+                      'wsStatusMessage',
+                      liveConnectionsCount > 0
+                        ? '✅ P2P peer connected'
+                        : '✅ Signaling connected; waiting for peer',
+                    );
+                  } catch (e) {
+                    await setDataInAsyncStorage(
+                      'wsStatusMessage',
+                      '❌ Inbound Error: ' + e,
+                    );
+                  }
+                });
+              };""",
+        "supervised signaling message callback",
+    )
+
+    text = replace_once(
+        text,
+        """              wsSignalingClient.onerror = async event => {
+                block_image_once = false;
+                await setDataInAsyncStorage(
+                  'wsStatusMessage',
+                  '❌ WebSocket Error: ' + JSON.stringify(event, null, 2),
+                );
+              };""",
+        """              wsSignalingClient.onerror = event => {
+                runDetached('signaling-error', async () => {
+                  block_image_once = false;
+                  await setDataInAsyncStorage(
+                    'wsStatusMessage',
+                    '❌ WebSocket Error: ' + JSON.stringify(event, null, 2),
+                  );
+                });
+              };""",
+        "supervised signaling error callback",
+    )
+
+    text = replace_once(
+        text,
+        """              wsSignalingClient.onclose = async event => {
+                block_image_once = false;
+                const reason = event?.reason || 'closed by client';
+                await setDataInAsyncStorage(
+                  'wsStatusMessage',
+                  '⚠️ WebSocket Close: ' + reason,
+                );
+                if (
+                  enable_websocket_status_notification === 'true' &&
+                  websocket_status_notification_toggle === false &&
+                  (await getDataFromAsyncStorage('wsIsRunning')) === 'true'
+                ) {
+                  websocket_status_notification_toggle = true;
+                  await showWebSocketStatusNotification(
+                    'WebSocket Connection Lost ⛓️‍💥',
+                    -1,
+                  );
+                }
+
+                wsSignalingClient = null;
+                scheduleSignalingReconnect();
+              };""",
+        """              wsSignalingClient.onclose = event => {
+                runDetached('signaling-close', async () => {
+                  block_image_once = false;
+                  const reason = event?.reason || 'closed by client';
+                  await setDataInAsyncStorage(
+                    'wsStatusMessage',
+                    '⚠️ WebSocket Close: ' + reason,
+                  );
+                  if (
+                    enable_websocket_status_notification === 'true' &&
+                    websocket_status_notification_toggle === false &&
+                    (await getDataFromAsyncStorage('wsIsRunning')) === 'true'
+                  ) {
+                    websocket_status_notification_toggle = true;
+                    await showWebSocketStatusNotification(
+                      'WebSocket Connection Lost ⛓️‍💥',
+                      -1,
+                    );
+                  }
+
+                  wsSignalingClient = null;
+                  scheduleSignalingReconnect();
+                });
+              };""",
+        "supervised signaling close callback",
+    )
+
+    text = replace_once(
+        text,
         """            pc.onicecandidate = async event => {
               if (event.candidate) {
                 await signalingSend({
