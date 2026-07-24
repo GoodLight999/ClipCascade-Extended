@@ -18,13 +18,27 @@ describe('DurableOutboundQueue', () => {
     expect((await second.snapshot()).count).toBe(1);
   });
 
-  test('never sends stale entries to a different server scope', async () => {
+  test('a read from a different scope cannot erase the active scope', async () => {
     const first = createDurableOutboundQueue('P2S|server-a|user');
     await first.enqueue('secret for A', 'text');
 
     const second = createDurableOutboundQueue('P2S|server-b|user');
     expect(await second.peek()).toBeNull();
     expect((await second.snapshot()).count).toBe(0);
+
+    expect((await first.peek()).content).toBe('secret for A');
+    expect((await first.snapshot()).count).toBe(1);
+  });
+
+  test('a stale runtime clear cannot erase another active scope', async () => {
+    const active = createDurableOutboundQueue('P2S|server-b|user');
+    await active.enqueue('active B payload', 'text');
+
+    const stale = createDurableOutboundQueue('P2S|server-a|user');
+    await expect(stale.clear()).resolves.toMatchObject({ skipped: true });
+
+    expect((await active.peek()).content).toBe('active B payload');
+    expect((await active.snapshot()).count).toBe(1);
   });
 
   test('coalesces consecutive duplicate copies', async () => {
