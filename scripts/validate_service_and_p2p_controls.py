@@ -44,15 +44,21 @@ def main() -> None:
     require(service, "compatibility: localCompatibility", "forwarded compatibility metadata")
     require(service, "compatibility.state !== 'incompatible'", "pre-connection mismatch guard")
     require(service, "!quarantinedPeers.has(peerId)", "quarantined outbound peer filter")
-    require(service, "Never send private control frames over the clipboard DataChannel", "legacy-safe liveness")
+    require(
+        service,
+        "Never send private control frames over the clipboard DataChannel",
+        "legacy-safe liveness",
+    )
     forbid(service, "type: 'COMPATIBILITY'", "unforwarded custom signaling type")
     forbid(service, "case 'COMPATIBILITY'", "unforwarded custom signaling receiver")
     forbid(service, "P2P_COMPATIBILITY_JSON", "data-channel compatibility frame")
     forbid(service, "P2P_DC_KEEPALIVE_JSON", "data-channel keepalive frame")
     forbid(service, "channel.send(P2P_COMPATIBILITY_JSON)", "compatibility frame send")
     forbid(service, "channel.send(P2P_DC_KEEPALIVE_JSON)", "keepalive frame send")
+    forbid(service, "keyFingerprint", "password-derived compatibility fingerprint")
+    forbid(service, "localKeyFingerprint", "local password-derived verifier")
 
-    print("service state and legacy-safe P2P controls: OK")
+    print("service state and secret-free legacy-safe P2P controls: OK")
 
 
 if __name__ == "__main__":
