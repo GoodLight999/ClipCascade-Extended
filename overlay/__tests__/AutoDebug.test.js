@@ -23,6 +23,7 @@ describe('automatic diagnostics', () => {
     p2pCandidatePeers: 1,
     p2pLastPeerSetupError: '',
     p2pLastPeerOperationError: '',
+    p2pLastSignalingError: '',
   };
   const healthyProbe = {
     eventBridge: { received: true, token: 'test' },
@@ -90,6 +91,21 @@ describe('automatic diagnostics', () => {
     expect(result.overall).toBe('FAIL');
     expect(
       result.checks.find(item => item.id === 'foreground-recovery'),
+    ).toMatchObject({ level: 'FAIL' });
+  });
+
+  test('detects current P2P signaling failures', () => {
+    const result = analyzeDiagnostics(
+      {
+        ...healthyStatus,
+        p2pLastSignalingError: 'reconnect:network unavailable',
+      },
+      healthyProbe,
+      now,
+    );
+    expect(result.overall).toBe('FAIL');
+    expect(
+      result.checks.find(item => item.id === 'p2p-compatibility'),
     ).toMatchObject({ level: 'FAIL' });
   });
 
