@@ -2,11 +2,9 @@ name: Android reliability CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -47,7 +45,9 @@ jobs:
           ./scripts/materialize_upstream.sh 2>&1 | tee materialize.log
 
       - name: Restore stable APK signing key
+        shell: bash
         run: |
+          set -euo pipefail
           base64 --decode ci/clipcascade-extended.keystore.b64 \
             > build/mobile/android/app/clipcascade-extended.keystore
           keytool -list -keystore build/mobile/android/app/clipcascade-extended.keystore \
@@ -58,8 +58,7 @@ jobs:
         run: npm ci
 
       - name: Scope React Native snapshot repository
-        run: |
-          python3 scripts/patch_react_native_snapshot_repository.py build/mobile
+        run: python3 scripts/patch_react_native_snapshot_repository.py build/mobile
 
       - name: Audit injected Gradle repositories
         working-directory: build/mobile
@@ -106,9 +105,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk="build/mobile/android/app/build/outputs/apk/extended/app-extended.apk"
+          apk='build/mobile/android/app/build/outputs/apk/extended/app-extended.apk'
           test -s "$apk"
-
           unzip -t "$apk" | tee apk-zip-test.txt
 
           zipalign="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)"
@@ -134,46 +132,35 @@ jobs:
           grep -Fq 'moe.shizuku.privileged.api' apk-manifest.xml
           ! grep -Fq 'NotificationCaptureService' apk-manifest.xml
           ! grep -Fq 'BIND_NOTIFICATION_LISTENER_SERVICE' apk-manifest.xml
-          if grep -Fq 'android:debuggable="true"' apk-manifest.xml; then
-            echo 'Extended APK must not be debuggable' >&2
-            exit 1
-          fi
+          ! grep -Fq 'android:debuggable="true"' apk-manifest.xml
 
           : > apk-dex-strings.txt
           while IFS= read -r dex; do
             unzip -p "$apk" "$dex" | strings >> apk-dex-strings.txt
           done < <(zipinfo -1 "$apk" | grep -E '^classes([0-9]+)?[.]dex$')
-          grep -Fq 'selection-without-copy' apk-dex-strings.txt
-          grep -Fq 'capture-timeout' apk-dex-strings.txt
-          grep -Fq 'activity-destroyed-before-capture' apk-dex-strings.txt
-          grep -Fq 'retry-scheduled' apk-dex-strings.txt
-          grep -Fq 'one-time-setup-only' apk-dex-strings.txt
-          grep -Fq 'ClipCascade-ShizukuSetup' apk-dex-strings.txt
-          grep -Fq 'addBinderReceivedListenerSticky' apk-dex-strings.txt
-          grep -Fq 'ReliabilityAutoDebug' apk-dex-strings.txt
-          grep -Fq 'ForegroundRuntimeRecovery' apk-dex-strings.txt
-          grep -Fq 'com.clipcascade.CAPTURE_RECOVERY' apk-dex-strings.txt
-          grep -Fq 'foreground_service_recovery_status' apk-dex-strings.txt
-          grep -Fq 'foreground_service_error' apk-dex-strings.txt
-          grep -Fq 'p2p_incompatible_peers' apk-dex-strings.txt
-          grep -Fq 'activateAndDrain' apk-dex-strings.txt
-          grep -Fq 'drainInOrder' apk-dex-strings.txt
-          grep -Fq 'admissionPlan' apk-dex-strings.txt
-          grep -Fq 'QUEUE_AND_DRAIN' apk-dex-strings.txt
+
+          for marker in \
+            selection-without-copy capture-timeout activity-destroyed-before-capture \
+            retry-scheduled one-time-setup-only ClipCascade-ShizukuSetup \
+            addBinderReceivedListenerSticky ReliabilityAutoDebug ForegroundRuntimeRecovery \
+            com.clipcascade.CAPTURE_RECOVERY foreground_service_recovery_status \
+            foreground_service_error p2p_incompatible_peers activateAndDrain \
+            drainInOrder admissionPlan QUEUE_AND_DRAIN CaptureSchedulePolicy \
+            onUriStagingStarted clipcascade_service_inactive_title; do
+            grep -Fq "$marker" apk-dex-strings.txt
+          done
           ! grep -Fq 'NotificationCaptureService' apk-dex-strings.txt
           ! grep -Fq 'OtpExtractor' apk-dex-strings.txt
 
           unzip -p "$apk" assets/index.android.bundle > apk-js-bundle.txt
           test -s apk-js-bundle.txt
-          grep -Fq 'ready-after-registration' apk-js-bundle.txt
-          grep -Fq 'duplicate-runtime-suppressed' apk-js-bundle.txt
-          grep -Fq 'foreground_service_loop_failed_at' apk-js-bundle.txt
-          grep -Fq 'service-started-for-share' apk-js-bundle.txt
-          grep -Fq 'notificationConnectionRestored' apk-js-bundle.txt
-          grep -Fq 'diagnosticsOverall' apk-js-bundle.txt
-          grep -Fq 'diagnosticRecovery' apk-js-bundle.txt
-          grep -Fq 'notificationDownloadFiles' apk-js-bundle.txt
-          grep -Fq 'checkingService' apk-js-bundle.txt
+          for marker in \
+            ready-after-registration duplicate-runtime-suppressed \
+            foreground_service_loop_failed_at service-started-for-share \
+            notificationConnectionRestored diagnosticsOverall diagnosticRecovery \
+            notificationDownloadFiles checkingService; do
+            grep -Fq "$marker" apk-js-bundle.txt
+          done
           ! grep -Fq 'New version available!' apk-js-bundle.txt
           ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/version.json' apk-js-bundle.txt
           ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/metadata.json' apk-js-bundle.txt
@@ -211,19 +198,6 @@ jobs:
             build/mobile/jest.log
             build/mobile/gradle-build.log
             build/mobile/gradle-repository-audit.txt
-            build/mobile/App.js
-            build/mobile/StartForegroundService.js
-            build/mobile/ExtendedControlPanel.js
-            build/mobile/ExtendedI18n.js
-            build/mobile/AutoDebug.js
-            build/mobile/P2PCompatibility.js
-            build/mobile/android/app/build.gradle
-            build/mobile/android/app/src/main/AndroidManifest.xml
-            build/mobile/android/app/src/main/java/com/clipcascade/NativeBridgeModule.kt
-            build/mobile/android/app/src/main/java/com/clipcascade/ClipCascadeAccessibilityService.kt
-            build/mobile/android/app/src/main/java/com/clipcascade/ShizukuSetup.kt
-            build/mobile/android/app/src/main/java/com/clipcascade/ReliabilityAutoDebug.kt
-            build/mobile/android/app/src/main/java/com/clipcascade/ForegroundRuntimeRecovery.kt
             build/mobile/android/app/build/reports/**
             build/mobile/android/build/reports/**
             apk-signature.txt
@@ -232,7 +206,6 @@ jobs:
             apk-zipalign.txt
             apk-dex-strings.txt
             apk-js-bundle.txt
-            build/mobile/npm-debug.log
           if-no-files-found: ignore
           retention-days: 14
 
@@ -247,6 +220,9 @@ jobs:
         api-level: [35, 36]
 
     steps:
+      - name: Check out smoke harness
+        uses: actions/checkout@v4
+
       - name: Download signed APK artifact
         uses: actions/download-artifact@v4
         with:
@@ -282,69 +258,7 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
             -camera-back none -camera-front none
-          script: |
-            set -euo pipefail
-            package='com.clipcascade.extended'
-            component='com.clipcascade.extended/com.clipcascade.MainActivity'
-            api='${{ matrix.api-level }}'
-            out="emulator-smoke/api-${api}"
-            mkdir -p "$out"
-
-            adb logcat -c
-            adb install -r artifact/dist/ClipCascade-Extended.apk \
-              | tee "$out/install.txt"
-            adb shell pm path "$package" | tee "$out/package-path.txt"
-            adb shell dumpsys package "$package" > "$out/package.txt"
-            grep -Fq 'com.clipcascade.ClipCascadeAccessibilityService' "$out/package.txt"
-            grep -Fq 'com.clipcascade.BootReceiver' "$out/package.txt"
-
-            adb shell cmd uimode night no || true
-            adb shell am force-stop "$package"
-            adb shell am start -W -n "$component" | tee "$out/launch-light.txt"
-            grep -Fq 'Status: ok' "$out/launch-light.txt"
-            sleep 4
-
-            adb shell am start -W \
-              -a android.intent.action.SEND \
-              -t text/plain \
-              --es android.intent.extra.TEXT "ClipCascade CI share API ${api}" \
-              -n "$component" | tee "$out/share-text.txt"
-            grep -Fq 'Status: ok' "$out/share-text.txt"
-            sleep 2
-
-            adb shell am start -W \
-              -a android.intent.action.PROCESS_TEXT \
-              -t text/plain \
-              --es android.intent.extra.PROCESS_TEXT "ClipCascade CI process text API ${api}" \
-              -n "$component" | tee "$out/process-text.txt"
-            grep -Fq 'Status: ok' "$out/process-text.txt"
-            sleep 2
-
-            adb shell cmd uimode night yes || true
-            adb shell am force-stop "$package"
-            adb shell am start -W -n "$component" | tee "$out/launch-dark.txt"
-            grep -Fq 'Status: ok' "$out/launch-dark.txt"
-            sleep 4
-
-            pid="$(adb shell pidof "$package" | tr -d '\r')"
-            test -n "$pid"
-            printf '%s\n' "$pid" > "$out/pid.txt"
-            adb exec-out screencap -p > "$out/dark-mode.png"
-            adb shell dumpsys activity exit-info "$package" > "$out/exit-info.txt" || true
-            adb logcat -d -v threadtime > "$out/logcat.txt"
-
-            if grep -Fq 'Process: com.clipcascade.extended' "$out/logcat.txt"; then
-              echo 'ClipCascade process crash detected in emulator logcat' >&2
-              exit 1
-            fi
-            if grep -Fq 'ANR in com.clipcascade.extended' "$out/logcat.txt"; then
-              echo 'ClipCascade ANR detected in emulator logcat' >&2
-              exit 1
-            fi
-            if grep -Eq 'reason=REASON_(CRASH|CRASH_NATIVE|ANR)' "$out/exit-info.txt"; then
-              echo 'ClipCascade abnormal exit detected by ActivityManager' >&2
-              exit 1
-            fi
+          script: bash "$GITHUB_WORKSPACE/scripts/emulator_smoke.sh" '${{ matrix.api-level }}'
 
       - name: Upload emulator evidence
         if: always()
@@ -352,5 +266,5 @@ jobs:
         with:
           name: ClipCascade-Extended-emulator-api-${{ matrix.api-level }}-${{ github.sha }}
           path: emulator-smoke/api-${{ matrix.api-level }}/**
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
