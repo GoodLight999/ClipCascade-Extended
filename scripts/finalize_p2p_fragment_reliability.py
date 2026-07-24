@@ -107,10 +107,15 @@ import { createP2PFragmentAccumulator } from './P2PFragmentAccumulator';""",
     text = replace_once(
         text,
         """                await resetReceivingFragments();
-                p2pMsg = `⚠️ Payload size limit exceeded: ${metadata['combinedRawPayloadSizeInBytes']} bytes exceeds ${max_clipboard_size_local_limit_bytes} bytes`;""",
-        """                fragmentAccumulator.drop(remotePeerId, metadata.id);
+                p2pMsg = `⚠️ Payload size limit exceeded: ${metadata.combinedRawPayloadSizeInBytes} bytes exceeds ${max_clipboard_size_local_limit_bytes} bytes`;""",
+        """                if (
+                  metadata.isFragmented === true &&
+                  typeof metadata.id === 'string'
+                ) {
+                  fragmentAccumulator.drop(remotePeerId, metadata.id);
+                }
                 receivingFragmentStats = null;
-                p2pMsg = `⚠️ Payload size limit exceeded: ${metadata['combinedRawPayloadSizeInBytes']} bytes exceeds ${max_clipboard_size_local_limit_bytes} bytes`;""",
+                p2pMsg = `⚠️ Payload size limit exceeded: ${metadata.combinedRawPayloadSizeInBytes} bytes exceeds ${max_clipboard_size_local_limit_bytes} bytes`;""",
         "drop only oversized P2P message",
     )
 
