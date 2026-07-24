@@ -62,6 +62,9 @@ class ClipboardFloatingActivity : AppCompatActivity() {
             }
             floatingView = view
             windowManager.addView(view, params)
+            // The Activity/overlay is user-visible at this point, so a requested dead
+            // foreground runtime can be recovered without an arbitrary background launch.
+            ForegroundRuntimeRecovery.startIfRequested(this, "clipboard-overlay")
             view.postDelayed(::captureClipboard, INITIAL_CAPTURE_DELAY_MS)
             // OEMs can attach the overlay view late. This backup only starts a read when
             // no earlier read is running; a transient empty/denied first read is retried below.
@@ -77,20 +80,17 @@ class ClipboardFloatingActivity : AppCompatActivity() {
         if (completed.get() || !captureInProgress.compareAndSet(false, true)) return
         val attempt = captureAttempts.incrementAndGet()
         try {
-            val containsUri = runCatching {
-                val clip = clipboardManager.primaryClip
-                clip != null && (0 until clip.itemCount).any { clip.getItemAt(it).uri != null }
-            }.getOrDefault(false)
-            if (containsUri && requestSequence > 0L) {
-                ClipboardCaptureCoordinator.extendForUriStaging(
-                    applicationContext,
-                    requestSequence
-                )
-            }
-
             ClipboardPayloadReader.readOrStage(
                 applicationContext,
-                clipboardManager
+                clipboardManager,
+                onUriStagingStarted = {
+                    if (requestSequence > 0L) {
+                        ClipboardCaptureCoordinator.extendForUriStaging(
+                            applicationContext,
+                            requestSequence
+                        )
+                    }
+                }
             ) { result ->
                 handler.post { finishPayload(result, attempt) }
             }
