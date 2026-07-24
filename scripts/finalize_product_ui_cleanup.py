@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Remove inherited render-time side effects and use only valid adaptive color attributes."""
+"""Remove inherited render-time side effects and keep adaptive colors runtime-safe."""
 from __future__ import annotations
 
 import argparse
@@ -70,6 +70,33 @@ def main() -> None:
         "PlatformColor('?android:attr/textColorSecondary')",
         2,
         "valid adaptive border color",
+    )
+    replace_exact(
+        app,
+        "  StatusBar,\n  PlatformColor,\n",
+        "  StatusBar,\n  PlatformColor,\n  useColorScheme,\n",
+        1,
+        "runtime color-scheme import",
+    )
+    replace_exact(
+        app,
+        "export default function App() {",
+        "export default function App() {\n  const extendedColorScheme = useColorScheme();",
+        1,
+        "runtime color-scheme hook",
+    )
+    replace_exact(
+        app,
+        """      <StatusBar
+        backgroundColor={PlatformColor('?android:attr/colorBackground')}
+        barStyle="default"
+      />""",
+        """      <StatusBar
+        backgroundColor={extendedColorScheme === 'dark' ? '#121212' : '#ffffff'}
+        barStyle={extendedColorScheme === 'dark' ? 'light-content' : 'dark-content'}
+      />""",
+        1,
+        "StatusBar concrete colors",
     )
 
 
