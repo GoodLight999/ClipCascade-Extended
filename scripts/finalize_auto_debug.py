@@ -86,6 +86,8 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
         '''                put("restartReceiverStatus", bridge.getValue("restart_receiver_status").orEmpty())
                 put("jsListenerStatus", bridge.getValue("js_listener_status").orEmpty())
                 put("foregroundServiceError", bridge.getValue("foreground_service_error").orEmpty())
+                put("foregroundServiceDetachedError", bridge.getValue("foreground_service_detached_error").orEmpty())
+                put("foregroundServiceDetachedErrorAt", bridge.getValue("foreground_service_detached_error_at").orEmpty())
                 put("foregroundServiceState", bridge.getValue("foreground_service_state").orEmpty())
                 put("foregroundServiceHeartbeatAt", bridge.getValue("foreground_service_heartbeat_at").orEmpty())
                 put("foregroundServiceInstanceId", bridge.getValue("foreground_service_instance_id").orEmpty())
