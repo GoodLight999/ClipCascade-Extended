@@ -63,10 +63,7 @@ def main() -> None:
             "Notification Access (OTP Sync)",
             "3.2.0-extended.1",
         ):
-            require(
-                token not in text,
-                f"deferred OTP/version staging token {token!r} in {path.relative_to(ROOT)}",
-            )
+            require(token not in text, f"deferred OTP/version staging token {token!r} in {path.relative_to(ROOT)}")
 
     panel = read("overlay/ExtendedControlPanel.js")
     require(
@@ -115,10 +112,21 @@ def main() -> None:
         "MAX_TOTAL_BYTES = 16 * 1024 * 1024",
         "const utf8ByteLength = content => UTF8_ENCODER.encode(content).length",
         "item.byteLength = utf8ByteLength(item.content)",
+        "enqueue(content, type, shouldEnqueue = null)",
+        "if (shouldEnqueue && shouldEnqueue() !== true)",
+        "cancelled: true",
         "totalBytes:",
     ):
-        require(marker in queue, f"canonical UTF-8 durable-queue marker missing: {marker}")
+        require(marker in queue, f"canonical durable-queue marker missing: {marker}")
     require("MAX_TOTAL_CHARS" not in queue, "UTF-16 character-based queue bound returned")
+
+    detached = read("overlay/DetachedTaskSupervisor.js")
+    for marker in (
+        "createDetachedTaskSupervisor",
+        "Promise.resolve()",
+        ".catch(() => undefined)",
+    ):
+        require(marker in detached, f"canonical detached-task supervisor marker missing: {marker}")
 
     materialize = read("scripts/materialize_upstream.sh")
     finalizer_count = materialize.count('python3 "$ROOT_DIR/scripts/finalize_')
@@ -143,7 +151,8 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        "canonical i18n and UTF-8 queue bounds complete, no forbidden-project input, "
+        "canonical i18n, stop-safe UTF-8 queue and detached supervision complete, "
+        "no forbidden-project input, "
         f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
 
