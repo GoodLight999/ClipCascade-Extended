@@ -31,6 +31,21 @@ def main() -> None:
     forbid(app, "wsIsRunning === 'true' ? 'false' : 'true'", "stale React-state toggle")
     require(policy, "FOREGROUND_STOP_TIMEOUT_MS = 10_000", "10 second stop bound")
 
+    require(service, "activeClipboardSubscriptions", "owned clipboard subscription registry")
+    require(service, "trackClipboardSubscription", "owned subscription registration")
+    require(service, "removeClipboardSubscription", "owned subscription removal")
+    require(
+        service,
+        "trackClipboardSubscription(DeviceEventEmitter.addListener('SHARED_TEXT'",
+        "owned shared-text listener",
+    )
+    require(
+        service,
+        "trackClipboardSubscription(clipboardListener.addListener(",
+        "owned native clipboard listener",
+    )
+    forbid(service, "removeAllListeners(", "global listener deletion")
+
     require(service, "activeForegroundRuntimeId", "single foreground runtime lease")
     require(service, "duplicate-runtime-suppressed", "duplicate runtime suppression")
     require(service, "return new Promise(resolve => {", "synchronous foreground Promise executor")
@@ -97,7 +112,9 @@ def main() -> None:
     forbid(service, "keyFingerprint", "password-derived compatibility fingerprint")
     forbid(service, "localKeyFingerprint", "local password-derived verifier")
 
-    print("service state, supervised async flow and secret-free P2P controls: OK")
+    print(
+        "service state, owned listeners, supervised async flow and secret-free P2P controls: OK"
+    )
 
 
 if __name__ == "__main__":
