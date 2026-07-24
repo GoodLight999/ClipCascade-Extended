@@ -32,8 +32,38 @@ describe('DurableOutboundQueue', () => {
     const first = await queue.enqueue('same', 'text');
     const second = await queue.enqueue('same', 'text');
     expect(first.queued).toBe(true);
-    expect(second.duplicate).toBe(true);
+    expect(second).toMatchObject({ duplicate: true, cancelled: false });
     expect((await queue.snapshot()).count).toBe(1);
+  });
+
+  test('evaluates the runtime admission guard inside the serialized operation', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    let runtimeAcceptingEvents = true;
+
+    const clearFinished = queue.clear().then(() => {
+      runtimeAcceptingEvents = false;
+    });
+    const lateEnqueue = queue.enqueue(
+      'late clipboard event',
+      'text',
+      () => runtimeAcceptingEvents,
+    );
+
+    await clearFinished;
+    await expect(lateEnqueue).resolves.toMatchObject({
+      queued: false,
+      duplicate: false,
+      cancelled: true,
+      id: null,
+    });
+    expect(await queue.peek()).toBeNull();
+  });
+
+  test('rejects a non-function admission guard', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    await expect(queue.enqueue('value', 'text', true)).rejects.toThrow(
+      'admission guard',
+    );
   });
 
   test('accounts for UTF-8 bytes rather than UTF-16 code units', async () => {
