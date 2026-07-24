@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Add guarded diagnostics for the hardened reliability phase."""
+"""Add guarded native status fields for the hardened reliability phase.
+
+The final user-facing diagnostics are canonical in overlay/AutoDebug.js and
+ExtendedControlPanel.js; materialization must not patch temporary App UI.
+"""
 from __future__ import annotations
 
 import argparse
@@ -30,19 +34,6 @@ def main() -> None:
                 put("restartReceiverStatus", bridge.getValue("restart_receiver_status").orEmpty())
                 put("readLogs", readLogs)''',
         "native reliability diagnostics",
-    )
-
-    replace_once(
-        root / "App.js",
-        '''                        `Coordinator: ${status.captureCoordinator}`,
-                        `READ_LOGS: ${status.readLogs}`,''',
-        '''                        `Coordinator: ${status.captureCoordinator}`,
-                        `JS event listener ready: ${status.nativeDeliveryReady}`,
-                        `Shared payload staging: ${status.sharedPayloadStatus || 'idle'}`,
-                        `Outbound queue: ${status.outboundQueueStatus || 'idle'}`,
-                        `Restart receiver: ${status.restartReceiverStatus || 'not observed'}`,
-                        `READ_LOGS: ${status.readLogs}`,''',
-        "self-test reliability diagnostics",
     )
 
 
