@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require stop-safe durable-queue admission tied to one runtime lease."""
+"""Require stop-safe, scope-isolated durable-queue admission."""
 from __future__ import annotations
 
 import argparse
@@ -47,6 +47,24 @@ def main() -> None:
         "admission decision before append",
     )
 
+    require(queue, "const scopeMatches = Boolean(", "persisted scope ownership check")
+    require(
+        queue,
+        "if (scopeMatches && (expired > 0 || normalized))",
+        "same-scope-only normalization write",
+    )
+    require(
+        queue,
+        "raw.scope !== scope",
+        "mismatched-scope clear guard",
+    )
+    require(queue, "skipped: true", "non-destructive stale clear result")
+    forbid(
+        queue,
+        "expired > 0 || state !== raw || normalized",
+        "scope-mismatch read overwrite",
+    )
+
     require(service, "let runtimeAcceptingEvents = true", "runtime event-admission state")
     require(service, "const runtimeCanAcceptEvents = () =>", "runtime admission predicate")
     require(service, "const stopAcceptingRuntimeEvents = () =>", "runtime admission close operation")
@@ -84,7 +102,9 @@ def main() -> None:
         "unguarded runtime enqueue",
     )
 
-    print("runtime lease closes durable-queue admission before stop/clear: OK")
+    print(
+        "runtime lease closes queue admission and stale scopes cannot erase active data: OK"
+    )
 
 
 if __name__ == "__main__":
