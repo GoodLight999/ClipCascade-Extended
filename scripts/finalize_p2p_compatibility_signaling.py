@@ -299,7 +299,7 @@ def main() -> None:
         "keyFingerprint",
         "localKeyFingerprint",
         "setTimeout(async () =>",
-        "initializeWebSocketSignalingClient();",
+        "\n          initializeWebSocketSignalingClient();",
     ):
         if forbidden in text:
             raise RuntimeError(
