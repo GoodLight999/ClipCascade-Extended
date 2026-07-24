@@ -25,9 +25,10 @@ export function evaluateP2PCompatibility(local, remote) {
     return { state: 'incompatible', reason: 'encryption-mode' };
   }
 
-  // Do not exchange a password/key-derived fingerprint. A wrong encryption key
-  // is identified by the first authenticated-decryption failure and quarantined
-  // per peer without exposing a stable offline password verifier in signaling.
+  // Do not exchange a password/key-derived fingerprint. The historical
+  // `encryption-key` mismatch class is assigned only after the first
+  // authenticated-decryption failure, then quarantined per peer. This avoids
+  // exposing a stable offline password verifier in signaling.
   return { state: 'compatible', reason: '' };
 }
 
