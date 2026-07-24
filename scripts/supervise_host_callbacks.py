@@ -156,20 +156,21 @@ def apply(root: Path) -> None:
             label=label,
         )
 
+    # onConnect was wrapped above, so the subscription is now two spaces deeper.
     text = wrap_between(
         text,
         start_marker=(
-            "              stompClient.subscribe("
+            "                stompClient.subscribe("
             "SUBSCRIPTION_DESTINATION, async message => {"
         ),
-        next_marker="\n\n              await flushOutboundQueue();",
-        close_token="\n              });",
+        next_marker="\n\n                await flushOutboundQueue();",
+        close_token="\n                });",
         replacement_start=(
-            "              stompClient.subscribe("
+            "                stompClient.subscribe("
             "SUBSCRIPTION_DESTINATION, message => {\n"
-            "                runDetached('p2s-subscription-message', async () => {"
+            "                  runDetached('p2s-subscription-message', async () => {"
         ),
-        replacement_close="\n                });\n              });",
+        replacement_close="\n                  });\n                });",
         label="P2S subscription callback",
     )
 
