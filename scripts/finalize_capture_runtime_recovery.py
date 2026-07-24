@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
-"""Recover a requested dead runtime only from the visible clipboard capture Activity."""
+"""Guard visible-copy foreground runtime recovery in the canonical Activity."""
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
-
-
-def replace_once(path: Path, old: str, new: str, label: str) -> None:
-    text = path.read_text(encoding="utf-8")
-    count = text.count(old)
-    if count != 1:
-        raise RuntimeError(f"{label}: expected one marker, found {count}")
-    path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
 def main() -> None:
@@ -19,19 +11,20 @@ def main() -> None:
     parser.add_argument("destination", type=Path)
     root = parser.parse_args().destination.resolve()
     activity = root / "android/app/src/main/java/com/clipcascade/ClipboardFloatingActivity.kt"
+    text = activity.read_text(encoding="utf-8")
 
-    replace_once(
-        activity,
-        """            windowManager.addView(view, params)
-            view.postDelayed(::captureClipboard, INITIAL_CAPTURE_DELAY_MS)""",
-        """            windowManager.addView(view, params)
-            // The Activity/overlay is user-visible at this point, so Android permits a
-            // requested dead Foreground Service to be recovered without an arbitrary
-            // background launch. Healthy runtimes are ignored by the heartbeat guard.
-            ForegroundRuntimeRecovery.startIfRequested(this, "clipboard-overlay")
-            view.postDelayed(::captureClipboard, INITIAL_CAPTURE_DELAY_MS)""",
-        "visible capture runtime recovery",
-    )
+    marker = 'ForegroundRuntimeRecovery.startIfRequested(this, "clipboard-overlay")'
+    count = text.count(marker)
+    if count != 1:
+        raise RuntimeError(
+            f"visible capture runtime recovery: expected one canonical call, found {count}"
+        )
+
+    overlay_index = text.find("windowManager.addView(view, params)")
+    recovery_index = text.find(marker)
+    capture_index = text.find("view.postDelayed(::captureClipboard, INITIAL_CAPTURE_DELAY_MS)")
+    if not (0 <= overlay_index < recovery_index < capture_index):
+        raise RuntimeError("visible capture runtime recovery is outside the guarded Activity window")
 
 
 if __name__ == "__main__":
