@@ -38,6 +38,46 @@ class PendingReactEventStoreTest {
     }
 
     @Test
+    fun pendingEventsForceNewEventsBehindTheQueue() {
+        assertEquals(
+            PendingReactEventStore.AdmissionPlan.QUEUE_AND_DRAIN,
+            PendingReactEventStore.admissionPlan(
+                deliveryReady = true,
+                reactContextAvailable = true,
+                pendingCount = 1
+            )
+        )
+        assertEquals(
+            PendingReactEventStore.AdmissionPlan.DIRECT,
+            PendingReactEventStore.admissionPlan(
+                deliveryReady = true,
+                reactContextAvailable = true,
+                pendingCount = 0
+            )
+        )
+    }
+
+    @Test
+    fun unavailableDeliveryAlwaysQueuesWithoutDrain() {
+        assertEquals(
+            PendingReactEventStore.AdmissionPlan.QUEUE_ONLY,
+            PendingReactEventStore.admissionPlan(
+                deliveryReady = false,
+                reactContextAvailable = true,
+                pendingCount = 0
+            )
+        )
+        assertEquals(
+            PendingReactEventStore.AdmissionPlan.QUEUE_ONLY,
+            PendingReactEventStore.admissionPlan(
+                deliveryReady = true,
+                reactContextAvailable = false,
+                pendingCount = 0
+            )
+        )
+    }
+
+    @Test
     fun wallClockRollbackNeverExtendsDeduplicationWindow() {
         assertTrue(PendingReactEventStore.isWithinDedupWindow(12_000L, 10_500L))
         assertFalse(PendingReactEventStore.isWithinDedupWindow(12_501L, 10_500L))
