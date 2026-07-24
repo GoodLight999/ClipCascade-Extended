@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Add localized labels for visible-capture Foreground Service recovery."""
+"""Add locale keys for visible-capture Foreground Service recovery.
+
+The canonical panel already renders this field. This phase only augments the
+locale dictionary until all localization compatibility phases are consolidated.
+"""
 from __future__ import annotations
 
 import argparse
@@ -19,7 +23,6 @@ def main() -> None:
     parser.add_argument("destination", type=Path)
     root = parser.parse_args().destination.resolve()
     i18n = root / "ExtendedI18n.js"
-    panel = root / "ExtendedControlPanel.js"
 
     for old, new, label in (
         (
@@ -48,18 +51,6 @@ def main() -> None:
         ),
     ):
         replace_once(i18n, old, new, label)
-
-    replace_once(
-        panel,
-        """      `${text.foregroundErrorLabel}: ${status.foregroundServiceError || '—'}`,
-      `${text.p2pCompatibilityLabel}: ${status.p2pCandidatePeers || 0}/${""",
-        """      `${text.foregroundErrorLabel}: ${status.foregroundServiceError || '—'}`,
-      `${text.foregroundRecoveryLabel}: ${
-        status.foregroundServiceRecoveryStatus || '—'
-      }`,
-      `${text.p2pCompatibilityLabel}: ${status.p2pCandidatePeers || 0}/${""",
-        "localized recovery status in self-test",
-    )
 
 
 if __name__ == "__main__":
