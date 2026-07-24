@@ -74,7 +74,7 @@ class ScheduleService(
             manager.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,
-                    "ClipCascade Alerts",
+                    applicationContext.getString(R.string.clipcascade_service_alert_channel),
                     NotificationManager.IMPORTANCE_DEFAULT
                 )
             )
@@ -96,8 +96,12 @@ class ScheduleService(
         )
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_failure)
-            .setContentTitle("ClipCascade service inactive")
-            .setContentText("Tap to reopen the app and restart synchronization.")
+            .setContentTitle(
+                applicationContext.getString(R.string.clipcascade_service_inactive_title)
+            )
+            .setContentText(
+                applicationContext.getString(R.string.clipcascade_service_inactive_text)
+            )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
