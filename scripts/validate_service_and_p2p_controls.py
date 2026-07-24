@@ -60,31 +60,60 @@ def main() -> None:
     require(detached_supervisor, "Promise.resolve()", "safe detached task chain")
     require(detached_supervisor, ".catch(() => undefined)", "failure-recorder rejection guard")
     require(service, "foreground_service_detached_error", "detached callback evidence")
-    require(service, "runDetached('outbound-retry', flushOutboundQueue)", "supervised retry timer")
-    require(service, "`quarantine-dispose:${peerId}`", "supervised quarantine disposal")
-    require(service, "runDetached('signaling-reconnect'", "supervised signaling reconnect")
-    require(service, "runDetached('signaling-open'", "supervised signaling open")
-    require(service, "runDetached('signaling-message'", "supervised signaling message")
-    require(service, "runDetached('signaling-error'", "supervised signaling error")
-    require(service, "runDetached('signaling-close'", "supervised signaling close")
-    require(service, "`ice-candidate:${remotePeerId}`", "supervised ICE callback")
-    require(service, "`datachannel-message:${remotePeerId}`", "supervised DataChannel message")
+
+    for marker, label in (
+        ("runDetached('shared-text'", "shared-text callback"),
+        ("runDetached('shared-image'", "shared-image callback"),
+        ("runDetached('shared-files'", "shared-files callback"),
+        ("runDetached('native-clipboard-change'", "native clipboard callback"),
+        ("runDetached('outbound-retry', flushOutboundQueue)", "retry timer"),
+        ("`quarantine-dispose:${peerId}`", "quarantine disposal"),
+        ("runDetached('p2s-connect'", "P2S connect callback"),
+        ("runDetached('p2s-disconnect'", "P2S disconnect callback"),
+        ("runDetached('p2s-stomp-error'", "P2S STOMP error callback"),
+        ("runDetached('p2s-websocket-error'", "P2S WebSocket error callback"),
+        ("runDetached('p2s-websocket-close'", "P2S WebSocket close callback"),
+        ("runDetached('p2s-subscription-message'", "P2S subscription callback"),
+        ("runDetached('p2s-ack-timeout'", "P2S ACK timeout callback"),
+        ("runDetached('signaling-reconnect'", "signaling reconnect"),
+        ("runDetached('signaling-open'", "signaling open"),
+        ("runDetached('signaling-message'", "signaling message"),
+        ("runDetached('signaling-error'", "signaling error"),
+        ("runDetached('signaling-close'", "signaling close"),
+        ("`ice-candidate:${remotePeerId}`", "ICE callback"),
+        ("`datachannel-message:${remotePeerId}`", "DataChannel message"),
+    ):
+        require(service, marker, f"supervised {label}")
+
     forbid(
         service,
         "outboundRetryTimer = setTimeout(() => {\n            outboundRetryTimer = null;\n            flushOutboundQueue();",
         "unobserved outbound retry Promise",
     )
     forbid(service, "setTimeout(() => disposePeerConnection", "unobserved peer disposal Promise")
-    forbid(service, "wsSignalingClient.onopen = async", "async signaling open callback")
-    forbid(service, "wsSignalingClient.onmessage = async", "async signaling message callback")
-    forbid(service, "wsSignalingClient.onerror = async", "async signaling error callback")
-    forbid(service, "wsSignalingClient.onclose = async", "async signaling close callback")
-    forbid(service, "pc.onicecandidate = async", "async WebRTC ICE callback")
-    forbid(service, "pc.ondatachannel = async", "async WebRTC DataChannel callback")
-    forbid(service, "channel.onopen = async", "async DataChannel open callback")
-    forbid(service, "channel.onmessage = async", "async DataChannel message callback")
-    forbid(service, "channel.onclose = async", "async DataChannel close callback")
-    forbid(service, "channel.onerror = async", "async DataChannel error callback")
+    for marker, label in (
+        ("DeviceEventEmitter.addListener('SHARED_TEXT', async", "shared-text callback"),
+        ("DeviceEventEmitter.addListener('SHARED_IMAGE', async", "shared-image callback"),
+        ("DeviceEventEmitter.addListener('SHARED_FILES', async", "shared-files callback"),
+        ("\n          async params => {", "native clipboard callback"),
+        ("onConnect: async", "P2S connect callback"),
+        ("onDisconnect: async", "P2S disconnect callback"),
+        ("onStompError: async", "P2S STOMP error callback"),
+        ("onWebSocketError: async", "P2S WebSocket error callback"),
+        ("onWebSocketClose: async", "P2S WebSocket close callback"),
+        ("SUBSCRIPTION_DESTINATION, async message", "P2S subscription callback"),
+        ("wsSignalingClient.onopen = async", "signaling open callback"),
+        ("wsSignalingClient.onmessage = async", "signaling message callback"),
+        ("wsSignalingClient.onerror = async", "signaling error callback"),
+        ("wsSignalingClient.onclose = async", "signaling close callback"),
+        ("pc.onicecandidate = async", "WebRTC ICE callback"),
+        ("pc.ondatachannel = async", "WebRTC DataChannel callback"),
+        ("channel.onopen = async", "DataChannel open callback"),
+        ("channel.onmessage = async", "DataChannel message callback"),
+        ("channel.onclose = async", "DataChannel close callback"),
+        ("channel.onerror = async", "DataChannel error callback"),
+    ):
+        forbid(service, marker, f"async host {label}")
 
     require(service, "activeForegroundRuntimeId", "single foreground runtime lease")
     require(service, "duplicate-runtime-suppressed", "duplicate runtime suppression")
@@ -153,7 +182,7 @@ def main() -> None:
     forbid(service, "localKeyFingerprint", "local password-derived verifier")
 
     print(
-        "service state, owned listeners, tested async supervision and secret-free P2P controls: OK"
+        "service state, owned listeners, tested host-callback supervision and secret-free P2P controls: OK"
     )
 
 
