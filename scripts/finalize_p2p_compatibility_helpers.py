@@ -198,9 +198,23 @@ import {
             peerOpChains[peerId] = next;
             return next;
           };""",
-        """          const runSerializedPeerOp = (peerId, op) => {
+        """          const clearPeerErrorIfOwned = async (key, peerId) => {
+            const current = String((await getDataFromAsyncStorage(key)) || '');
+            if (current.startsWith(`${peerId}:`)) {
+              await setDataInAsyncStorage(key, '');
+            }
+          };
+
+          const runSerializedPeerOp = (peerId, op) => {
             const previous = peerOpChains[peerId] || Promise.resolve();
-            const current = previous.catch(() => undefined).then(() => op());
+            const current = previous.catch(() => undefined).then(async () => {
+              const result = await op();
+              await clearPeerErrorIfOwned(
+                'p2p_last_peer_operation_error',
+                peerId,
+              );
+              return result;
+            });
             peerOpChains[peerId] = current.catch(async error => {
               await setDataInAsyncStorage(
                 'p2p_last_peer_operation_error',
@@ -234,7 +248,10 @@ import {
         """            for (const pid of peers) {
               if (pid === myPeerId) continue; // skip self
               if (quarantinedPeers.has(pid)) continue;
-              if (peerConnections[pid]) continue;
+              if (peerConnections[pid]) {
+                await clearPeerErrorIfOwned('p2p_last_peer_setup_error', pid);
+                continue;
+              }
               try {
                 const pc = await createPeerConnection(pid);
                 peerConnections[pid] = pc;
@@ -246,6 +263,7 @@ import {
                   await setupDataChannel(pid, channel);
                   await createOffer(pid);
                 }
+                await clearPeerErrorIfOwned('p2p_last_peer_setup_error', pid);
               } catch (error) {
                 await setDataInAsyncStorage(
                   'p2p_last_peer_setup_error',
