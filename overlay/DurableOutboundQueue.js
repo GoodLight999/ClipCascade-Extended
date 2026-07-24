@@ -6,6 +6,7 @@ import {
 } from './AsyncStorageManagement';
 
 const STORAGE_KEY = 'extended_outbound_queue_v1';
+const SCHEMA_VERSION = 2;
 const MAX_ITEMS = 64;
 const MAX_TOTAL_BYTES = 16 * 1024 * 1024;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -19,7 +20,12 @@ const serialize = operation => {
   return next;
 };
 
-const emptyState = scope => ({ scope, items: [], dropped: 0 });
+const emptyState = scope => ({
+  schemaVersion: SCHEMA_VERSION,
+  scope,
+  items: [],
+  dropped: 0,
+});
 const utf8ByteLength = content => UTF8_ENCODER.encode(content).length;
 const itemByteLength = item => {
   const persisted = Number(item?.byteLength);
@@ -38,30 +44,59 @@ async function load(scope) {
   );
   const state = scopeMatches ? raw : emptyState(scope);
   const cutoff = Date.now() - MAX_AGE_MS;
-  let normalized = false;
-  const active = state.items.filter(item => {
+  const migrateByteLengths = Number(state.schemaVersion) !== SCHEMA_VERSION;
+  let normalized = migrateByteLengths;
+  let removedCount = 0;
+  const active = [];
+
+  for (const item of state.items) {
     const valid =
       item &&
       typeof item.id === 'string' &&
       typeof item.content === 'string' &&
       typeof item.type === 'string' &&
       Number(item.createdAt) >= cutoff;
-    if (!valid) return false;
-    if (!Number.isFinite(Number(item.byteLength)) || Number(item.byteLength) < 0) {
+    if (!valid) {
+      removedCount += 1;
+      continue;
+    }
+
+    const persistedByteLength = Number(item.byteLength);
+    if (
+      migrateByteLengths ||
+      !Number.isFinite(persistedByteLength) ||
+      persistedByteLength < 0
+    ) {
       item.byteLength = utf8ByteLength(item.content);
       normalized = true;
     }
-    return true;
-  });
-  const expired = state.items.length - active.length;
+    if (itemByteLength(item) > MAX_TOTAL_BYTES) {
+      removedCount += 1;
+      continue;
+    }
+    active.push(item);
+  }
+
+  let totalBytes = active.reduce(
+    (total, item) => total + itemByteLength(item),
+    0,
+  );
+  while (active.length > MAX_ITEMS || totalBytes > MAX_TOTAL_BYTES) {
+    const removed = active.shift();
+    if (!removed) break;
+    totalBytes -= itemByteLength(removed);
+    removedCount += 1;
+  }
+
   // A read from a stale runtime must never replace another active scope. Only
-  // normalize/expire data when this queue actually owns the persisted scope.
-  if (scopeMatches && (expired > 0 || normalized)) {
+  // normalize, expire or bound data when this queue owns the persisted scope.
+  if (scopeMatches && (removedCount > 0 || normalized)) {
+    state.schemaVersion = SCHEMA_VERSION;
     state.items = active;
-    state.dropped = Number(state.dropped || 0) + expired;
+    state.dropped = Number(state.dropped || 0) + removedCount;
     await setDataInAsyncStorage(STORAGE_KEY, state);
   }
-  return state;
+  return scopeMatches ? { ...state, items: active } : state;
 }
 
 const persist = state => setDataInAsyncStorage(STORAGE_KEY, state);
@@ -124,6 +159,7 @@ export function createDurableOutboundQueue(scope) {
           failures: 0,
           lastError: '',
         };
+        state.schemaVersion = SCHEMA_VERSION;
         state.items.push(item);
 
         let totalBytes = state.items.reduce(
