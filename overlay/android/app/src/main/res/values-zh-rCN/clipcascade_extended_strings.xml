@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="clipcascade_accessibility_label">ClipCascade 复制检测</string>
+    <string name="clipcascade_accessibility_description">检测复制操作，并仅为同步短暂读取剪贴板。不会读取窗口内容。</string>
+    <string name="clipcascade_share_prepare_failed">无法为发送准备共享文件。</string>
+    <string name="clipcascade_service_alert_channel">ClipCascade 服务警报</string>
+    <string name="clipcascade_service_inactive_title">ClipCascade 服务未运行</string>
+    <string name="clipcascade_service_inactive_text">点按以重新打开应用并恢复同步。</string>
+</resources>

@@ -1,0 +1,270 @@
+name: Android reliability CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out extension repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Materialize pinned upstream and validate architecture
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x scripts/materialize_upstream.sh
+          ./scripts/materialize_upstream.sh 2>&1 | tee materialize.log
+
+      - name: Restore stable APK signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode ci/clipcascade-extended.keystore.b64 \
+            > build/mobile/android/app/clipcascade-extended.keystore
+          keytool -list -keystore build/mobile/android/app/clipcascade-extended.keystore \
+            -storepass clipcascade-extended -alias clipcascade-extended
+
+      - name: Install JavaScript dependencies
+        working-directory: build/mobile
+        run: npm ci
+
+      - name: Scope React Native snapshot repository
+        run: python3 scripts/patch_react_native_snapshot_repository.py build/mobile
+
+      - name: Audit injected Gradle repositories
+        working-directory: build/mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '=== central.sonatype snapshot references ==='
+            grep -R -n -I --exclude='*.map' \
+              'central.sonatype.com/repository/maven-snapshots' \
+              android node_modules || true
+            echo '=== snapshot content filters ==='
+            grep -R -n -I --exclude='*.map' \
+              -E 'includeGroup\("com[.]facebook[.](react|hermes)"\)' \
+              node_modules/@react-native/gradle-plugin || true
+          } | tee gradle-repository-audit.txt
+          grep -Fq 'includeGroup("com.facebook.react")' gradle-repository-audit.txt
+          grep -Fq 'includeGroup("com.facebook.hermes")' gradle-repository-audit.txt
+
+      - name: Lint JavaScript and TypeScript
+        working-directory: build/mobile
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run lint 2>&1 | tee lint.log
+
+      - name: Run JavaScript tests
+        working-directory: build/mobile
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test -- --runInBand 2>&1 | tee jest.log
+
+      - name: Run Android lint, unit tests, and standalone build
+        working-directory: build/mobile/android
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace --warning-mode all \
+            lintExtended testExtendedUnitTest assembleExtended 2>&1 | tee ../gradle-build.log
+
+      - name: Validate APK structure, signature, and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='build/mobile/android/app/build/outputs/apk/extended/app-extended.apk'
+          test -s "$apk"
+          unzip -t "$apk" | tee apk-zip-test.txt
+
+          zipalign="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          apkanalyzer="$(find "$ANDROID_HOME/cmdline-tools" -type f -name apkanalyzer | sort -V | tail -n 1)"
+          test -x "$zipalign"
+          test -x "$apksigner"
+          test -x "$apkanalyzer"
+
+          "$zipalign" -c -v 4 "$apk" | tee apk-zipalign.txt
+          "$apksigner" verify --verbose --print-certs "$apk" | tee apk-signature.txt
+          "$apkanalyzer" manifest print "$apk" | tee apk-manifest.xml
+
+          grep -Fq 'package="com.clipcascade.extended"' apk-manifest.xml
+          grep -Fq 'android:versionCode="320005"' apk-manifest.xml
+          grep -Fq 'android:versionName="3.2.0-extended.5"' apk-manifest.xml
+          grep -Fq 'com.clipcascade.ClipCascadeAccessibilityService' apk-manifest.xml
+          grep -Fq 'android.permission.BIND_ACCESSIBILITY_SERVICE' apk-manifest.xml
+          grep -Fq 'android.permission.READ_LOGS' apk-manifest.xml
+          grep -Fq 'android.permission.SYSTEM_ALERT_WINDOW' apk-manifest.xml
+          grep -Fq 'moe.shizuku.manager.permission.API_V23' apk-manifest.xml
+          grep -Fq 'moe.shizuku.client.V3_SUPPORT' apk-manifest.xml
+          grep -Fq 'moe.shizuku.privileged.api' apk-manifest.xml
+          ! grep -Fq 'NotificationCaptureService' apk-manifest.xml
+          ! grep -Fq 'BIND_NOTIFICATION_LISTENER_SERVICE' apk-manifest.xml
+          ! grep -Fq 'android:debuggable="true"' apk-manifest.xml
+
+          : > apk-dex-strings.txt
+          while IFS= read -r dex; do
+            unzip -p "$apk" "$dex" | strings >> apk-dex-strings.txt
+          done < <(zipinfo -1 "$apk" | grep -E '^classes([0-9]+)?[.]dex$')
+
+          for marker in \
+            selection-without-copy capture-timeout activity-destroyed-before-capture \
+            retry-scheduled one-time-setup-only ClipCascade-ShizukuSetup \
+            addBinderReceivedListenerSticky ReliabilityAutoDebug ForegroundRuntimeRecovery \
+            com.clipcascade.CAPTURE_RECOVERY foreground_service_recovery_status \
+            foreground_service_error p2p_incompatible_peers activateAndDrain \
+            drainInOrder admissionPlan QUEUE_AND_DRAIN CaptureSchedulePolicy \
+            onUriStagingStarted clipcascade_service_inactive_title; do
+            grep -Fq "$marker" apk-dex-strings.txt
+          done
+          ! grep -Fq 'NotificationCaptureService' apk-dex-strings.txt
+          ! grep -Fq 'OtpExtractor' apk-dex-strings.txt
+
+          unzip -p "$apk" assets/index.android.bundle > apk-js-bundle.txt
+          test -s apk-js-bundle.txt
+          for marker in \
+            ready-after-registration duplicate-runtime-suppressed \
+            foreground_service_loop_failed_at service-started-for-share \
+            notificationConnectionRestored diagnosticsOverall diagnosticRecovery \
+            notificationDownloadFiles checkingService; do
+            grep -Fq "$marker" apk-js-bundle.txt
+          done
+          ! grep -Fq 'New version available!' apk-js-bundle.txt
+          ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/version.json' apk-js-bundle.txt
+          ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/metadata.json' apk-js-bundle.txt
+
+          mkdir -p dist
+          cp "$apk" dist/ClipCascade-Extended.apk
+          sha256sum dist/ClipCascade-Extended.apk | tee dist/ClipCascade-Extended.apk.sha256
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipCascade-Extended-${{ github.sha }}
+          path: |
+            dist/ClipCascade-Extended.apk
+            dist/ClipCascade-Extended.apk.sha256
+            apk-signature.txt
+            apk-manifest.xml
+            apk-zip-test.txt
+            apk-zipalign.txt
+            apk-dex-strings.txt
+            apk-js-bundle.txt
+            build/mobile/gradle-repository-audit.txt
+            materialize.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipCascade-Extended-failure-reports-${{ github.sha }}
+          path: |
+            materialize.log
+            build/mobile/lint.log
+            build/mobile/jest.log
+            build/mobile/gradle-build.log
+            build/mobile/gradle-repository-audit.txt
+            build/mobile/android/app/build/reports/**
+            build/mobile/android/build/reports/**
+            apk-signature.txt
+            apk-manifest.xml
+            apk-zip-test.txt
+            apk-zipalign.txt
+            apk-dex-strings.txt
+            apk-js-bundle.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  emulator-smoke:
+    name: Emulator smoke API ${{ matrix.api-level }}
+    needs: build-android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [35, 36]
+
+    steps:
+      - name: Check out smoke harness
+        uses: actions/checkout@v4
+
+      - name: Download signed APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ClipCascade-Extended-${{ github.sha }}
+          path: artifact
+
+      - name: Verify downloaded APK checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifact
+          sha256sum -c dist/ClipCascade-Extended.apk.sha256
+
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install and exercise release APK
+        uses: ReactiveCircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 2
+          ram-size: 4096M
+          heap-size: 512M
+          disable-animations: true
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+            -camera-back none -camera-front none
+          script: bash "$GITHUB_WORKSPACE/scripts/emulator_smoke.sh" '${{ matrix.api-level }}'
+
+      - name: Upload emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipCascade-Extended-emulator-api-${{ matrix.api-level }}-${{ github.sha }}
+          path: emulator-smoke/api-${{ matrix.api-level }}/**
+          if-no-files-found: error
+          retention-days: 30
