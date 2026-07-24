@@ -32,6 +32,26 @@ on_exit() {
 }
 trap on_exit EXIT
 
+assert_no_abnormal_exit() {
+  local label="$1"
+  local exit_info="$out/$label-exit-info.txt"
+  local logcat="$out/$label-logcat.txt"
+  adb shell dumpsys activity exit-info "$package" > "$exit_info" 2>&1 || true
+  adb logcat -d -v threadtime > "$logcat" 2>&1
+  if grep -Eq 'reason=REASON_(CRASH|CRASH_NATIVE|ANR)' "$exit_info"; then
+    echo "ClipCascade abnormal exit detected after $label" >&2
+    return 1
+  fi
+  if grep -Fq 'ANR in com.clipcascade.extended' "$logcat"; then
+    echo "ClipCascade ANR detected after $label" >&2
+    return 1
+  fi
+  if grep -A8 -F 'FATAL EXCEPTION' "$logcat" | grep -Fq 'Process: com.clipcascade.extended'; then
+    echo "ClipCascade fatal exception detected after $label" >&2
+    return 1
+  fi
+}
+
 run_activity() {
   local label="$1"
   shift
@@ -39,7 +59,8 @@ run_activity() {
   adb shell am start -W "$@" > "$output" 2>&1
   cat "$output"
   grep -Fq 'Status: ok' "$output"
-  sleep 2
+  sleep 3
+  assert_no_abnormal_exit "$label"
   local pid
   pid="$(adb shell pidof "$package" | tr -d '\r')"
   test -n "$pid"
@@ -59,6 +80,7 @@ adb install -r "$apk" | tee "$out/install.txt"
 grep -Fq 'Success' "$out/install.txt"
 adb shell pm path "$package" | tee "$out/package-path.txt"
 grep -Fq 'package:' "$out/package-path.txt"
+adb shell cmd activity clear-exit-info "$package" > "$out/clear-exit-info.txt" 2>&1 || true
 
 checkpoint 'launch-light'
 adb shell cmd uimode night no > "$out/uimode-light.txt" 2>&1 || true
@@ -69,14 +91,14 @@ checkpoint 'share-text'
 run_activity share-text \
   -a android.intent.action.SEND \
   -t text/plain \
-  --es android.intent.extra.TEXT "ClipCascade CI share API $api" \
+  --es android.intent.extra.TEXT "ClipCascade_CI_share_API_$api" \
   -n "$component"
 
 checkpoint 'process-text'
 run_activity process-text \
   -a android.intent.action.PROCESS_TEXT \
   -t text/plain \
-  --es android.intent.extra.PROCESS_TEXT "ClipCascade CI process text API $api" \
+  --es android.intent.extra.PROCESS_TEXT "ClipCascade_CI_process_text_API_$api" \
   --ez android.intent.extra.PROCESS_TEXT_READONLY true \
   -n "$component"
 
@@ -88,19 +110,7 @@ sleep 2
 
 checkpoint 'collecting-evidence'
 collect_evidence
-
-if grep -Eq 'reason=REASON_(CRASH|CRASH_NATIVE|ANR)' "$out/exit-info.txt"; then
-  echo 'ClipCascade abnormal exit detected by ActivityManager' >&2
-  exit 1
-fi
-if grep -Fq 'ANR in com.clipcascade.extended' "$out/logcat.txt"; then
-  echo 'ClipCascade ANR detected in logcat' >&2
-  exit 1
-fi
-if grep -A8 -F 'FATAL EXCEPTION' "$out/logcat.txt" | grep -Fq 'Process: com.clipcascade.extended'; then
-  echo 'ClipCascade fatal exception detected in logcat' >&2
-  exit 1
-fi
+assert_no_abnormal_exit final
 
 checkpoint 'passed'
 trap - EXIT
