@@ -25,4 +25,12 @@ class SharedPayloadStagerTest {
     fun keepsNormalJapaneseFilename() {
         assertEquals("会議資料.pdf", SharedPayloadStager.sanitize("会議資料.pdf"))
     }
+
+    @Test
+    fun capsDecodedNonStreamingPayloadsConservatively() {
+        assertEquals(32L * 1024L * 1024L, SharedPayloadStager.MAX_SINGLE_FILE_BYTES)
+        assertEquals(32L * 1024L * 1024L, SharedPayloadStager.MAX_BATCH_BYTES)
+        assertEquals(96L * 1024L * 1024L, SharedPayloadStager.MAX_CACHE_BYTES)
+        assertTrue(SharedPayloadStager.MAX_BATCH_BYTES <= SharedPayloadStager.MAX_CACHE_BYTES)
+    }
 }
