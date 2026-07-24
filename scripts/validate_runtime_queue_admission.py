@@ -30,6 +30,7 @@ def main() -> None:
     service = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     queue = (root / "DurableOutboundQueue.js").read_text(encoding="utf-8")
 
+    require(queue, "SCHEMA_VERSION = 2", "queue schema version")
     require(queue, "enqueue(content, type, shouldEnqueue = null)", "queue admission parameter")
     require(queue, "typeof shouldEnqueue !== 'function'", "admission guard type check")
     require(queue, "if (shouldEnqueue && shouldEnqueue() !== true)", "serialized admission decision")
@@ -48,9 +49,16 @@ def main() -> None:
     )
 
     require(queue, "const scopeMatches = Boolean(", "persisted scope ownership check")
+    require(queue, "const migrateByteLengths", "legacy queue migration")
+    require(queue, "let removedCount = 0", "load-time removal accounting")
     require(
         queue,
-        "if (scopeMatches && (expired > 0 || normalized))",
+        "while (active.length > MAX_ITEMS || totalBytes > MAX_TOTAL_BYTES)",
+        "load-time queue bounds",
+    )
+    require(
+        queue,
+        "if (scopeMatches && (removedCount > 0 || normalized))",
         "same-scope-only normalization write",
     )
     require(
@@ -103,7 +111,8 @@ def main() -> None:
     )
 
     print(
-        "runtime lease closes queue admission and stale scopes cannot erase active data: OK"
+        "runtime lease closes queue admission, persisted bounds are migrated, "
+        "and stale scopes cannot erase active data: OK"
     )
 
 
