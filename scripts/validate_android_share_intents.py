@@ -32,8 +32,24 @@ def main() -> None:
     require(activity, 'setValue("shared_payload_pending", "false")', "pending-state cleanup")
     require(activity, '"unsupported-share:', "unsupported-share evidence")
     require(activity, "R.string.clipcascade_share_prepare_failed", "localized share failure")
+    require(
+        activity,
+        "(applicationContext as MainApplication).reactNativeHost.reactInstanceManager",
+        "Application-owned React host",
+    )
+    require(
+        activity,
+        "applicationReactInstanceManager()?.currentReactContext",
+        "nullable React Context dispatch",
+    )
+    require(
+        activity,
+        "PendingReactEventStore.emitOrQueue",
+        "durable share event fallback",
+    )
     forbid(activity, 'intent.type == "text/plain"', "text/plain-only share restriction")
     forbid(activity, "getStringExtra(Intent.EXTRA_TEXT)", "String-only text share")
+    forbid(activity, "reactInstanceManager.currentReactContext", "Activity delegate React host race")
     forbid(activity, '"ClipCascade Extended could not prepare the shared file."', "hard-coded English Toast")
 
     for directory in ("values", "values-ja", "values-zh-rCN"):
