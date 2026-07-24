@@ -16,8 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OVERLAY = ROOT / "overlay"
-VERSION_CODE = "320004"
-VERSION_NAME = "3.2.0-extended.4"
+VERSION_CODE = "320005"
+VERSION_NAME = "3.2.0-extended.5"
 APPLICATION_ID = "com.clipcascade.extended"
 
 
