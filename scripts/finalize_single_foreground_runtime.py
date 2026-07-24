@@ -47,31 +47,35 @@ module.exports = async (inputData = null) => {""",
       try {
         await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
         """    notifee.registerForegroundService(notification => {
-      return new Promise(async resolve => {
-        const runtimeId = `runtime-${Date.now()}-${Math.random()}`;
-        if (activeForegroundRuntimeId != null) {
-          await setDataInAsyncStorage(
-            'foreground_service_state',
-            'duplicate-runtime-suppressed',
-          );
-          await setDataInAsyncStorage(
-            'foreground_service_duplicate_suppressed_at',
-            String(Date.now()),
-          );
-          resolve();
-          return;
-        }
-        activeForegroundRuntimeId = runtimeId;
-        const finishForegroundRuntime = async state => {
-          if (activeForegroundRuntimeId !== runtimeId) return;
-          activeForegroundRuntimeId = null;
-          await setDataInAsyncStorage('foreground_service_state', state);
-          await setDataInAsyncStorage('foreground_service_instance_id', '');
-          resolve();
-        };
-        try {
-          await setDataInAsyncStorage('foreground_service_instance_id', runtimeId);
-          await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
+      return new Promise(resolve => {
+        void (async () => {
+          const runtimeId = `runtime-${Date.now()}-${Math.random()}`;
+          if (activeForegroundRuntimeId != null) {
+            await setDataInAsyncStorage(
+              'foreground_service_state',
+              'duplicate-runtime-suppressed',
+            );
+            await setDataInAsyncStorage(
+              'foreground_service_duplicate_suppressed_at',
+              String(Date.now()),
+            );
+            resolve();
+            return;
+          }
+          activeForegroundRuntimeId = runtimeId;
+          const finishForegroundRuntime = async state => {
+            if (activeForegroundRuntimeId !== runtimeId) {
+              resolve();
+              return;
+            }
+            activeForegroundRuntimeId = null;
+            await setDataInAsyncStorage('foreground_service_state', state);
+            await setDataInAsyncStorage('foreground_service_instance_id', '');
+            resolve();
+          };
+          try {
+            await setDataInAsyncStorage('foreground_service_instance_id', runtimeId);
+            await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
         "foreground runtime lease",
     )
 
@@ -104,6 +108,42 @@ module.exports = async (inputData = null) => {""",
           };""",
         2,
         "release P2S/P2P foreground runtime on stop",
+    )
+
+    replace_once(
+        path,
+        """      }
+      });
+    });""",
+        """      }
+        })().catch(async error => {
+          const detail = String(error?.stack || error);
+          if (activeForegroundRuntimeId === runtimeId) {
+            activeForegroundRuntimeId = null;
+          }
+          try {
+            await setDataInAsyncStorage(
+              'foreground_service_error',
+              detail.slice(0, 4000),
+            );
+            await setDataInAsyncStorage(
+              'foreground_service_state',
+              'handler-unhandled-failure',
+            );
+            await setDataInAsyncStorage('foreground_service_instance_id', '');
+            await setDataInAsyncStorage('wsIsRunning', 'false');
+            await setDataInAsyncStorage(
+              'wsForegroundServiceTerminated',
+              'true',
+            );
+          } finally {
+            cleanupClipboardListeners();
+            resolve();
+          }
+        });
+      });
+    });""",
+        "synchronous Promise executor with terminal async catch",
     )
 
 
