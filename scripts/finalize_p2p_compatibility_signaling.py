@@ -4,7 +4,8 @@
 The upstream signaling server forwards only OFFER, ANSWER and ICE_CANDIDATE.
 Unknown message types are discarded. Compatibility therefore travels as an
 optional top-level field on OFFER/ANSWER: Extended peers consume it, while
-legacy peers ignore it and continue to read only the SDP field.
+legacy peers ignore it and continue to read only the SDP field. The metadata
+contains protocol and encryption mode only; wrong keys are detected by AEAD.
 """
 from __future__ import annotations
 
@@ -33,21 +34,18 @@ def main() -> None:
             _cc_compat: true,
             protocol: P2P_COMPATIBILITY_PROTOCOL,
             cipherEnabled: cipher_enabled === 'true',
-            keyFingerprint: localKeyFingerprint,
           });
           const P2P_DC_KEEPALIVE_JSON = JSON.stringify({
             _cc_keepalive: true,
             compatibility: {
               protocol: P2P_COMPATIBILITY_PROTOCOL,
               cipherEnabled: cipher_enabled === 'true',
-              keyFingerprint: localKeyFingerprint,
             },
           });""",
         """          const P2P_COMPATIBILITY_PROTOCOL = 1;
           const localCompatibility = {
             protocol: P2P_COMPATIBILITY_PROTOCOL,
             cipherEnabled: cipher_enabled === 'true',
-            keyFingerprint: localKeyFingerprint,
           };""",
         "legacy-safe local compatibility descriptor",
     )
@@ -201,9 +199,13 @@ def main() -> None:
         "type: 'COMPATIBILITY'",
         "case 'COMPATIBILITY'",
         "channel.send(P2P_COMPATIBILITY_JSON)",
+        "keyFingerprint",
+        "localKeyFingerprint",
     ):
         if forbidden in text:
-            raise RuntimeError(f"legacy-unsafe or unforwarded control remained: {forbidden}")
+            raise RuntimeError(
+                f"legacy-unsafe, secret-derived or unforwarded control remained: {forbidden}"
+            )
 
 
 if __name__ == "__main__":
