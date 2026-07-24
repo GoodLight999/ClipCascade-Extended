@@ -33,10 +33,10 @@ const fingerprint = (content, type, byteLength) =>
 
 async function load(scope) {
   const raw = await getDataFromAsyncStorage(STORAGE_KEY);
-  const state =
-    raw && raw.scope === scope && Array.isArray(raw.items)
-      ? raw
-      : emptyState(scope);
+  const scopeMatches = Boolean(
+    raw && raw.scope === scope && Array.isArray(raw.items),
+  );
+  const state = scopeMatches ? raw : emptyState(scope);
   const cutoff = Date.now() - MAX_AGE_MS;
   let normalized = false;
   const active = state.items.filter(item => {
@@ -54,7 +54,9 @@ async function load(scope) {
     return true;
   });
   const expired = state.items.length - active.length;
-  if (expired > 0 || state !== raw || normalized) {
+  // A read from a stale runtime must never replace another active scope. Only
+  // normalize/expire data when this queue actually owns the persisted scope.
+  if (scopeMatches && (expired > 0 || normalized)) {
     state.items = active;
     state.dropped = Number(state.dropped || 0) + expired;
     await setDataInAsyncStorage(STORAGE_KEY, state);
@@ -134,6 +136,8 @@ export function createDurableOutboundQueue(scope) {
           totalBytes -= itemByteLength(removed);
           state.dropped = Number(state.dropped || 0) + 1;
         }
+        // Enqueue is the only operation allowed to intentionally replace a
+        // different persisted scope: this is an explicit new-runtime write.
         await persist(state);
         return {
           queued: true,
@@ -203,9 +207,22 @@ export function createDurableOutboundQueue(scope) {
 
     clear() {
       return serialize(async () => {
+        const raw = await getDataFromAsyncStorage(STORAGE_KEY);
+        if (
+          raw &&
+          typeof raw.scope === 'string' &&
+          raw.scope.length > 0 &&
+          raw.scope !== scope
+        ) {
+          return {
+            ...emptyState(scope),
+            skipped: true,
+            activeScopeFingerprint: String(xxHash32(raw.scope, 0)),
+          };
+        }
         const state = emptyState(scope);
         await persist(state);
-        return state;
+        return { ...state, skipped: false };
       });
     },
   };
