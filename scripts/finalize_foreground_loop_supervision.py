@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from foreground_async_supervision import apply as apply_detached_supervision
+from supervise_host_callbacks import apply as supervise_host_callbacks
 from wire_detached_task_supervisor import apply as wire_detached_supervisor
 
 
@@ -58,6 +59,7 @@ def main() -> None:
     )
     apply_detached_supervision(root)
     wire_detached_supervisor(root)
+    supervise_host_callbacks(root)
 
 
 if __name__ == "__main__":
