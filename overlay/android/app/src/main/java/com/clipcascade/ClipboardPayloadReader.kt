@@ -28,6 +28,7 @@ object ClipboardPayloadReader {
     fun readOrStage(
         context: Context,
         clipboardManager: ClipboardManager,
+        onUriStagingStarted: () -> Unit = {},
         callback: (Result<Map<String, String>?>) -> Unit
     ) {
         val app = context.applicationContext
@@ -70,6 +71,7 @@ object ClipboardPayloadReader {
                 "clipboard_fallback_status",
                 "clipboard-uri-staging:${uris.size}"
             )
+            onUriStagingStarted()
             SharedPayloadStager.stage(app, uris) { result ->
                 result.onSuccess { staged ->
                     val payload = if (isSingleImage) {
