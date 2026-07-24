@@ -22,16 +22,14 @@ def main() -> None:
 
     replace_once(
         activity,
-        """            floatingView = view
-            windowManager.addView(view, params)
-            view.postDelayed(::captureClipboard, 80L)""",
-        """            floatingView = view
-            windowManager.addView(view, params)
+        """            windowManager.addView(view, params)
+            view.postDelayed(::captureClipboard, INITIAL_CAPTURE_DELAY_MS)""",
+        """            windowManager.addView(view, params)
             // The Activity/overlay is user-visible at this point, so Android permits a
             // requested dead Foreground Service to be recovered without an arbitrary
             // background launch. Healthy runtimes are ignored by the heartbeat guard.
             ForegroundRuntimeRecovery.startIfRequested(this, "clipboard-overlay")
-            view.postDelayed(::captureClipboard, 80L)""",
+            view.postDelayed(::captureClipboard, INITIAL_CAPTURE_DELAY_MS)""",
         "visible capture runtime recovery",
     )
 
