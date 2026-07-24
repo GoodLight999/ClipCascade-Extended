@@ -63,7 +63,10 @@ def main() -> None:
             "Notification Access (OTP Sync)",
             "3.2.0-extended.1",
         ):
-            require(token not in text, f"deferred OTP/version staging token {token!r} in {path.relative_to(ROOT)}")
+            require(
+                token not in text,
+                f"deferred OTP/version staging token {token!r} in {path.relative_to(ROOT)}",
+            )
 
     panel = read("overlay/ExtendedControlPanel.js")
     require(
@@ -107,6 +110,16 @@ def main() -> None:
         "canonical runtime-message translation rules are incomplete",
     )
 
+    queue = read("overlay/DurableOutboundQueue.js")
+    for marker in (
+        "MAX_TOTAL_BYTES = 16 * 1024 * 1024",
+        "const utf8ByteLength = content => UTF8_ENCODER.encode(content).length",
+        "item.byteLength = utf8ByteLength(item.content)",
+        "totalBytes:",
+    ):
+        require(marker in queue, f"canonical UTF-8 durable-queue marker missing: {marker}")
+    require("MAX_TOTAL_CHARS" not in queue, "UTF-16 character-based queue bound returned")
+
     materialize = read("scripts/materialize_upstream.sh")
     finalizer_count = materialize.count('python3 "$ROOT_DIR/scripts/finalize_')
     require(
@@ -130,7 +143,7 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        f"canonical i18n complete, no forbidden-project input, "
+        "canonical i18n and UTF-8 queue bounds complete, no forbidden-project input, "
         f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
 
