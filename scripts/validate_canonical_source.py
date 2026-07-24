@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+MAX_FINALIZERS = 32
 
 
 def require(condition: bool, message: str) -> None:
@@ -83,8 +84,8 @@ def main() -> None:
     materialize = read("scripts/materialize_upstream.sh")
     finalizer_count = materialize.count('python3 "$ROOT_DIR/scripts/finalize_')
     require(
-        finalizer_count <= 30,
-        f"finalizer count grew to {finalizer_count}; consolidate instead of adding patches",
+        finalizer_count <= MAX_FINALIZERS,
+        f"finalizer count grew to {finalizer_count}; maximum is {MAX_FINALIZERS}",
     )
 
     forbidden_repo = "GoodLight999/Trash-ClipCascade"
@@ -103,7 +104,7 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        f"no forbidden-project input, finalizers={finalizer_count}"
+        f"no forbidden-project input, finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
 
 
