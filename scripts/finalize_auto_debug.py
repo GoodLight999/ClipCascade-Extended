@@ -100,6 +100,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
                 put("p2pLastCompatibilityError", bridge.getValue("p2p_last_compatibility_error").orEmpty())
                 put("p2pLastPeerSetupError", bridge.getValue("p2p_last_peer_setup_error").orEmpty())
                 put("p2pLastPeerOperationError", bridge.getValue("p2p_last_peer_operation_error").orEmpty())
+                put("p2pLastSignalingError", bridge.getValue("p2p_last_signaling_error").orEmpty())
                 put("readLogs", readLogs)''',
         "automatic diagnostic status fields",
     )
