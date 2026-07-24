@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from foreground_async_supervision import apply as apply_detached_supervision
+from wire_detached_task_supervisor import apply as wire_detached_supervisor
 
 
 def replace_once(path: Path, old: str, new: str, label: str) -> None:
@@ -56,6 +57,7 @@ def main() -> None:
         "supervised foreground polling loop",
     )
     apply_detached_supervision(root)
+    wire_detached_supervisor(root)
 
 
 if __name__ == "__main__":
