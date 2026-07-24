@@ -109,10 +109,12 @@ def patch_manifest(root: Path) -> None:
 def patch_native_bridge(root: Path) -> None:
     path = root / "android/app/src/main/java/com/clipcascade/NativeBridgeModule.kt"
     text = path.read_text(encoding="utf-8")
+    # Upstream already imports android.net.Uri for file operations. This phase owns
+    # only the ComponentName import; adding Uri again makes Kotlin compilation fail.
     text = replace_once(
         text,
         "import android.content.Intent\n",
-        "import android.content.ComponentName\nimport android.content.Intent\nimport android.net.Uri\n",
+        "import android.content.ComponentName\nimport android.content.Intent\n",
         "Accessibility native imports",
     )
 
