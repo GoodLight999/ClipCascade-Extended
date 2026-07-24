@@ -152,8 +152,8 @@ def main() -> None:
     require(service, "p2p_last_signaling_error", "signaling failure evidence")
     require(
         service,
-        "stopServicesP2P = async () => {\n            clearSignalingReconnect();",
-        "reconnect cancellation on P2P stop",
+        "stopServicesP2P = async () => {\n            stopAcceptingRuntimeEvents();\n            clearSignalingReconnect();",
+        "event-admission and reconnect cancellation on P2P stop",
     )
     require(
         service,
