@@ -70,7 +70,7 @@ export function createDurableOutboundQueue(scope) {
   }
 
   return {
-    enqueue(content, type) {
+    enqueue(content, type, shouldEnqueue = null) {
       return serialize(async () => {
         if (typeof content !== 'string' || content.length === 0) {
           throw new Error('Outbound clipboard content is empty');
@@ -78,18 +78,35 @@ export function createDurableOutboundQueue(scope) {
         if (!['text', 'image', 'files'].includes(type)) {
           throw new Error(`Unsupported outbound clipboard type: ${type}`);
         }
+        if (shouldEnqueue != null && typeof shouldEnqueue !== 'function') {
+          throw new TypeError('Outbound queue admission guard must be a function');
+        }
         const byteLength = utf8ByteLength(content);
         if (byteLength > MAX_TOTAL_BYTES) {
           throw new Error('Outbound clipboard item is too large for the durable queue');
         }
 
         const state = await load(scope);
+        // Evaluate inside the serialized operation after loading state. If a stop
+        // clear is already ahead of this operation, the old runtime is rejected
+        // before it can append after that clear.
+        if (shouldEnqueue && shouldEnqueue() !== true) {
+          return {
+            queued: false,
+            duplicate: false,
+            cancelled: true,
+            id: null,
+            count: state.items.length,
+          };
+        }
+
         const itemFingerprint = fingerprint(content, type, byteLength);
         const last = state.items[state.items.length - 1];
         if (last && last.type === type && last.content === content) {
           return {
             queued: false,
             duplicate: true,
+            cancelled: false,
             id: last.id,
             count: state.items.length,
           };
@@ -121,6 +138,7 @@ export function createDurableOutboundQueue(scope) {
         return {
           queued: true,
           duplicate: false,
+          cancelled: false,
           id: item.id,
           count: state.items.length,
         };
