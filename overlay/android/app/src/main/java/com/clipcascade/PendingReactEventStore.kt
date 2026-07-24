@@ -29,6 +29,12 @@ object PendingReactEventStore {
         RETRY
     }
 
+    internal enum class AdmissionPlan {
+        DIRECT,
+        QUEUE_AND_DRAIN,
+        QUEUE_ONLY
+    }
+
     internal data class DrainResult<T>(
         val delivered: Int,
         val remaining: List<T>
@@ -41,10 +47,26 @@ object PendingReactEventStore {
         eventName: String,
         payload: Map<String, String>
     ): Boolean {
-        if (deliveryReady.get() && reactContext != null && emitNow(reactContext, eventName, payload)) {
+        val appContext = context.applicationContext
+        val plan = admissionPlan(
+            deliveryReady = deliveryReady.get(),
+            reactContextAvailable = reactContext != null,
+            pendingCount = pendingCountLocked(appContext)
+        )
+
+        if (
+            plan == AdmissionPlan.DIRECT &&
+            reactContext != null &&
+            emitNow(reactContext, eventName, payload)
+        ) {
             return true
         }
-        enqueue(context.applicationContext, eventName, payload)
+
+        enqueue(appContext, eventName, payload)
+        if (plan != AdmissionPlan.QUEUE_ONLY && reactContext != null) {
+            drainLocked(appContext, reactContext)
+            return pendingCountLocked(appContext) == 0
+        }
         return false
     }
 
@@ -67,12 +89,14 @@ object PendingReactEventStore {
     }
 
     @Synchronized
-    fun pendingCount(context: Context): Int {
-        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return parseQueue(prefs.getString(QUEUE, null)).length()
-    }
+    fun pendingCount(context: Context): Int = pendingCountLocked(context.applicationContext)
 
     fun isDeliveryReady(): Boolean = deliveryReady.get()
+
+    private fun pendingCountLocked(appContext: Context): Int {
+        val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return parseQueue(prefs.getString(QUEUE, null)).length()
+    }
 
     private fun drainLocked(appContext: Context, reactContext: ReactContext): Int {
         val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -135,6 +159,16 @@ object PendingReactEventStore {
             }
         }
         return DrainResult(delivered, remaining)
+    }
+
+    internal fun admissionPlan(
+        deliveryReady: Boolean,
+        reactContextAvailable: Boolean,
+        pendingCount: Int
+    ): AdmissionPlan = when {
+        !deliveryReady || !reactContextAvailable -> AdmissionPlan.QUEUE_ONLY
+        pendingCount > 0 -> AdmissionPlan.QUEUE_AND_DRAIN
+        else -> AdmissionPlan.DIRECT
     }
 
     private fun emitNow(
