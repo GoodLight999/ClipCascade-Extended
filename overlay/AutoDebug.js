@@ -133,15 +133,28 @@ export function analyzeDiagnostics(
       status.sharedPayloadStatus || 'idle',
     ),
   );
+
+  const peerSetupError = String(status.p2pLastPeerSetupError || '');
+  const peerOperationError = String(status.p2pLastPeerOperationError || '');
+  const incompatiblePeers = Number(status.p2pIncompatiblePeers || 0);
+  const p2pLevel =
+    peerSetupError || peerOperationError
+      ? 'FAIL'
+      : incompatiblePeers > 0
+        ? 'WARN'
+        : 'PASS';
   checks.push(
     check(
       'p2p-compatibility',
-      Number(status.p2pIncompatiblePeers || 0) > 0 ? 'WARN' : 'PASS',
+      p2pLevel,
       `compatible=${status.p2pCompatiblePeers || 0}; incompatible=${
         status.p2pIncompatiblePeers || 0
-      }; candidates=${status.p2pCandidatePeers || 0}`,
+      }; candidates=${status.p2pCandidatePeers || 0}; setupError=${
+        peerSetupError || 'none'
+      }; operationError=${peerOperationError || 'none'}`,
     ),
   );
+
   checks.push(
     check(
       'foreground-clipboard-probe',
@@ -159,7 +172,13 @@ export function analyzeDiagnostics(
     : checks.some(item => item.level === 'WARN')
       ? 'WARN'
       : 'PASS';
-  return { overall, checks, status, probe, generatedAt: new Date(now).toISOString() };
+  return {
+    overall,
+    checks,
+    status,
+    probe,
+    generatedAt: new Date(now).toISOString(),
+  };
 }
 
 const DEFAULT_REPORT_TEXT = {
