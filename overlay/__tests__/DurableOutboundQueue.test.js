@@ -111,6 +111,83 @@ describe('DurableOutboundQueue', () => {
     const queue = createDurableOutboundQueue('scope');
     expect((await queue.snapshot()).totalBytes).toBe(6);
     expect((await queue.peek()).byteLength).toBe(6);
+    const migrated = JSON.parse(await AsyncStorage.getItem(STORAGE_KEY));
+    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.items[0].byteLength).toBe(6);
+  });
+
+  test('reapplies the item-count bound while loading persisted state', async () => {
+    const now = Date.now();
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 2,
+        scope: 'scope',
+        dropped: 0,
+        items: Array.from({ length: 65 }, (_, index) => ({
+          id: `item-${index}`,
+          content: String(index),
+          type: 'text',
+          byteLength: 1,
+          createdAt: now,
+          failures: 0,
+          lastError: '',
+        })),
+      }),
+    );
+
+    const queue = createDurableOutboundQueue('scope');
+    expect(await queue.peek()).toMatchObject({ id: 'item-1' });
+    expect(await queue.snapshot()).toMatchObject({ count: 64, dropped: 1 });
+  });
+
+  test('reapplies per-item and aggregate byte bounds while loading state', async () => {
+    const now = Date.now();
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 2,
+        scope: 'scope',
+        dropped: 0,
+        items: [
+          {
+            id: 'oversized',
+            content: 'x',
+            type: 'text',
+            byteLength: 17 * 1024 * 1024,
+            createdAt: now,
+            failures: 0,
+            lastError: '',
+          },
+          {
+            id: 'aggregate-oldest',
+            content: 'a',
+            type: 'text',
+            byteLength: 10 * 1024 * 1024,
+            createdAt: now,
+            failures: 0,
+            lastError: '',
+          },
+          {
+            id: 'aggregate-newest',
+            content: 'b',
+            type: 'text',
+            byteLength: 10 * 1024 * 1024,
+            createdAt: now,
+            failures: 0,
+            lastError: '',
+          },
+        ],
+      }),
+    );
+
+    const queue = createDurableOutboundQueue('scope');
+    expect(await queue.peek()).toMatchObject({ id: 'aggregate-newest' });
+    expect(await queue.snapshot()).toMatchObject({
+      count: 1,
+      totalBytes: 10 * 1024 * 1024,
+      dropped: 2,
+    });
   });
 
   test('acknowledges only the matching entry', async () => {
