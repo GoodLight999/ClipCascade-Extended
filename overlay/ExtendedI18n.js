@@ -42,8 +42,10 @@ const STRINGS = {
     working: '処理中…',
     setupComplete: '権限設定が完了しました。Shizukuの常時起動は不要です。',
     setupFailed: '設定に失敗しました',
-    shizukuGuide: 'Shizukuを起動してサービスが実行中であることを確認し、この画面へ戻って「一回だけ権限設定」を押してください。',
-    adbGuide: 'PCで次の2コマンドを一度だけ実行してください。3つ目のforce-stopコマンドは不要です。',
+    shizukuGuide:
+      'Shizukuを起動してサービスが実行中であることを確認し、この画面へ戻って「一回だけ権限設定」を押してください。',
+    adbGuide:
+      'PCで次の2コマンドを一度だけ実行してください。3つ目のforce-stopコマンドは不要です。',
     noStatus: '情報なし',
     pass: '合格',
     warn: '要確認',
@@ -65,21 +67,70 @@ const STRINGS = {
     peers: 'Peer数',
     sending: '送信中',
     receiving: '受信中',
+    checkingService: 'Foreground Serviceを確認中…',
+    verifyingSession: 'セッションを確認中…',
+    requestTimedOut: '要求がタイムアウトしました',
+    errorTitle: 'エラー',
+    genericError: 'エラー',
+    unknownError: '不明なエラー',
+    invalidUrl: 'URLが無効です',
+    unsupportedProtocol: '未対応のURLプロトコル',
+    loginSuccess: 'ログイン成功',
+    loginFailed: 'ログイン失敗',
+    loginServerModeError: 'ログイン後にサーバーモードを取得できません',
+    loginStunError: 'ログイン後にSTUN URLを取得できません',
+    loginMaxSizeError: 'ログイン後に最大サイズを取得できません',
+    loginHashError: 'ログイン後の暗号鍵生成に失敗しました',
+    logoutSuccess: 'ログアウト成功',
+    logoutFailed: 'ログアウト失敗',
+    fetchLoginError: 'ログイン画面を取得できません',
+    csrfMissing: 'ログイン画面にCSRF tokenがありません',
+    cookieMissing: 'ログイン応答にSet-Cookie headerがありません',
     packageLabel: 'パッケージ',
     requestedLabel: '同期要求',
     accessibilityLabel: 'ユーザー補助',
+    accessibilityStateLabel: 'ユーザー補助サービス状態',
     captureLabel: '取得処理',
     coordinatorLabel: '取得コーディネーター',
     listenerLabel: 'JSイベントリスナー',
+    nativeDeliveryLabel: 'ネイティブイベント配送準備',
     pendingEventsLabel: '保留中のネイティブイベント',
     sharedPayloadLabel: '共有送信',
     outboundQueueLabel: '送信キュー',
     foregroundStateLabel: 'Foreground Service状態',
     foregroundHeartbeatLabel: 'Foreground Service heartbeat',
     foregroundErrorLabel: 'Foreground Service最終エラー',
+    foregroundRecoveryLabel: 'Foreground Service復旧状態',
     p2pCompatibilityLabel: 'P2P候補／互換／非互換',
     p2pLastErrorLabel: 'P2P最終互換性エラー',
+    readLogsLabel: 'READ_LOGS権限',
+    overlayLabel: 'オーバーレイ権限',
+    shizukuLabel: 'Shizuku状態',
     restartLabel: '再起動レシーバー',
+    diagnosticsOverall: '総合判定',
+    diagnosticsGenerated: '生成日時',
+    diagnosticsRawStatus: '生の状態情報',
+    diagnosticsNativeProbe: 'ネイティブ実経路検査',
+    diagnosticNativeReact: 'ネイティブ→Reactイベント経路',
+    diagnosticAccessibility: 'ユーザー補助コピー検知',
+    diagnosticOverlay: 'オーバーレイ権限',
+    diagnosticCapture: 'クリップボード取得コーディネーター',
+    diagnosticNativeEvents: '保留中のネイティブイベント',
+    diagnosticOutboundQueue: '耐久送信キュー',
+    diagnosticForeground: 'Foreground Service heartbeat',
+    diagnosticSingleton: 'Foreground Service単一ランタイム',
+    diagnosticRecovery: '表示中コピー取得からのService復旧',
+    diagnosticSharedPayload: 'Android共有／退避済みペイロード',
+    diagnosticP2P: 'P2P互換性',
+    diagnosticClipboardProbe: '前景クリップボード実読取',
+    notificationMonitorChannel: 'クリップボード同期',
+    notificationDownloadProgressChannel: 'ファイル保存の進行状況',
+    notificationConnectionChannel: '接続状態',
+    notificationConnectionRestored: '接続を復旧しました 🔗',
+    notificationConnectionLost: '接続が切れました ⛓️‍💥',
+    notificationDownloadFiles: '📥 受信ファイルがあります',
+    notificationDownloadingFiles: 'ファイルを保存中…',
+    downloadFilesFailed: 'ファイルの保存に失敗しました',
   },
   zh: {
     languageName: '简体中文',
@@ -124,8 +175,10 @@ const STRINGS = {
     working: '处理中…',
     setupComplete: '权限设置完成。Shizuku 无需常驻运行。',
     setupFailed: '设置失败',
-    shizukuGuide: '请启动 Shizuku 并确认服务正在运行，然后返回此处点击一次性授权。',
-    adbGuide: '请在电脑上仅执行一次以下两个命令。不需要第三个 force-stop 命令。',
+    shizukuGuide:
+      '请启动 Shizuku 并确认服务正在运行，然后返回此处点击一次性授权。',
+    adbGuide:
+      '请在电脑上仅执行一次以下两个命令。不需要第三个 force-stop 命令。',
     noStatus: '无信息',
     pass: '通过',
     warn: '需确认',
@@ -147,21 +200,70 @@ const STRINGS = {
     peers: 'Peer 数',
     sending: '正在发送',
     receiving: '正在接收',
+    checkingService: '正在检查 Foreground Service…',
+    verifyingSession: '正在验证会话…',
+    requestTimedOut: '请求超时',
+    errorTitle: '错误',
+    genericError: '错误',
+    unknownError: '未知错误',
+    invalidUrl: 'URL 无效',
+    unsupportedProtocol: '不支持的 URL 协议',
+    loginSuccess: '登录成功',
+    loginFailed: '登录失败',
+    loginServerModeError: '登录后无法获取服务器模式',
+    loginStunError: '登录后无法获取 STUN URL',
+    loginMaxSizeError: '登录后无法获取最大大小',
+    loginHashError: '登录后生成加密密钥失败',
+    logoutSuccess: '退出登录成功',
+    logoutFailed: '退出登录失败',
+    fetchLoginError: '无法获取登录页面',
+    csrfMissing: '登录页面中没有 CSRF token',
+    cookieMissing: '登录响应中没有 Set-Cookie header',
     packageLabel: '软件包',
     requestedLabel: '同步请求',
     accessibilityLabel: '无障碍服务',
+    accessibilityStateLabel: '无障碍服务状态',
     captureLabel: '捕获处理',
     coordinatorLabel: '捕获协调器',
     listenerLabel: 'JS 事件监听器',
+    nativeDeliveryLabel: '原生事件传递就绪',
     pendingEventsLabel: '待处理原生事件',
     sharedPayloadLabel: '系统分享发送',
     outboundQueueLabel: '发送队列',
     foregroundStateLabel: 'Foreground Service 状态',
     foregroundHeartbeatLabel: 'Foreground Service heartbeat',
     foregroundErrorLabel: 'Foreground Service 最后错误',
+    foregroundRecoveryLabel: 'Foreground Service 恢复状态',
     p2pCompatibilityLabel: 'P2P 候选／兼容／不兼容',
     p2pLastErrorLabel: 'P2P 最后兼容性错误',
+    readLogsLabel: 'READ_LOGS 权限',
+    overlayLabel: '悬浮窗权限',
+    shizukuLabel: 'Shizuku 状态',
     restartLabel: '重启接收器',
+    diagnosticsOverall: '总体结果',
+    diagnosticsGenerated: '生成时间',
+    diagnosticsRawStatus: '原始状态',
+    diagnosticsNativeProbe: '原生实际路径检查',
+    diagnosticNativeReact: '原生→React 事件路径',
+    diagnosticAccessibility: '无障碍复制检测',
+    diagnosticOverlay: '悬浮窗权限',
+    diagnosticCapture: '剪贴板捕获协调器',
+    diagnosticNativeEvents: '待处理原生事件',
+    diagnosticOutboundQueue: '持久发送队列',
+    diagnosticForeground: 'Foreground Service heartbeat',
+    diagnosticSingleton: 'Foreground Service 单实例',
+    diagnosticRecovery: '从可见复制捕获恢复 Service',
+    diagnosticSharedPayload: 'Android 分享／已暂存内容',
+    diagnosticP2P: 'P2P 兼容性',
+    diagnosticClipboardProbe: '前台剪贴板实际读取',
+    notificationMonitorChannel: '剪贴板同步',
+    notificationDownloadProgressChannel: '文件保存进度',
+    notificationConnectionChannel: '连接状态',
+    notificationConnectionRestored: '连接已恢复 🔗',
+    notificationConnectionLost: '连接已断开 ⛓️‍💥',
+    notificationDownloadFiles: '📥 有接收文件',
+    notificationDownloadingFiles: '正在保存文件…',
+    downloadFilesFailed: '保存文件失败',
   },
   en: {
     languageName: 'English',
@@ -177,7 +279,8 @@ const STRINGS = {
     hideExtra: 'Hide advanced settings',
     hashRounds: 'Hash rounds',
     salt: 'Salt',
-    savePassword: 'Store password on this device (not recommended; encryption off only)',
+    savePassword:
+      'Store password on this device (not recommended; encryption off only)',
     maxClipboard: 'Local clipboard size limit (bytes)',
     relaunchOnBoot: 'Resume synchronization after device boot',
     statusNotification: 'Show connection status notifications',
@@ -204,10 +307,13 @@ const STRINGS = {
     copied: 'Copied',
     close: 'Close',
     working: 'Working…',
-    setupComplete: 'Permission setup completed. Shizuku does not need to stay running.',
+    setupComplete:
+      'Permission setup completed. Shizuku does not need to stay running.',
     setupFailed: 'Setup failed',
-    shizukuGuide: 'Start Shizuku and confirm that its service is running, then return here and run the one-time setup.',
-    adbGuide: 'Run the following two commands once from a PC. A third force-stop command is not required.',
+    shizukuGuide:
+      'Start Shizuku and confirm that its service is running, then return here and run the one-time setup.',
+    adbGuide:
+      'Run the following two commands once from a PC. A third force-stop command is not required.',
     noStatus: 'No information',
     pass: 'PASS',
     warn: 'CHECK',
@@ -229,21 +335,70 @@ const STRINGS = {
     peers: 'Peers',
     sending: 'Sending',
     receiving: 'Receiving',
+    checkingService: 'Checking Foreground Service…',
+    verifyingSession: 'Verifying session…',
+    requestTimedOut: 'Request timed out',
+    errorTitle: 'Error',
+    genericError: 'Error',
+    unknownError: 'Unknown error',
+    invalidUrl: 'Invalid URL',
+    unsupportedProtocol: 'Unsupported URL protocol',
+    loginSuccess: 'Login successful',
+    loginFailed: 'Login failed',
+    loginServerModeError: 'Unable to get server mode after login',
+    loginStunError: 'Unable to get STUN URL after login',
+    loginMaxSizeError: 'Unable to get maximum size after login',
+    loginHashError: 'Unable to generate encryption key after login',
+    logoutSuccess: 'Logout successful',
+    logoutFailed: 'Logout failed',
+    fetchLoginError: 'Unable to fetch login page',
+    csrfMissing: 'No CSRF token found in login page',
+    cookieMissing: 'No Set-Cookie header returned from login page',
     packageLabel: 'Package',
     requestedLabel: 'Synchronization requested',
     accessibilityLabel: 'Accessibility',
+    accessibilityStateLabel: 'Accessibility Service state',
     captureLabel: 'Capture',
     coordinatorLabel: 'Capture coordinator',
     listenerLabel: 'JS event listener',
+    nativeDeliveryLabel: 'Native event delivery ready',
     pendingEventsLabel: 'Pending native events',
     sharedPayloadLabel: 'Shared payload',
     outboundQueueLabel: 'Outbound queue',
     foregroundStateLabel: 'Foreground Service state',
     foregroundHeartbeatLabel: 'Foreground Service heartbeat',
     foregroundErrorLabel: 'Foreground Service last error',
+    foregroundRecoveryLabel: 'Foreground Service recovery state',
     p2pCompatibilityLabel: 'P2P candidates / compatible / incompatible',
     p2pLastErrorLabel: 'P2P last compatibility error',
+    readLogsLabel: 'READ_LOGS permission',
+    overlayLabel: 'Overlay permission',
+    shizukuLabel: 'Shizuku state',
     restartLabel: 'Restart receiver',
+    diagnosticsOverall: 'Overall',
+    diagnosticsGenerated: 'Generated',
+    diagnosticsRawStatus: 'Raw status',
+    diagnosticsNativeProbe: 'Native active-path probe',
+    diagnosticNativeReact: 'Native → React event bridge',
+    diagnosticAccessibility: 'Accessibility copy detection',
+    diagnosticOverlay: 'Overlay permission',
+    diagnosticCapture: 'Clipboard capture coordinator',
+    diagnosticNativeEvents: 'Pending native events',
+    diagnosticOutboundQueue: 'Durable outbound queue',
+    diagnosticForeground: 'Foreground Service heartbeat',
+    diagnosticSingleton: 'Foreground Service singleton',
+    diagnosticRecovery: 'Visible-copy runtime recovery',
+    diagnosticSharedPayload: 'Android Share / staged payload',
+    diagnosticP2P: 'P2P compatibility',
+    diagnosticClipboardProbe: 'Foreground clipboard probe',
+    notificationMonitorChannel: 'Clipboard synchronization',
+    notificationDownloadProgressChannel: 'File save progress',
+    notificationConnectionChannel: 'Connection status',
+    notificationConnectionRestored: 'Connection restored 🔗',
+    notificationConnectionLost: 'Connection lost ⛓️‍💥',
+    notificationDownloadFiles: '📥 Received files available',
+    notificationDownloadingFiles: 'Saving files…',
+    downloadFilesFailed: 'Failed to save files',
   },
 };
 
@@ -263,20 +418,69 @@ export function getExtendedStrings(locale = detectExtendedLocale()) {
 export function localizeRuntimeMessage(value, strings = getExtendedStrings()) {
   if (value == null || value === '') return strings.noStatus;
   return String(value)
-    .replace(/✅ Signaling connected; waiting for peer/g, `✅ ${strings.signalingWaiting}`)
+    .replace(
+      /✅ Signaling connected; waiting for peer/g,
+      `✅ ${strings.signalingWaiting}`,
+    )
     .replace(/✅ P2P peer connected/g, `✅ ${strings.peerConnected}`)
     .replace(/✅ Connected/g, `✅ ${strings.connected}`)
     .replace(/✅ Disconnected/g, `✅ ${strings.disconnected}`)
     .replace(/⏳ Connecting\.\.\./g, `⏳ ${strings.connecting}`)
     .replace(/⌛ Reconnecting\.\.\./g, `⌛ ${strings.reconnecting}`)
+    .replace(/Loading\.\.\./gi, strings.loading)
+    .replace(/Checking foreground service\.\.\./gi, strings.checkingService)
+    .replace(/Verifying Session\.\.\./gi, strings.verifyingSession)
     .replace(/Starting foreground service\.\.\./gi, strings.startingService)
     .replace(/Stopping foreground service\.\.\./gi, strings.stoppingService)
-    .replace(/Foreground service stopped running/gi, `${strings.fail}: ${strings.serviceError}`)
+    .replace(
+      /Foreground service stopped running/gi,
+      `${strings.fail}: ${strings.serviceError}`,
+    )
+    .replace(
+      /Login Successful but unable to get server mode; Status:/gi,
+      `${strings.loginServerModeError}; Status:`,
+    )
+    .replace(
+      /Login Successful but unable to get stun url; Status:/gi,
+      `${strings.loginStunError}; Status:`,
+    )
+    .replace(
+      /Login Successful but unable to get max size; Status:/gi,
+      `${strings.loginMaxSizeError}; Status:`,
+    )
+    .replace(
+      /Login successful but error generating hash:/gi,
+      `${strings.loginHashError}:`,
+    )
+    .replace(/Login successful:/gi, `${strings.loginSuccess}:`)
+    .replace(/Login failed:/gi, `${strings.loginFailed}:`)
+    .replace(/Logout successful:/gi, `${strings.logoutSuccess}:`)
+    .replace(/Logout failed:/gi, `${strings.logoutFailed}:`)
+    .replace(/Failed to fetch login page:/gi, `${strings.fetchLoginError}:`)
+    .replace(/No CSRF token found in login page/gi, strings.csrfMissing)
+    .replace(
+      /No Set-Cookie header returned from login page/gi,
+      strings.cookieMissing,
+    )
+    .replace(/Invalid URL provided/gi, strings.invalidUrl)
+    .replace(
+      /Unsupported protocol in URL:/gi,
+      `${strings.unsupportedProtocol}:`,
+    )
+    .replace(
+      /Error: Request timed out/gi,
+      `${strings.genericError}: ${strings.requestTimedOut}`,
+    )
+    .replace(/Unknown error:/gi, `${strings.unknownError}:`)
     .replace(/❌ Connection Failed:/g, `❌ ${strings.connectionFailed}:`)
     .replace(/❌ Outbound Error:/g, `❌ ${strings.outboundError}:`)
     .replace(/❌ Inbound Error:/g, `❌ ${strings.inboundError}:`)
     .replace(/❌ Foreground service:/gi, `❌ ${strings.serviceError}:`)
-    .replace(/⚠️ Ignored (\d+) incompatible P2P peer\(s\)/g, `⚠️ ${strings.ignoredIncompatible}: $1`)
+    .replace(/❌ Error:/gi, `❌ ${strings.genericError}:`)
+    .replace(
+      /⚠️ Ignored (\d+) incompatible P2P peer\(s\)/g,
+      `⚠️ ${strings.ignoredIncompatible}: $1`,
+    )
     .replace(/Peers:/g, `${strings.peers}:`)
     .replace(/Sending:/g, `${strings.sending}:`)
     .replace(/Receiving:/g, `${strings.receiving}:`)
