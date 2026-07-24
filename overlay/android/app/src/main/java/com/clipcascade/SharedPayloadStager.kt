@@ -16,9 +16,16 @@ object SharedPayloadStager {
     private const val ROOT = "shared_outbound"
     private const val RETENTION_MS = 24L * 60L * 60L * 1000L
     private const val MAX_FILES = 64
-    private const val MAX_SINGLE_FILE_BYTES = 512L * 1024L * 1024L
-    private const val MAX_BATCH_BYTES = 512L * 1024L * 1024L
-    private const val MAX_CACHE_BYTES = 768L * 1024L * 1024L
+
+    // The current mobile transport is deliberately non-streaming: each decoded
+    // file is copied into a native byte array, Base64, JSON and possibly an
+    // encrypted/fragmented copy. A 512 MiB staging allowance therefore caused
+    // predictable OOM risk before protocol delivery. Keep these decoded limits
+    // conservative until both outbound and inbound paths stream end-to-end.
+    internal const val MAX_SINGLE_FILE_BYTES = 32L * 1024L * 1024L
+    internal const val MAX_BATCH_BYTES = 32L * 1024L * 1024L
+    internal const val MAX_CACHE_BYTES = 96L * 1024L * 1024L
+
     private val executor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "ClipCascade-ShareStager").apply { isDaemon = true }
     }
@@ -50,6 +57,22 @@ object SharedPayloadStager {
             "Shared-payload cache already exceeds ${MAX_CACHE_BYTES} bytes"
         }
 
+        val knownSizes = uris.map { knownSize(context, it) }
+        knownSizes.forEachIndexed { index, size ->
+            if (size >= 0L) {
+                check(size <= MAX_SINGLE_FILE_BYTES) {
+                    "Shared file ${index + 1} exceeds the 32 MiB mobile safety limit"
+                }
+            }
+        }
+        val knownBatchBytes = knownSizes.filter { it >= 0L }.sum()
+        check(knownBatchBytes <= MAX_BATCH_BYTES) {
+            "Shared batch exceeds the 32 MiB mobile safety limit"
+        }
+        check(existingBytes + knownBatchBytes <= MAX_CACHE_BYTES) {
+            "Shared-payload cache would exceed ${MAX_CACHE_BYTES} bytes"
+        }
+
         val batch = File(root, UUID.randomUUID().toString())
         check(batch.mkdirs()) { "Unable to create shared-payload cache" }
         val staged = mutableListOf<Uri>()
@@ -68,10 +91,10 @@ object SharedPayloadStager {
                             fileBytes += read
                             batchBytes += read
                             check(fileBytes <= MAX_SINGLE_FILE_BYTES) {
-                                "Shared file exceeds ${MAX_SINGLE_FILE_BYTES} bytes"
+                                "Shared file exceeds the 32 MiB mobile safety limit"
                             }
                             check(batchBytes <= MAX_BATCH_BYTES) {
-                                "Shared batch exceeds ${MAX_BATCH_BYTES} bytes"
+                                "Shared batch exceeds the 32 MiB mobile safety limit"
                             }
                             check(existingBytes + batchBytes <= MAX_CACHE_BYTES) {
                                 "Shared-payload cache exceeds ${MAX_CACHE_BYTES} bytes"
@@ -93,6 +116,23 @@ object SharedPayloadStager {
             throw error
         }
     }
+
+    private fun knownSize(context: Context, uri: Uri): Long = runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.SIZE),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            val column = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (column >= 0 && cursor.moveToFirst() && !cursor.isNull(column)) {
+                cursor.getLong(column)
+            } else {
+                -1L
+            }
+        } ?: -1L
+    }.getOrDefault(-1L)
 
     private fun safeDisplayName(context: Context, uri: Uri, index: Int): String {
         val queried = runCatching {
