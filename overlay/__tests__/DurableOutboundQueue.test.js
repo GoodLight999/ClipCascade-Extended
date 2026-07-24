@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createDurableOutboundQueue } from '../DurableOutboundQueue';
 
+const STORAGE_KEY = 'extended_outbound_queue_v1';
+
 describe('DurableOutboundQueue', () => {
   beforeEach(async () => {
     await AsyncStorage.clear();
@@ -32,6 +34,39 @@ describe('DurableOutboundQueue', () => {
     expect(first.queued).toBe(true);
     expect(second.duplicate).toBe(true);
     expect((await queue.snapshot()).count).toBe(1);
+  });
+
+  test('accounts for UTF-8 bytes rather than UTF-16 code units', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    await queue.enqueue('Aあ😀', 'text');
+
+    const head = await queue.peek();
+    expect(head.byteLength).toBe(8);
+    expect((await queue.snapshot()).totalBytes).toBe(8);
+  });
+
+  test('normalizes legacy persisted items without byteLength', async () => {
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        scope: 'scope',
+        dropped: 0,
+        items: [
+          {
+            id: 'legacy',
+            content: '日本',
+            type: 'text',
+            createdAt: Date.now(),
+            failures: 0,
+            lastError: '',
+          },
+        ],
+      }),
+    );
+
+    const queue = createDurableOutboundQueue('scope');
+    expect((await queue.snapshot()).totalBytes).toBe(6);
+    expect((await queue.peek()).byteLength).toBe(6);
   });
 
   test('acknowledges only the matching entry', async () => {
