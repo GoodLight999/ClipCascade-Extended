@@ -6,6 +6,7 @@ Unknown message types are discarded. Compatibility therefore travels as an
 optional top-level field on OFFER/ANSWER: Extended peers consume it, while
 legacy peers ignore it and continue to read only the SDP field. The metadata
 contains protocol and encryption mode only; wrong keys are detected by AEAD.
+Signaling reconnect uses one supervised, cancellable timer.
 """
 from __future__ import annotations
 
@@ -192,6 +193,102 @@ def main() -> None:
         "exclude quarantined peers from outbound P2P send",
     )
 
+    replace_once(
+        service,
+        """          const initializeWebSocketSignalingClient = async () => {""",
+        """          let signalingReconnectTimer = null;
+
+          const clearSignalingReconnect = () => {
+            if (signalingReconnectTimer != null) {
+              clearTimeout(signalingReconnectTimer);
+              signalingReconnectTimer = null;
+            }
+          };
+
+          const recordSignalingFailure = async (phase, error) => {
+            const detail = `${phase}:${String(error?.stack || error)}`.slice(0, 1500);
+            await setDataInAsyncStorage('p2p_last_signaling_error', detail);
+            await setDataInAsyncStorage(
+              'wsStatusMessage',
+              `❌ P2P signaling error: ${detail}`,
+            );
+          };
+
+          let initializeWebSocketSignalingClient;
+          const startSignalingConnection = async () => {
+            try {
+              await initializeWebSocketSignalingClient();
+            } catch (error) {
+              await recordSignalingFailure('connect', error);
+              throw error;
+            }
+          };
+
+          const scheduleSignalingReconnect = () => {
+            clearSignalingReconnect();
+            signalingReconnectTimer = setTimeout(() => {
+              signalingReconnectTimer = null;
+              void (async () => {
+                if (
+                  wsSignalingClient == null &&
+                  (await getDataFromAsyncStorage('wsIsRunning')) === 'true'
+                ) {
+                  await startSignalingConnection();
+                }
+              })().catch(error => recordSignalingFailure('reconnect', error));
+            }, RECONNECT_WS_TIMER);
+          };
+
+          initializeWebSocketSignalingClient = async () => {""",
+        "supervised signaling reconnect helpers",
+    )
+
+    replace_once(
+        service,
+        """                wsSignalingClient = null;
+                setTimeout(async () => {
+                  if (
+                    wsSignalingClient == null &&
+                    (await getDataFromAsyncStorage('wsIsRunning')) === 'true'
+                  ) {
+                    initializeWebSocketSignalingClient();
+                  }
+                }, RECONNECT_WS_TIMER);""",
+        """                wsSignalingClient = null;
+                scheduleSignalingReconnect();""",
+        "single cancellable signaling reconnect timer",
+    )
+
+    replace_once(
+        service,
+        """              wsSignalingClient.onopen = async () => {
+                await cleanupPeerConnections();""",
+        """              wsSignalingClient.onopen = async () => {
+                clearSignalingReconnect();
+                await setDataInAsyncStorage('p2p_last_signaling_error', '');
+                await cleanupPeerConnections();""",
+        "clear reconnect state after signaling open",
+    )
+
+    replace_once(
+        service,
+        """          // start websocket signaling connection
+          initializeWebSocketSignalingClient();""",
+        """          // Start through the same supervised path used by reconnects.
+          await startSignalingConnection();""",
+        "supervised initial signaling connection",
+    )
+
+    replace_once(
+        service,
+        """          stopServicesP2P = async () => {
+            // 1) Stop listening to clipboard events""",
+        """          stopServicesP2P = async () => {
+            clearSignalingReconnect();
+            // 1) Stop listening to clipboard events""",
+        "cancel signaling reconnect on service stop",
+    )
+
     text = service.read_text(encoding="utf-8")
     for forbidden in (
         "P2P_COMPATIBILITY_JSON",
@@ -201,10 +298,12 @@ def main() -> None:
         "channel.send(P2P_COMPATIBILITY_JSON)",
         "keyFingerprint",
         "localKeyFingerprint",
+        "setTimeout(async () =>",
+        "initializeWebSocketSignalingClient();",
     ):
         if forbidden in text:
             raise RuntimeError(
-                f"legacy-unsafe, secret-derived or unforwarded control remained: {forbidden}"
+                f"legacy-unsafe, detached or secret-derived signaling remained: {forbidden}"
             )
 
 
