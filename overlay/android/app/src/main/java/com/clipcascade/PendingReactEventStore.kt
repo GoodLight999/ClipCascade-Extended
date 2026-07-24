@@ -23,6 +23,17 @@ object PendingReactEventStore {
     private const val DEDUP_WINDOW_MS = 2_000L
     private val deliveryReady = AtomicBoolean(false)
 
+    internal enum class DeliveryDecision {
+        DELIVERED,
+        DROP,
+        RETRY
+    }
+
+    internal data class DrainResult<T>(
+        val delivered: Int,
+        val remaining: List<T>
+    )
+
     @Synchronized
     fun emitOrQueue(
         context: Context,
@@ -68,11 +79,16 @@ object PendingReactEventStore {
         val source = parseQueue(prefs.getString(QUEUE, null))
         if (source.length() == 0) return 0
 
-        val remaining = JSONArray()
-        var delivered = 0
-        for (index in 0 until source.length()) {
-            val item = source.optJSONObject(index) ?: continue
+        val queued = buildList {
+            for (index in 0 until source.length()) {
+                source.optJSONObject(index)?.let(::add)
+            }
+        }
+        val result = drainInOrder(queued) { item ->
             val eventName = item.optString("event")
+            if (eventName.isBlank()) {
+                return@drainInOrder DeliveryDecision.DROP
+            }
             val payloadObject = item.optJSONObject("payload") ?: JSONObject()
             val payload = mutableMapOf<String, String>()
             val keys = payloadObject.keys()
@@ -80,14 +96,45 @@ object PendingReactEventStore {
                 val key = keys.next()
                 payload[key] = payloadObject.optString(key)
             }
-            if (eventName.isNotBlank() && emitNow(reactContext, eventName, payload)) {
-                delivered += 1
+            if (emitNow(reactContext, eventName, payload)) {
+                DeliveryDecision.DELIVERED
             } else {
-                remaining.put(item)
+                DeliveryDecision.RETRY
             }
         }
+
+        val remaining = JSONArray()
+        result.remaining.forEach(remaining::put)
         prefs.edit().putString(QUEUE, remaining.toString()).apply()
-        return delivered
+        return result.delivered
+    }
+
+    /**
+     * Delivers a prefix only. The first retryable failure and every item behind it remain
+     * queued so a transient React failure can never reorder clipboard events.
+     */
+    internal fun <T> drainInOrder(
+        items: List<T>,
+        deliver: (T) -> DeliveryDecision
+    ): DrainResult<T> {
+        val remaining = mutableListOf<T>()
+        var delivered = 0
+        var blocked = false
+        items.forEach { item ->
+            if (blocked) {
+                remaining += item
+                return@forEach
+            }
+            when (deliver(item)) {
+                DeliveryDecision.DELIVERED -> delivered += 1
+                DeliveryDecision.DROP -> Unit
+                DeliveryDecision.RETRY -> {
+                    blocked = true
+                    remaining += item
+                }
+            }
+        }
+        return DrainResult(delivered, remaining)
     }
 
     private fun emitNow(
@@ -109,8 +156,9 @@ object PendingReactEventStore {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val fingerprint = fingerprint(eventName, payload)
+        val previousTime = prefs.getLong(LAST_FINGERPRINT_TIME, 0L)
         val duplicate = prefs.getString(LAST_FINGERPRINT, null) == fingerprint &&
-            now - prefs.getLong(LAST_FINGERPRINT_TIME, 0L) <= DEDUP_WINDOW_MS
+            isWithinDedupWindow(now, previousTime)
         if (duplicate) return
 
         val source = parseQueue(prefs.getString(QUEUE, null))
@@ -132,6 +180,11 @@ object PendingReactEventStore {
             .putLong(LAST_FINGERPRINT_TIME, now)
             .apply()
     }
+
+    internal fun isWithinDedupWindow(nowMs: Long, previousMs: Long): Boolean =
+        previousMs > 0L &&
+            nowMs >= previousMs &&
+            nowMs - previousMs <= DEDUP_WINDOW_MS
 
     private fun parseQueue(raw: String?): JSONArray = try {
         if (raw.isNullOrBlank()) JSONArray() else JSONArray(raw)
