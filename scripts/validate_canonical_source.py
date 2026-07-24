@@ -109,16 +109,27 @@ def main() -> None:
 
     queue = read("overlay/DurableOutboundQueue.js")
     for marker in (
+        "SCHEMA_VERSION = 2",
         "MAX_TOTAL_BYTES = 16 * 1024 * 1024",
         "const utf8ByteLength = content => UTF8_ENCODER.encode(content).length",
+        "const migrateByteLengths = Number(state.schemaVersion) !== SCHEMA_VERSION",
+        "let removedCount = 0",
         "item.byteLength = utf8ByteLength(item.content)",
+        "while (active.length > MAX_ITEMS || totalBytes > MAX_TOTAL_BYTES)",
+        "if (scopeMatches && (removedCount > 0 || normalized))",
         "enqueue(content, type, shouldEnqueue = null)",
         "if (shouldEnqueue && shouldEnqueue() !== true)",
         "cancelled: true",
+        "raw.scope !== scope",
+        "skipped: true",
         "totalBytes:",
     ):
         require(marker in queue, f"canonical durable-queue marker missing: {marker}")
     require("MAX_TOTAL_CHARS" not in queue, "UTF-16 character-based queue bound returned")
+    require(
+        "expired > 0 || state !== raw || normalized" not in queue,
+        "cross-scope queue read overwrite returned",
+    )
 
     detached = read("overlay/DetachedTaskSupervisor.js")
     for marker in (
@@ -127,6 +138,16 @@ def main() -> None:
         ".catch(() => undefined)",
     ):
         require(marker in detached, f"canonical detached-task supervisor marker missing: {marker}")
+
+    signaling = read("overlay/P2PSignalingValidation.js")
+    for marker in (
+        "MAX_SIGNALING_MESSAGE_CHARS = 1024 * 1024",
+        "MAX_PEERS = 4096",
+        "normalizeP2PPeerId",
+        "normalizeP2PPeerList",
+        "parseP2PSignalingMessage",
+    ):
+        require(marker in signaling, f"canonical P2P signaling marker missing: {marker}")
 
     materialize = read("scripts/materialize_upstream.sh")
     finalizer_count = materialize.count('python3 "$ROOT_DIR/scripts/finalize_')
@@ -151,8 +172,8 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        "canonical i18n, stop-safe UTF-8 queue and detached supervision complete, "
-        "no forbidden-project input, "
+        "canonical i18n, migrated stop-safe UTF-8 queue, bounded signaling and "
+        "detached supervision complete, no forbidden-project input, "
         f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
 
