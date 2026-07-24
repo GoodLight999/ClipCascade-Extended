@@ -144,9 +144,9 @@ def main() -> None:
 
     require_before(
         foreground_js,
-        "const clipboardOnChange = clipboardListener.addListener(",
+        "const clipboardOnChange = trackClipboardSubscription(clipboardListener.addListener(",
         "await ClipboardListener.startListening();",
-        "JS listener registration before native durable-event drain",
+        "owned JS listener registration before native durable-event drain",
     )
     require(foreground_js, "ready-after-registration", "listener-order evidence")
     require(foreground_js, "foregroundServiceHandlerRegistered", "single foreground handler")
