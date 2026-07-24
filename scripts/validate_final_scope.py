@@ -70,11 +70,14 @@ def main() -> None:
     require(i18n, "ja:", "Japanese product dictionary")
     require(i18n, "zh:", "Chinese product dictionary")
     require(i18n, "en:", "English product dictionary")
+    # The detailed listener-ownership invariants live in
+    # validate_service_and_p2p_controls.py. This final-scope check preserves only
+    # the cross-phase ordering contract using the same canonical marker.
     require_before(
         foreground,
-        "const clipboardOnChange = clipboardListener.addListener(",
+        "const clipboardOnChange = trackClipboardSubscription(clipboardListener.addListener(",
         "await ClipboardListener.startListening();",
-        "native drain after JS callback registration",
+        "owned native drain after JS callback registration",
     )
     require(foreground, "p2s-late-echo-acknowledged", "late P2S ACK recovery")
     require(foreground, "queuedForAck?.id === echoedDeliveryId", "late P2S queue identity guard")
