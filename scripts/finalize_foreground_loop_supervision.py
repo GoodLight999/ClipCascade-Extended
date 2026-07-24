@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Ensure asynchronous foreground polling failures cannot orphan the runtime lease."""
+"""Ensure asynchronous foreground work cannot orphan the runtime lease."""
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+
+from foreground_async_supervision import apply as apply_detached_supervision
 
 
 def replace_once(path: Path, old: str, new: str, label: str) -> None:
@@ -53,6 +55,7 @@ def main() -> None:
         });""",
         "supervised foreground polling loop",
     )
+    apply_detached_supervision(root)
 
 
 if __name__ == "__main__":
