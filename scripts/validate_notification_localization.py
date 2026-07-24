@@ -22,6 +22,17 @@ def main() -> None:
     root = parser.parse_args().root.resolve()
     service = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     i18n = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
+    schedule_service = (
+        root / "android/app/src/main/java/com/clipcascade/ScheduleService.kt"
+    ).read_text(encoding="utf-8")
+    android_resources = [
+        (root / "android/app/src/main/res/values/clipcascade_extended_strings.xml")
+            .read_text(encoding="utf-8"),
+        (root / "android/app/src/main/res/values-ja/clipcascade_extended_strings.xml")
+            .read_text(encoding="utf-8"),
+        (root / "android/app/src/main/res/values-zh-rCN/clipcascade_extended_strings.xml")
+            .read_text(encoding="utf-8"),
+    ]
 
     require(service, "const RUNTIME_TEXT = getExtendedStrings();", "foreground locale dictionary")
     require(service, "RUNTIME_TEXT.notificationConnectionRestored", "restored notification")
@@ -45,6 +56,15 @@ def main() -> None:
     ):
         require(i18n, f"{key}:", f"localized notification key {key}")
 
+    for resource_name in (
+        "clipcascade_service_alert_channel",
+        "clipcascade_service_inactive_title",
+        "clipcascade_service_inactive_text",
+    ):
+        require(schedule_service, f"R.string.{resource_name}", f"Kotlin notification {resource_name}")
+        for index, resources in enumerate(android_resources):
+            require(resources, f'name="{resource_name}"', f"Android locale {index} {resource_name}")
+
     for inherited in (
         "WebSocket Connection Restored",
         "WebSocket Connection Lost",
@@ -56,6 +76,13 @@ def main() -> None:
         "Failed to download files",
     ):
         forbid(service, inherited, f"inherited notification text {inherited}")
+
+    for hardcoded in (
+        '"ClipCascade Alerts"',
+        '"ClipCascade service inactive"',
+        '"Tap to reopen the app and restart synchronization."',
+    ):
+        forbid(schedule_service, hardcoded, f"hardcoded Kotlin notification {hardcoded}")
 
     print("foreground notification localization: OK")
 
