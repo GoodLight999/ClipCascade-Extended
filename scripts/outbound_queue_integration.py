@@ -140,10 +140,20 @@ import { createDurableOutboundQueue } from './DurableOutboundQueue';""",
         text,
         """                }
               }
-            } catch (e) {""",
+            } catch (e) {
+              toggle = false;
+              block_image_once = false;
+              throw e;
+            }
+          };""",
         """                }
-            } catch (e) {""",
-        "remove obsolete P2S readiness wrapper close",
+            } catch (e) {
+              toggle = false;
+              block_image_once = false;
+              throw e;
+            }
+          };""",
+        "remove only the obsolete P2S readiness wrapper close",
     )
 
     text = replace_once(
