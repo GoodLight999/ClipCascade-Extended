@@ -11,6 +11,7 @@ from guard_runtime_transport_activity import apply as guard_runtime_transport_ac
 from supervise_error_handlers import apply as supervise_error_handlers
 from supervise_host_callbacks import apply as supervise_host_callbacks
 from wire_detached_task_supervisor import apply as wire_detached_supervisor
+from wire_p2p_signaling_validation import apply as wire_p2p_signaling_validation
 
 
 def replace_once(path: Path, old: str, new: str, label: str) -> None:
@@ -66,6 +67,7 @@ def main() -> None:
     supervise_host_callbacks(root)
     supervise_error_handlers(root)
     guard_runtime_transport_activity(root)
+    wire_p2p_signaling_validation(root)
 
 
 if __name__ == "__main__":
