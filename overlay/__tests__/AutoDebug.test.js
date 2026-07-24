@@ -21,6 +21,8 @@ describe('automatic diagnostics', () => {
     p2pIncompatiblePeers: 0,
     p2pCompatiblePeers: 1,
     p2pCandidatePeers: 1,
+    p2pLastPeerSetupError: '',
+    p2pLastPeerOperationError: '',
   };
   const healthyProbe = {
     eventBridge: { received: true, token: 'test' },
@@ -70,9 +72,9 @@ describe('automatic diagnostics', () => {
       now,
     );
     expect(result.overall).toBe('FAIL');
-    expect(result.checks.find(item => item.id === 'foreground-service')).toMatchObject({
-      level: 'FAIL',
-    });
+    expect(
+      result.checks.find(item => item.id === 'foreground-service'),
+    ).toMatchObject({ level: 'FAIL' });
   });
 
   test('detects visible-capture recovery failures', () => {
@@ -86,9 +88,39 @@ describe('automatic diagnostics', () => {
       now,
     );
     expect(result.overall).toBe('FAIL');
-    expect(result.checks.find(item => item.id === 'foreground-recovery')).toMatchObject({
-      level: 'FAIL',
-    });
+    expect(
+      result.checks.find(item => item.id === 'foreground-recovery'),
+    ).toMatchObject({ level: 'FAIL' });
+  });
+
+  test('detects current P2P peer setup failures', () => {
+    const result = analyzeDiagnostics(
+      {
+        ...healthyStatus,
+        p2pLastPeerSetupError: 'peer-a:createOffer failed',
+      },
+      healthyProbe,
+      now,
+    );
+    expect(result.overall).toBe('FAIL');
+    expect(
+      result.checks.find(item => item.id === 'p2p-compatibility'),
+    ).toMatchObject({ level: 'FAIL' });
+  });
+
+  test('detects current serialized peer-operation failures', () => {
+    const result = analyzeDiagnostics(
+      {
+        ...healthyStatus,
+        p2pLastPeerOperationError: 'peer-b:setRemoteDescription failed',
+      },
+      healthyProbe,
+      now,
+    );
+    expect(result.overall).toBe('FAIL');
+    expect(
+      result.checks.find(item => item.id === 'p2p-compatibility'),
+    ).toMatchObject({ level: 'FAIL' });
   });
 
   test('reports foreground-service failure and queued outbound data', () => {
