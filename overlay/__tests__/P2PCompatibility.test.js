@@ -7,10 +7,9 @@ describe('P2P compatibility', () => {
   const local = {
     protocol: 1,
     cipherEnabled: true,
-    keyFingerprint: 'same-key',
   };
 
-  test('accepts same protocol, encryption mode and key', () => {
+  test('accepts the same protocol and encryption mode', () => {
     expect(evaluateP2PCompatibility(local, { ...local })).toEqual({
       state: 'compatible',
       reason: '',
@@ -29,13 +28,31 @@ describe('P2P compatibility', () => {
     ).toEqual({ state: 'incompatible', reason: 'encryption-mode' });
   });
 
-  test('rejects encryption key mismatch', () => {
+  test('accepts explicit string boolean values from older peers', () => {
+    expect(
+      evaluateP2PCompatibility(local, {
+        protocol: '1',
+        cipherEnabled: 'true',
+      }),
+    ).toEqual({ state: 'compatible', reason: '' });
+  });
+
+  test('rejects malformed encryption flags instead of Boolean coercion', () => {
+    expect(
+      evaluateP2PCompatibility(local, {
+        protocol: 1,
+        cipherEnabled: 'not-a-boolean',
+      }),
+    ).toEqual({ state: 'incompatible', reason: 'encryption-mode' });
+  });
+
+  test('does not use a password-derived key fingerprint in signaling policy', () => {
     expect(
       evaluateP2PCompatibility(local, {
         ...local,
-        keyFingerprint: 'different-key',
+        keyFingerprint: 'untrusted-and-ignored',
       }),
-    ).toEqual({ state: 'incompatible', reason: 'encryption-key' });
+    ).toEqual({ state: 'compatible', reason: '' });
   });
 
   test('keeps a legacy peer unknown until payload evidence exists', () => {
