@@ -9,6 +9,8 @@ DESTINATION="${1:-$ROOT_DIR/build/mobile}"
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
+python3 "$ROOT_DIR/scripts/validate_canonical_source.py"
+
 printf 'Materializing %s@%s\n' "$UPSTREAM_REPOSITORY" "$UPSTREAM_COMMIT"
 git -C "$WORK_DIR" init --quiet upstream
 git -C "$WORK_DIR/upstream" remote add origin \
@@ -31,9 +33,7 @@ cp -a "$WORK_DIR/upstream/$UPSTREAM_MOBILE_PATH/." "$DESTINATION/"
 
 python3 "$ROOT_DIR/scripts/apply_overlay.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/apply_accessibility_overlay.py" "$DESTINATION"
-python3 "$ROOT_DIR/scripts/finalize_deferred_otp.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_shizuku_guidance.py" "$DESTINATION"
-python3 "$ROOT_DIR/scripts/finalize_accessibility_phase.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/fix_upstream_js.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_truthful_p2p_status.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_transport_retry_safety.py" "$DESTINATION"
