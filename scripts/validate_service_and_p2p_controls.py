@@ -46,6 +46,26 @@ def main() -> None:
     )
     forbid(service, "removeAllListeners(", "global listener deletion")
 
+    require(service, "function runDetached(scope, task)", "detached callback supervisor")
+    require(service, "foreground_service_detached_error", "detached callback evidence")
+    require(service, "runDetached('outbound-retry', flushOutboundQueue)", "supervised retry timer")
+    require(service, "`quarantine-dispose:${peerId}`", "supervised quarantine disposal")
+    require(service, "runDetached('signaling-reconnect'", "supervised signaling reconnect")
+    require(service, "`ice-candidate:${remotePeerId}`", "supervised ICE callback")
+    require(service, "`datachannel-message:${remotePeerId}`", "supervised DataChannel message")
+    forbid(
+        service,
+        "outboundRetryTimer = setTimeout(() => {\n            outboundRetryTimer = null;\n            flushOutboundQueue();",
+        "unobserved outbound retry Promise",
+    )
+    forbid(service, "setTimeout(() => disposePeerConnection", "unobserved peer disposal Promise")
+    forbid(service, "pc.onicecandidate = async", "async WebRTC ICE callback")
+    forbid(service, "pc.ondatachannel = async", "async WebRTC DataChannel callback")
+    forbid(service, "channel.onopen = async", "async DataChannel open callback")
+    forbid(service, "channel.onmessage = async", "async DataChannel message callback")
+    forbid(service, "channel.onclose = async", "async DataChannel close callback")
+    forbid(service, "channel.onerror = async", "async DataChannel error callback")
+
     require(service, "activeForegroundRuntimeId", "single foreground runtime lease")
     require(service, "duplicate-runtime-suppressed", "duplicate runtime suppression")
     require(service, "return new Promise(resolve => {", "synchronous foreground Promise executor")
