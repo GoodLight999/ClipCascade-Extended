@@ -3,7 +3,8 @@
 
 Compatibility signaling contains only protocol and encryption-mode metadata.
 Wrong keys are detected by authenticated decryption and quarantined per peer;
-no password-derived fingerprint is generated or transmitted.
+no password-derived fingerprint is generated or transmitted. Peer setup and
+per-peer operation failures remain observable instead of being detached.
 """
 from __future__ import annotations
 
@@ -181,6 +182,80 @@ import {
                 }
                 await markPeerCompatibility(remotePeerId, 'compatible');"""
     replace_once(service, inline_envelope, helper_envelope, "encrypted-envelope detection")
+
+    replace_once(
+        service,
+        """                    `decrypt:${String(error?.message || error)}`""",
+        """                    `encryption-key:${String(error?.message || error)}`""",
+        "post-decrypt key mismatch classification",
+    )
+
+    replace_once(
+        service,
+        """          const runSerializedPeerOp = (peerId, op) => {
+            const prev = peerOpChains[peerId] || Promise.resolve();
+            const next = prev.then(() => op()).catch(() => {});
+            peerOpChains[peerId] = next;
+            return next;
+          };""",
+        """          const runSerializedPeerOp = (peerId, op) => {
+            const previous = peerOpChains[peerId] || Promise.resolve();
+            const current = previous.catch(() => undefined).then(() => op());
+            peerOpChains[peerId] = current.catch(async error => {
+              await setDataInAsyncStorage(
+                'p2p_last_peer_operation_error',
+                `${peerId}:${String(error?.stack || error)}`.slice(0, 1000),
+              );
+            });
+            return current;
+          };""",
+        "observable serialized peer operation",
+    )
+
+    replace_once(
+        service,
+        """            peers.forEach(async pid => {
+              if (pid === myPeerId) return; // skip self
+              if (quarantinedPeers.has(pid)) return;
+              if (!peerConnections[pid]) {
+                // Create new PeerConnection
+                const pc = await createPeerConnection(pid);
+                peerConnections[pid] = pc;
+
+                // Tie-breaker: only the "lower" ID makes the offer to avoid collisions
+                if (myPeerId < pid) {
+                  const channel = await pc.createDataChannel('cliptext');
+                  dataChannels[pid] = channel;
+                  await setupDataChannel(pid, channel);
+                  await createOffer(pid);
+                }
+              }
+            });""",
+        """            for (const pid of peers) {
+              if (pid === myPeerId) continue; // skip self
+              if (quarantinedPeers.has(pid)) continue;
+              if (peerConnections[pid]) continue;
+              try {
+                const pc = await createPeerConnection(pid);
+                peerConnections[pid] = pc;
+
+                // Tie-breaker: only the "lower" ID makes the offer to avoid collisions.
+                if (myPeerId < pid) {
+                  const channel = await pc.createDataChannel('cliptext');
+                  dataChannels[pid] = channel;
+                  await setupDataChannel(pid, channel);
+                  await createOffer(pid);
+                }
+              } catch (error) {
+                await setDataInAsyncStorage(
+                  'p2p_last_peer_setup_error',
+                  `${pid}:${String(error?.stack || error)}`.slice(0, 1000),
+                );
+                await disposePeerConnection(pid);
+              }
+            }""",
+        "awaited peer-list reconciliation",
+    )
 
 
 if __name__ == "__main__":
