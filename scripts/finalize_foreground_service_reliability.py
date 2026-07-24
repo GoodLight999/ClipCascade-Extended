@@ -14,6 +14,47 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
+def replace_exact(
+    path: Path,
+    old: str,
+    new: str,
+    expected: int,
+    label: str,
+) -> None:
+    text = path.read_text(encoding="utf-8")
+    count = text.count(old)
+    if count != expected:
+        raise RuntimeError(f"{label}: expected {expected} markers, found {count}")
+    path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+def wrap_listener_call(
+    path: Path,
+    start_marker: str,
+    close_marker: str,
+    wrapped_start: str,
+    wrapped_close: str,
+    label: str,
+) -> None:
+    text = path.read_text(encoding="utf-8")
+    if text.count(start_marker) != 1:
+        raise RuntimeError(
+            f"{label}: expected one listener start, found {text.count(start_marker)}"
+        )
+    start = text.index(start_marker)
+    close = text.find(close_marker, start)
+    if close < 0:
+        raise RuntimeError(f"{label}: listener close marker not found")
+    text = (
+        text[:start]
+        + wrapped_start
+        + text[start + len(start_marker) : close]
+        + wrapped_close
+        + text[close + len(close_marker) :]
+    )
+    path.write_text(text, encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("destination", type=Path)
@@ -30,17 +71,41 @@ def main() -> None:
 }
 
 module.exports = async (inputData = null) => {""",
-        """function cleanupClipboardListeners() {
-  DeviceEventEmitter.removeAllListeners('SHARED_TEXT');
-  DeviceEventEmitter.removeAllListeners('SHARED_IMAGE');
-  DeviceEventEmitter.removeAllListeners('SHARED_FILES');
-  DeviceEventEmitter.removeAllListeners('onClipboardChange');
+        """const activeClipboardSubscriptions = new Set();
+
+function trackClipboardSubscription(subscription) {
+  if (subscription && typeof subscription.remove === 'function') {
+    activeClipboardSubscriptions.add(subscription);
+  }
+  return subscription;
+}
+
+function removeClipboardSubscription(subscription) {
+  if (!subscription) return;
+  activeClipboardSubscriptions.delete(subscription);
+  try {
+    subscription.remove();
+  } catch (_) {
+    // Removing an already-closed native subscription is harmless.
+  }
+}
+
+function cleanupClipboardListeners() {
+  const subscriptions = Array.from(activeClipboardSubscriptions);
+  activeClipboardSubscriptions.clear();
+  for (const subscription of subscriptions) {
+    try {
+      subscription.remove();
+    } catch (_) {
+      // Best-effort cleanup must not hide the original service failure.
+    }
+  }
 }
 
 let foregroundServiceHandlerRegistered = false;
 
 module.exports = async (inputData = null) => {""",
-        "foreground handler singleton state",
+        "owned clipboard listener registry",
     )
     replace_once(
         service,
@@ -166,6 +231,33 @@ module.exports = async (inputData = null) => {""",
             + f"\n              await setDataInAsyncStorage('shared_payload_status', '{status}');",
             f"{event_name} pending-share completion",
         )
+        marker = f"DeviceEventEmitter.addListener('{event_name}',"
+        wrap_listener_call(
+            service,
+            marker,
+            "\n        });",
+            f"trackClipboardSubscription({marker}",
+            "\n        }));",
+            f"{event_name} owned subscription",
+        )
+
+    wrap_listener_call(
+        service,
+        "const clipboardOnChange = clipboardListener.addListener(",
+        "\n        );",
+        "const clipboardOnChange = trackClipboardSubscription(clipboardListener.addListener(",
+        "\n        ));",
+        "native clipboard owned subscription",
+    )
+    replace_exact(
+        service,
+        """              if (clipboardOnChange) {
+                clipboardOnChange.remove();
+              }""",
+        """              removeClipboardSubscription(clipboardOnChange);""",
+        2,
+        "owned native clipboard stop cleanup",
+    )
 
     app = root / "App.js"
     replace_once(
