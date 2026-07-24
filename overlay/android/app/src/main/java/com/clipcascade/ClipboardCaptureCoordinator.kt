@@ -118,8 +118,10 @@ object ClipboardCaptureCoordinator {
         synchronized(scheduleLock) {
             scheduledRunnable?.let(mainHandler::removeCallbacks)
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val delay = (prefs.getLong(KEY_DUE_AT, 0L) - System.currentTimeMillis())
-                .coerceAtLeast(0L)
+            val delay = CaptureSchedulePolicy.remainingDelayMs(
+                dueAtMs = prefs.getLong(KEY_DUE_AT, 0L),
+                nowMs = System.currentTimeMillis()
+            )
             val runnable = Runnable { launchPending(context) }
             scheduledRunnable = runnable
             mainHandler.postDelayed(runnable, delay)
