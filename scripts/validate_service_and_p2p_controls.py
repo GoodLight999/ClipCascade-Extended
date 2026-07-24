@@ -51,6 +51,10 @@ def main() -> None:
     require(service, "runDetached('outbound-retry', flushOutboundQueue)", "supervised retry timer")
     require(service, "`quarantine-dispose:${peerId}`", "supervised quarantine disposal")
     require(service, "runDetached('signaling-reconnect'", "supervised signaling reconnect")
+    require(service, "runDetached('signaling-open'", "supervised signaling open")
+    require(service, "runDetached('signaling-message'", "supervised signaling message")
+    require(service, "runDetached('signaling-error'", "supervised signaling error")
+    require(service, "runDetached('signaling-close'", "supervised signaling close")
     require(service, "`ice-candidate:${remotePeerId}`", "supervised ICE callback")
     require(service, "`datachannel-message:${remotePeerId}`", "supervised DataChannel message")
     forbid(
@@ -59,6 +63,10 @@ def main() -> None:
         "unobserved outbound retry Promise",
     )
     forbid(service, "setTimeout(() => disposePeerConnection", "unobserved peer disposal Promise")
+    forbid(service, "wsSignalingClient.onopen = async", "async signaling open callback")
+    forbid(service, "wsSignalingClient.onmessage = async", "async signaling message callback")
+    forbid(service, "wsSignalingClient.onerror = async", "async signaling error callback")
+    forbid(service, "wsSignalingClient.onclose = async", "async signaling close callback")
     forbid(service, "pc.onicecandidate = async", "async WebRTC ICE callback")
     forbid(service, "pc.ondatachannel = async", "async WebRTC DataChannel callback")
     forbid(service, "channel.onopen = async", "async DataChannel open callback")
@@ -108,8 +116,8 @@ def main() -> None:
     )
     require(
         service,
-        "wsSignalingClient.onopen = async () => {\n                clearSignalingReconnect();",
-        "reconnect cancellation on successful open",
+        "wsSignalingClient.onopen = () => {\n                runDetached('signaling-open'",
+        "reconnect cancellation within supervised successful open",
     )
     forbid(service, "setTimeout(async () =>", "detached async reconnect timer")
     forbid(
