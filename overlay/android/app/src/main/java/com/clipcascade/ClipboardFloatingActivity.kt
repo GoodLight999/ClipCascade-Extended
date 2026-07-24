@@ -15,13 +15,15 @@ import androidx.appcompat.app.AppCompatActivity
 import com.facebook.react.ReactInstanceManager
 import com.facebook.react.bridge.ReactContext
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * One-shot focus bridge for Android 10+ clipboard restrictions.
  * URI bytes are copied into app-owned cache before the bridge loses focus.
  */
 class ClipboardFloatingActivity : AppCompatActivity() {
-    private val captureStarted = AtomicBoolean(false)
+    private val captureInProgress = AtomicBoolean(false)
+    private val captureAttempts = AtomicInteger(0)
     private val completed = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var windowManager: WindowManager
@@ -50,6 +52,7 @@ class ClipboardFloatingActivity : AppCompatActivity() {
                 1,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             ).apply {
@@ -59,8 +62,10 @@ class ClipboardFloatingActivity : AppCompatActivity() {
             }
             floatingView = view
             windowManager.addView(view, params)
-            view.postDelayed(::captureClipboard, 80L)
-            handler.postDelayed(::captureClipboard, 650L)
+            view.postDelayed(::captureClipboard, INITIAL_CAPTURE_DELAY_MS)
+            // OEMs can attach the overlay view late. This backup only starts a read when
+            // no earlier read is running; a transient empty/denied first read is retried below.
+            handler.postDelayed(::captureClipboard, START_FALLBACK_DELAY_MS)
         } catch (error: Exception) {
             val outcome = "overlay-error:${error.javaClass.simpleName}"
             bridge.setValue("clipboard_fallback_status", outcome)
@@ -69,7 +74,8 @@ class ClipboardFloatingActivity : AppCompatActivity() {
     }
 
     private fun captureClipboard() {
-        if (!captureStarted.compareAndSet(false, true) || completed.get()) return
+        if (completed.get() || !captureInProgress.compareAndSet(false, true)) return
+        val attempt = captureAttempts.incrementAndGet()
         try {
             val containsUri = runCatching {
                 val clip = clipboardManager.primaryClip
@@ -86,20 +92,20 @@ class ClipboardFloatingActivity : AppCompatActivity() {
                 applicationContext,
                 clipboardManager
             ) { result ->
-                handler.post { finishPayload(result) }
+                handler.post { finishPayload(result, attempt) }
             }
         } catch (security: SecurityException) {
-            finishCapture("capture-denied")
+            retryOrFinishCapture(attempt, "capture-denied")
         } catch (error: Throwable) {
             finishCapture("capture-error:${error.javaClass.simpleName}:${error.message}".take(300))
         }
     }
 
-    private fun finishPayload(result: Result<Map<String, String>?>) {
+    private fun finishPayload(result: Result<Map<String, String>?>, attempt: Int) {
         if (completed.get()) return
         result.onSuccess { payload ->
             if (payload == null) {
-                finishCapture("capture-empty")
+                retryOrFinishCapture(attempt, "capture-empty")
                 return
             }
             val delivered = PendingReactEventStore.emitOrQueue(
@@ -113,9 +119,30 @@ class ClipboardFloatingActivity : AppCompatActivity() {
                 if (delivered) "capture-delivered:$type" else "capture-queued:$type"
             )
         }.onFailure { error ->
-            finishCapture(
+            val outcome =
                 "capture-staging-error:${error.javaClass.simpleName}:${error.message}".take(300)
+            if (error is SecurityException) {
+                retryOrFinishCapture(attempt, "capture-denied")
+            } else {
+                finishCapture(outcome)
+            }
+        }
+    }
+
+    private fun retryOrFinishCapture(attempt: Int, outcome: String) {
+        if (completed.get()) return
+        if (ClipboardCaptureRetryPolicy.canRetry(attempt)) {
+            bridge.setValue(
+                "clipboard_fallback_status",
+                "$outcome;retry-scheduled:${attempt + 1}"
             )
+            captureInProgress.set(false)
+            handler.postDelayed(
+                ::captureClipboard,
+                ClipboardCaptureRetryPolicy.RETRY_DELAY_MS
+            )
+        } else {
+            finishCapture("$outcome;attempts:$attempt")
         }
     }
 
@@ -163,6 +190,8 @@ class ClipboardFloatingActivity : AppCompatActivity() {
 
     companion object {
         private const val EXTRA_REQUEST_SEQUENCE = "capture_request_sequence"
+        private const val INITIAL_CAPTURE_DELAY_MS = 120L
+        private const val START_FALLBACK_DELAY_MS = 700L
 
         fun getIntent(context: Context, requestSequence: Long = 0L): Intent =
             Intent(context.applicationContext, ClipboardFloatingActivity::class.java).apply {
