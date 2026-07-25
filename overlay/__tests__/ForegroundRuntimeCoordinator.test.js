@@ -46,7 +46,9 @@ describe('foreground runtime coordinator', () => {
 
   test('restart is immediately safe when no runtime is active', async () => {
     const coordinator = createForegroundRuntimeCoordinator();
-    await expect(coordinator.requestRestart('forced-share-recovery')).resolves.toEqual({
+    await expect(
+      coordinator.requestRestart('forced-share-recovery'),
+    ).resolves.toEqual({
       hadActiveRuntime: false,
       stopped: true,
       runtimeId: null,
@@ -84,6 +86,8 @@ describe('foreground runtime coordinator', () => {
       'forced-share-recovery',
       FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS,
     );
+    await Promise.resolve();
+    expect(timeoutCallback).toEqual(expect.any(Function));
     timeoutCallback();
     await expect(restartPromise).resolves.toEqual({
       hadActiveRuntime: true,
