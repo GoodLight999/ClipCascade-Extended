@@ -26,6 +26,7 @@ def main() -> None:
     recovery = (android / "ForegroundRuntimeRecovery.kt").read_text(encoding="utf-8")
     floating_activity = (android / "ClipboardFloatingActivity.kt").read_text(encoding="utf-8")
     foreground = (root / "StartForegroundService.js").read_text(encoding="utf-8")
+    coordinator = (root / "ForegroundRuntimeCoordinator.js").read_text(encoding="utf-8")
     headless = (root / "HeadlessTask.js").read_text(encoding="utf-8")
     panel = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
     analyzer = (root / "AutoDebug.js").read_text(encoding="utf-8")
@@ -64,10 +65,17 @@ def main() -> None:
 
     require(foreground, "foreground_service_heartbeat_at", "foreground loop heartbeat")
     require(foreground, "foreground_service_detached_error", "detached callback failure evidence")
-    require(foreground, "activeForegroundRuntimeId", "single foreground runtime lease")
+    require(foreground, "foregroundRuntimeCoordinator.acquire", "single coordinated runtime lease")
+    require(foreground, "foregroundRuntimeCoordinator.requestRestart", "runtime restart wait")
+    require(foreground, "restart-waiting-for-old-runtime", "restart waiting evidence")
+    require(foreground, "restart-stop-requested:", "old runtime stop evidence")
+    require(foreground, "restart-old-runtime-stopped", "old runtime completion evidence")
     require(foreground, "duplicate-runtime-suppressed", "duplicate runtime suppression")
     require(foreground, "finishForegroundRuntime", "runtime lease release")
     require(foreground, "p2s_last_inbound_error_count", "P2S incident occurrence count")
+    require(coordinator, "FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS", "restart wait bound")
+    require(coordinator, "foreground-runtime-stop-timeout", "restart timeout evidence")
+    require(coordinator, "activeRuntimeId()", "runtime coordinator introspection")
     require(native_bridge, "foregroundServiceHeartbeatAt", "heartbeat status bridge")
     require(native_bridge, "foregroundServiceDetachedError", "detached error status bridge")
     require(native_bridge, "foregroundServiceDetachedErrorAt", "detached error time bridge")
@@ -105,7 +113,7 @@ def main() -> None:
     require(headless, "restartFromVisibleCapture", "Headless capture recovery")
     require(headless, "foreground-start-requested", "Headless recovery evidence")
 
-    print("active localized non-secret diagnostics and visible recovery: OK")
+    print("active localized non-secret diagnostics and coordinated recovery: OK")
 
 
 if __name__ == "__main__":
