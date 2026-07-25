@@ -140,8 +140,8 @@ module.exports = async (inputData = null) => {""",
     replace_once(
         path,
         """      }
-       });
-     });""",
+      });
+    });""",
         """      }
           })
           .catch(async error => {
