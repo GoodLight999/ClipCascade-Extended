@@ -32,7 +32,10 @@ def main() -> None:
         path,
         "import notifee, { AndroidImportance } from '@notifee/react-native';",
         """import notifee, { AndroidImportance } from '@notifee/react-native';
-import { createForegroundRuntimeCoordinator } from './ForegroundRuntimeCoordinator';""",
+import {
+  createForegroundRuntimeCoordinator,
+  shouldPreserveOutboundQueue,
+} from './ForegroundRuntimeCoordinator';""",
         "foreground runtime coordinator import",
     )
 
@@ -61,8 +64,11 @@ module.exports = async (inputData = null) => {""",
           .then(async () => {
             const runtimeId = `runtime-${Date.now()}-${Math.random()}`;
             let runtimeAcceptingEvents = true;
+            let runtimeStopReason = 'manual';
             const runtimeCanAcceptEvents = () =>
               runtimeAcceptingEvents && runtimeLease?.isActive() === true;
+            const shouldPreserveRuntimeQueue = () =>
+              shouldPreserveOutboundQueue(runtimeStopReason);
             const stopAcceptingRuntimeEvents = () => {
               runtimeAcceptingEvents = false;
             };
@@ -80,10 +86,11 @@ module.exports = async (inputData = null) => {""",
             runtimeLease = foregroundRuntimeCoordinator.acquire(
               runtimeId,
               async reason => {
+                runtimeStopReason = String(reason || 'restart');
                 stopAcceptingRuntimeEvents();
                 await setDataInAsyncStorage(
                   'foreground_service_state',
-                  `restart-stop-requested:${reason}`,
+                  `restart-stop-requested:${runtimeStopReason}`,
                 );
                 await setDataInAsyncStorage('wsIsRunning', 'false');
               },
