@@ -1,4 +1,5 @@
 export const FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000;
+export const FOREGROUND_RUNTIME_START_TIMEOUT_MS = 8_000;
 export const MANUAL_FOREGROUND_STOP_REASON = 'manual';
 
 /** Explicit user stop may discard the queue; recovery and failure stops must not. */
@@ -7,16 +8,25 @@ export function shouldPreserveOutboundQueue(stopReason) {
 }
 
 /**
- * Own exactly one JavaScript clipboard/network runtime. A forced restart first
- * asks the current lease to stop and then waits for that exact lease to finish;
- * a replacement runtime must never be launched while the old one still owns
- * callbacks, listeners, or transports.
+ * Own exactly one JavaScript clipboard/network runtime. Restart and startup
+ * transitions are serialized so concurrent UI, Headless JS, and recovery calls
+ * cannot stop or replace one another's newly-created foreground service.
  */
 export function createForegroundRuntimeCoordinator({
   setTimer = (callback, delay) => setTimeout(callback, delay),
   clearTimer = handle => clearTimeout(handle),
 } = {}) {
   let active = null;
+  let startTransitionChain = Promise.resolve();
+  const acquisitionWaiters = new Set();
+
+  const notifyAcquired = runtimeId => {
+    for (const waiter of Array.from(acquisitionWaiters)) {
+      acquisitionWaiters.delete(waiter);
+      if (waiter.timer != null) clearTimer(waiter.timer);
+      waiter.resolve(runtimeId);
+    }
+  };
 
   const finish = runtimeId => {
     if (!active || active.runtimeId !== runtimeId) return false;
@@ -46,11 +56,35 @@ export function createForegroundRuntimeCoordinator({
         completion,
         resolveCompletion,
       };
+      notifyAcquired(runtimeId);
       return {
         runtimeId,
         isActive: () => active?.runtimeId === runtimeId,
         finish: () => finish(runtimeId),
       };
+    },
+
+    runStartTransition(task) {
+      if (typeof task !== 'function') {
+        return Promise.reject(
+          new TypeError('Foreground start transition must be a function'),
+        );
+      }
+      const current = startTransitionChain.then(task, task);
+      startTransitionChain = current.catch(() => undefined);
+      return current;
+    },
+
+    waitForActiveRuntime(timeoutMs = FOREGROUND_RUNTIME_START_TIMEOUT_MS) {
+      if (active) return Promise.resolve(active.runtimeId);
+      return new Promise(resolve => {
+        const waiter = {resolve, timer: null};
+        waiter.timer = setTimer(() => {
+          acquisitionWaiters.delete(waiter);
+          resolve(null);
+        }, Number(timeoutMs));
+        acquisitionWaiters.add(waiter);
+      });
     },
 
     async requestRestart(
