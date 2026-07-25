@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Use explicit service intents, owned control locking, and bounded stop waiting."""
+"""Use explicit service intents, owned locking, and coordinated restart handoff."""
 from __future__ import annotations
 
 import argparse
@@ -31,6 +31,34 @@ import {
   resolveRequestedServiceState,
 } from './ServiceControlPolicy';""",
         "service and pending-share policy imports",
+    )
+
+    replace_once(
+        app,
+        """  const onDisplayNotification = async () => {""",
+        """  const onDisplayNotification = async (forceRestart = false) => {""",
+        "coordinated notification start API",
+    )
+    replace_once(
+        app,
+        """      // remove work manager notification if exists
+      await notifee.cancelAllNotifications();
+
+      // stop foreground service(if any)
+      await notifee.stopForegroundService();
+
+      // start foreground service
+      const result = await StartForegroundService();""",
+        """      // A forced restart is serialized inside StartForegroundService so the
+      // old JavaScript runtime releases listeners and transports before the new
+      // foreground notification can create a replacement callback.
+      if (!forceRestart) {
+        await notifee.cancelAllNotifications();
+        await notifee.stopForegroundService();
+      }
+
+      const result = await StartForegroundService({ forceRestart });""",
+        "coordinated stop-before-start handoff",
     )
 
     replace_once(
@@ -69,6 +97,13 @@ import {
           return;
         }""",
         "persisted explicit foreground service state",
+    )
+
+    replace_once(
+        app,
+        """          await onDisplayNotification();""",
+        """          await onDisplayNotification(requested.forcedStart);""",
+        "forward forced restart to runtime coordinator",
     )
 
     replace_once(
