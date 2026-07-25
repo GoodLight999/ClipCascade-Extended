@@ -46,6 +46,8 @@ def apply(root: Path) -> None:
         "runtime-scoped detached callback helper",
     )
 
+    # P2S receipt/timeout callbacks are generated later already scoped through
+    # runRuntimeDetached, so only callbacks present at this phase are converted.
     literal_scopes = (
         "shared-text",
         "shared-image",
@@ -58,7 +60,6 @@ def apply(root: Path) -> None:
         "p2s-websocket-error",
         "p2s-websocket-close",
         "p2s-subscription-message",
-        "p2s-ack-timeout",
         "signaling-reconnect",
         "signaling-open",
         "signaling-message",
