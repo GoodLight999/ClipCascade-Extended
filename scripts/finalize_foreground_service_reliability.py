@@ -14,6 +14,15 @@ def replace_once(path: Path, old: str, new: str, label: str) -> None:
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
+def insert_after_once(path: Path, marker: str, insertion: str, label: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    count = text.count(marker)
+    if count != 1:
+        raise RuntimeError(f"{label}: expected one marker, found {count}")
+    end = text.index(marker) + len(marker)
+    path.write_text(text[:end] + insertion + text[end:], encoding="utf-8")
+
+
 def replace_exact(
     path: Path,
     old: str,
@@ -41,7 +50,7 @@ def insert_array_items(
             f"{label}: expected one array declaration, found {text.count(declaration)}"
         )
     start = text.index(declaration)
-    end = text.find("\n      ];", start)
+    end = text.find("];", start)
     if end < 0:
         raise RuntimeError(f"{label}: array terminator not found")
     block = text[start:end]
@@ -304,12 +313,10 @@ module.exports = async (inputData = null) => {""",
         "        ",
         "pending-share polling fields",
     )
-    replace_once(
+    insert_after_once(
         app,
-        """      const latest = JSON.parse(json);
-
-      if (latest.wsIsRunning === 'true') {""",
-        """      const latest = JSON.parse(json);
+        "      const latest = JSON.parse(json);",
+        """
       const pendingShareNow = Date.now();
       if (
         shouldStartPendingShare({
@@ -333,9 +340,7 @@ module.exports = async (inputData = null) => {""",
         } finally {
           pendingShareStartInFlightRef.current = false;
         }
-      }
-
-      if (latest.wsIsRunning === 'true') {""",
+      }""",
         "unified pending-share runtime start",
     )
 
