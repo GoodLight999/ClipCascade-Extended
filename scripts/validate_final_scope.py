@@ -39,6 +39,7 @@ def main() -> None:
     i18n = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
     shizuku_policy = (root / "ShizukuSetupPolicy.js").read_text(encoding="utf-8")
     pending_share_policy = (root / "PendingShareStartPolicy.js").read_text(encoding="utf-8")
+    service_policy = (root / "ServiceControlPolicy.js").read_text(encoding="utf-8")
     inbound_policy = (root / "InboundErrorPolicy.js").read_text(encoding="utf-8")
     sync_cache = (java_root / "SyncRequestCache.kt").read_text(encoding="utf-8")
     shizuku = (java_root / "ShizukuSetup.kt").read_text(encoding="utf-8")
@@ -78,28 +79,43 @@ def main() -> None:
     require(i18n, "zh:", "Chinese product dictionary")
     require(i18n, "en:", "English product dictionary")
 
-    # A share must start the transport whether it arrived during restored-session
-    # initialization, immediately after login, or while the websocket screen was
-    # already open. One persisted watcher owns all three cases.
-    require(app, "import { shouldStartPendingShare }", "pending-share policy import")
+    # One watcher owns restored-session, after-login, active-screen and stale
+    # foreground-runtime share recovery. Requested state alone is not liveness.
+    require(app, "import { planPendingShareStart }", "pending-share policy import")
     require(
         app,
         "sessionReadyRef.current = enableWSPage;",
         "websocket-screen-derived share readiness",
     )
+    require_before(
+        app,
+        "const [enableWSPage, setEnableWSPage] = useState(false);",
+        "sessionReadyRef.current = enableWSPage;",
+        "state declaration before session-ready synchronization",
+    )
     require(app, "shared_payload_pending", "persisted pending-share polling")
+    require(app, "foreground_service_heartbeat_at", "heartbeat liveness polling")
     require(app, "pendingShareStartInFlightRef", "share-start concurrency guard")
     require(app, "pendingShareLastAttemptAtRef", "share-start retry throttle")
+    require(app, "service-start-requested:", "observable share-triggered service start")
+    require(app, "pendingSharePlan.forceRestart", "stale runtime restart propagation")
     require(
-        app,
-        "service-start-requested-from-active-ui",
-        "observable share-triggered service start",
+        pending_share_policy,
+        "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
+        "bounded heartbeat freshness",
     )
     require(
         pending_share_policy,
-        "elapsed < 0 || elapsed >= Number(retryMs)",
-        "rollback-safe pending-share retry",
+        "elapsed >= 0 && elapsed <= Number(maxAgeMs)",
+        "rollback-safe runtime freshness",
     )
+    require(
+        pending_share_policy,
+        "forceRestart ? 'stale-runtime' : 'runtime-stopped'",
+        "stale runtime classification",
+    )
+    require(service_policy, "forceRestart = false", "forced restart policy input")
+    require(service_policy, "forcedStart", "forced restart policy result")
 
     # The detailed listener-ownership invariants live in
     # validate_service_and_p2p_controls.py. This final-scope check preserves only
