@@ -94,10 +94,13 @@ def main() -> None:
     runtime_coordinator = read("overlay/ForegroundRuntimeCoordinator.js")
     for marker in (
         "FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000",
+        "FOREGROUND_RUNTIME_START_TIMEOUT_MS = 8_000",
         "MANUAL_FOREGROUND_STOP_REASON = 'manual'",
         "shouldPreserveOutboundQueue",
         "createForegroundRuntimeCoordinator",
         "acquire(runtimeId, requestStop)",
+        "runStartTransition(task)",
+        "waitForActiveRuntime(",
         "requestRestart(",
         "current.completion.then(() => true)",
         "foreground-runtime-stop-timeout",
@@ -107,6 +110,46 @@ def main() -> None:
             marker in runtime_coordinator,
             f"canonical foreground-runtime coordinator marker missing: {marker}",
         )
+
+    one_shot = read("overlay/OneShotContentGuard.js")
+    for marker in (
+        "LOCAL_FEEDBACK_WINDOW_MS = 5_000",
+        "P2S_ECHO_WINDOW_MS = 30_000",
+        "createOneShotContentGuard",
+        "mismatch-cleared",
+        "mismatch-kept",
+        "clock-rollback",
+    ):
+        require(marker in one_shot, f"canonical one-shot guard marker missing: {marker}")
+
+    delivery_policy = read("overlay/OutboundDeliveryPolicy.js")
+    for marker in (
+        "AWAITING_P2S_RECEIPT",
+        "FEEDBACK_SUPPRESSED",
+        "POLICY_DISCARDED",
+        "classifyOutboundDeliveryResult",
+        "resolveAwaitingReceiptHead",
+        "Invalid outbound delivery result",
+    ):
+        require(marker in delivery_policy, f"canonical delivery policy marker missing: {marker}")
+
+    delivery_executor = read("overlay/OutboundDeliveryExecutor.js")
+    for marker in (
+        "applyOutboundDeliveryResult",
+        "currentHead?.id || null",
+        "await acknowledge(deliveryId)",
+    ):
+        require(marker in delivery_executor, f"canonical delivery executor marker missing: {marker}")
+
+    receipt_tracker = read("overlay/P2SReceiptTracker.js")
+    for marker in (
+        "P2S_RECEIPT_TIMEOUT_MS = 10_000",
+        "createP2SReceiptTracker",
+        "shouldAcknowledgeP2SDelivery",
+        "queuedHeadId",
+        "onCallbackError",
+    ):
+        require(marker in receipt_tracker, f"canonical P2S receipt marker missing: {marker}")
 
     inbound_policy = read("overlay/InboundErrorPolicy.js")
     for marker in (
@@ -151,6 +194,18 @@ def main() -> None:
         require(marker in signaling, f"canonical P2P signaling marker missing: {marker}")
 
     materialize = read("scripts/materialize_upstream.sh")
+    require(
+        "finalize_transport_delivery_semantics.py" in materialize,
+        "canonical transport delivery finalizer missing",
+    )
+    require(
+        "finalize_p2s_echo_ack.py" not in materialize,
+        "obsolete P2S payload-ACK finalizer returned",
+    )
+    require(
+        not (ROOT / "overlay/P2SAckTracker.js").exists(),
+        "obsolete P2S payload-ACK tracker returned",
+    )
     finalizer_count = materialize.count('python3 "$ROOT_DIR/scripts/finalize_')
     require(
         finalizer_count <= MAX_FINALIZERS,
@@ -188,9 +243,9 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        "canonical i18n, heartbeat-aware pending-share recovery, coordinated runtime handoff, "
-        "recovery-safe durable queue, bounded signaling and detached supervision complete, "
-        "no excluded-project input, "
+        "localized UI, serialized foreground acquisition, typed feedback guards, "
+        "standard P2S receipts, explicit delivery outcomes, recovery-safe durable queue, "
+        "bounded signaling and detached supervision complete, no excluded-project input, "
         f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
 
