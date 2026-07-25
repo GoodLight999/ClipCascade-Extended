@@ -41,7 +41,6 @@ def insert_array_items(
     path: Path,
     declaration: str,
     items: tuple[str, ...],
-    indentation: str,
     label: str,
 ) -> None:
     text = path.read_text(encoding="utf-8")
@@ -57,8 +56,15 @@ def insert_array_items(
     for item in items:
         if item in block:
             raise RuntimeError(f"{label}: duplicate item already present: {item}")
-    insertion = "".join(f"\n{indentation}'{item}'," for item in items)
-    path.write_text(text[:end] + insertion + text[end:], encoding="utf-8")
+    closing_line_start = text.rfind("\n", start, end) + 1
+    indentation = text[closing_line_start:end]
+    if indentation.strip() != "":
+        raise RuntimeError(f"{label}: unexpected array terminator prefix")
+    insertion = "".join(f"{indentation}'{item}',\n" for item in items)
+    path.write_text(
+        text[:closing_line_start] + insertion + text[closing_line_start:],
+        encoding="utf-8",
+    )
 
 
 def wrap_listener_call(
@@ -310,7 +316,6 @@ module.exports = async (inputData = null) => {""",
         app,
         "const POLL_KEYS = [",
         ("shared_payload_pending", "enableWSButton"),
-        "        ",
         "pending-share polling fields",
     )
     insert_after_once(
