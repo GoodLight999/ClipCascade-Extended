@@ -74,11 +74,13 @@ def main() -> None:
 
     queue = read("overlay/DurableOutboundQueue.js")
     for marker in (
+        "createDurableOutboundQueue",
+        "enqueue(content, type, shouldEnqueue = null)",
+        "acknowledge(id)",
+        "recordFailure(id, error)",
+        "snapshot()",
+        "clear()",
         "scopeFingerprint",
-        "claimHeadForSend",
-        "acknowledgeHead",
-        "recordHeadFailure",
-        "migrateLegacyQueue",
     ):
         require(marker in queue, f"canonical outbound queue marker missing: {marker}")
     require(
