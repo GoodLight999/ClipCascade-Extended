@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Use explicit service intents, pending-share policy, and bounded UI stop waiting."""
+"""Use explicit service intents and bounded UI stop waiting."""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +24,7 @@ def main() -> None:
         app,
         "import { getExtendedStrings, localizeRuntimeMessage } from './ExtendedI18n';",
         """import { getExtendedStrings, localizeRuntimeMessage } from './ExtendedI18n';
-import { shouldStartPendingShare } from './PendingShareStartPolicy';
+import { planPendingShareStart } from './PendingShareStartPolicy';
 import {
   FOREGROUND_STOP_TIMEOUT_MS,
   hasForegroundStopTimedOut,
@@ -36,7 +36,10 @@ import {
     replace_once(
         app,
         """  const foregroundService = async () => {""",
-        """  const foregroundService = async (desiredState = null) => {""",
+        """  const foregroundService = async (
+    desiredState = null,
+    forceRestart = false,
+  ) => {""",
         "explicit foreground service intent",
     )
 
@@ -50,6 +53,7 @@ import {
         const requested = resolveRequestedServiceState(
           persistedWsIsRunning,
           desiredState,
+          forceRestart,
         );
         const wsIsRunning_s = requested.nextState;
         if (requested.noOp) {
@@ -57,21 +61,6 @@ import {
           return;
         }""",
         "persisted explicit foreground service state",
-    )
-
-    replace_once(
-        app,
-        """        try {
-          await foregroundService();
-        } finally {
-          pendingShareStartInFlightRef.current = false;
-        }""",
-        """        try {
-          await foregroundService('true');
-        } finally {
-          pendingShareStartInFlightRef.current = false;
-        }""",
-        "idempotent pending-share start request",
     )
 
     replace_once(
