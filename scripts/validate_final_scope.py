@@ -37,6 +37,8 @@ def main() -> None:
     app = (root / "App.js").read_text(encoding="utf-8")
     control_panel = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
     i18n = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
+    shizuku_policy = (root / "ShizukuSetupPolicy.js").read_text(encoding="utf-8")
+    inbound_policy = (root / "InboundErrorPolicy.js").read_text(encoding="utf-8")
     sync_cache = (java_root / "SyncRequestCache.kt").read_text(encoding="utf-8")
     shizuku = (java_root / "ShizukuSetup.kt").read_text(encoding="utf-8")
 
@@ -67,6 +69,9 @@ def main() -> None:
     require(control_panel, "text.shizukuOpen", "localized Shizuku open button")
     require(control_panel, "text.shizukuGuide", "localized Shizuku guidance")
     require(control_panel, "Clipboard.setString(dialog.copy)", "copyable reports and ADB commands")
+    require(control_panel, "createStyles(useColorScheme() === 'dark')", "readable diagnostic theme")
+    require(shizuku_policy, "state: 'already-configured'", "Shizuku-free retained-grant state")
+    require(shizuku_policy, "state: 'permission-required'", "Shizuku permission state")
     require(i18n, "ja:", "Japanese product dictionary")
     require(i18n, "zh:", "Chinese product dictionary")
     require(i18n, "en:", "English product dictionary")
@@ -81,9 +86,19 @@ def main() -> None:
     )
     require(foreground, "p2s-late-echo-acknowledged", "late P2S ACK recovery")
     require(foreground, "queuedForAck?.id === echoedDeliveryId", "late P2S queue identity guard")
+    require(foreground, "createInboundErrorCoalescer", "P2S inbound error coalescing")
+    require(foreground, "p2s_last_inbound_error_count", "P2S incident counter")
+    require(inbound_policy, "code: 'encryption-mismatch'", "authenticated-decrypt classification")
+    require(inbound_policy, "shouldReport: false", "duplicate inbound suppression")
     require(foreground, "quarantinedPeers", "P2P incompatible peer isolation")
     require(foreground, "foreground_service_error", "foreground-service error persistence")
     require(foreground, "shared_payload_pending", "share auto-start state")
+
+    forbid(
+        foreground,
+        "Encryption must be enabled on all devices if enabled",
+        "room-wide inherited encryption failure wording",
+    )
 
     for inherited in (
         "New version available!",
