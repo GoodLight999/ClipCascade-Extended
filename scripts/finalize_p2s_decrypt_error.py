@@ -42,6 +42,7 @@ import { createInboundErrorCoalescer } from './InboundErrorPolicy';""",
     replace_once(
         path,
         """                  await clearFiles();
+                  toggle = false;
                   await setDataInAsyncStorage(
                     'wsStatusMessage',
                     '✅ Connected - Subscribed',
@@ -51,7 +52,7 @@ import { createInboundErrorCoalescer } from './InboundErrorPolicy';""",
         """                  await clearFiles();
 
                   if (message && message.body) {""",
-        "do not hide inbound failures before validation",
+        "do not unlock P2S receipt flight or hide inbound failures before validation",
     )
 
     replace_once(
