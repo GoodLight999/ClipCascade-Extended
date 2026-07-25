@@ -45,6 +45,19 @@ function parseJson(value) {
   }
 }
 
+function setupError(code, detail = '') {
+  const error = new Error(code);
+  error.code = code;
+  error.detail = String(detail || '');
+  return error;
+}
+
+function formatSetupError(error, text) {
+  const code = String(error?.code || 'SETUP_FAILED');
+  const detail = String(error?.detail || '');
+  return `${text.setupFailed}\n\n${code}${detail ? `\n${detail}` : ''}`;
+}
+
 export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
   const text = getExtendedStrings();
   const styles = createStyles(useColorScheme() === 'dark');
@@ -71,7 +84,7 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
     try {
       await action();
     } catch (error) {
-      show(text.setupFailed, String(error));
+      show(text.setupFailed, formatSetupError(error, text));
     } finally {
       setBusy(false);
     }
@@ -137,7 +150,11 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
       `${text.p2pCompatibilityLabel}: ${status.p2pCandidatePeers || 0}/${
         status.p2pCompatiblePeers || 0
       }/${status.p2pIncompatiblePeers || 0}`,
-      `${text.p2pLastErrorLabel}: ${status.p2pLastCompatibilityError || '—'}`,
+      `${text.p2pLastErrorLabel}: P2P=${
+        status.p2pLastCompatibilityError || '—'
+      }; P2S=${status.p2sLastInboundErrorCode || '—'}/${
+        status.p2sLastInboundErrorCount || 0
+      }`,
       `${text.readLogsLabel}: ${status.readLogs}`,
       `${text.overlayLabel}: ${status.overlay}`,
       `${text.shizukuLabel}:\n${pretty(status.shizuku)}`,
@@ -186,7 +203,7 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
       await NativeBridgeModule.requestShizukuPermission();
       status = await getShizukuStatus();
       if (status.permissionGranted !== true) {
-        throw new Error('Shizuku permission was not retained');
+        throw setupError('SHIZUKU_PERMISSION_NOT_RETAINED');
       }
     }
     if (plan.applySetup) {
@@ -195,7 +212,7 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
 
     status = await getShizukuStatus();
     if (!isShizukuSetupVerified(status)) {
-      throw new Error(`Android did not retain the required grants: ${pretty(status)}`);
+      throw setupError('SHIZUKU_GRANTS_NOT_RETAINED', pretty(status));
     }
     show(
       'Shizuku',
