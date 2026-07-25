@@ -11,43 +11,26 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def require(text: str, marker: str, label: str) -> None:
+    if marker not in text:
+        raise RuntimeError(f"{label}: missing marker {marker!r}")
+
+
 def apply(root: Path) -> None:
     path = root / "StartForegroundService.js"
     text = path.read_text(encoding="utf-8")
 
-    text = replace_once(
-        text,
-        """            activeForegroundRuntimeId = runtimeId;
-            const finishForegroundRuntime = async state => {
-              if (activeForegroundRuntimeId !== runtimeId) {
-                resolve();
-                return;
-              }
-              activeForegroundRuntimeId = null;
-              await setDataInAsyncStorage('foreground_service_state', state);
-              await setDataInAsyncStorage('foreground_service_instance_id', '');
-              resolve();
-            };""",
-        """            activeForegroundRuntimeId = runtimeId;
-            let runtimeAcceptingEvents = true;
-            const runtimeCanAcceptEvents = () =>
-              runtimeAcceptingEvents && activeForegroundRuntimeId === runtimeId;
-            const stopAcceptingRuntimeEvents = () => {
-              runtimeAcceptingEvents = false;
-            };
-            const finishForegroundRuntime = async state => {
-              stopAcceptingRuntimeEvents();
-              if (activeForegroundRuntimeId !== runtimeId) {
-                resolve();
-                return;
-              }
-              activeForegroundRuntimeId = null;
-              await setDataInAsyncStorage('foreground_service_state', state);
-              await setDataInAsyncStorage('foreground_service_instance_id', '');
-              resolve();
-            };""",
-        "runtime event-admission lease",
-    )
+    # The single-runtime finalizer owns the canonical lease and admission
+    # predicate. Queue hardening attaches to that predicate rather than creating
+    # a second ownership model.
+    for marker, label in (
+        ("foregroundRuntimeCoordinator.acquire(", "coordinated runtime lease"),
+        ("const runtimeCanAcceptEvents = () =>", "runtime admission predicate"),
+        ("runtimeAcceptingEvents && runtimeLease.isActive()", "active lease admission"),
+        ("const stopAcceptingRuntimeEvents = () =>", "runtime admission close"),
+        ("const finishForegroundRuntime = async state =>", "runtime terminal release"),
+    ):
+        require(text, marker, label)
 
     text = replace_once(
         text,
