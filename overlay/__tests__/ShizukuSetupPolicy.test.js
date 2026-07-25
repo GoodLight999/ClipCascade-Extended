@@ -20,18 +20,26 @@ describe('Shizuku one-time setup policy', () => {
     });
   });
 
-  test('distinguishes missing installation from a stopped service', () => {
-    expect(planShizukuSetup({ installed: false })).toMatchObject({
+  test('distinguishes missing installation from a Binder startup race', () => {
+    expect(planShizukuSetup({ installed: false })).toEqual({
       state: 'not-installed',
+      requestPermission: false,
       applySetup: false,
     });
-    expect(planShizukuSetup({ installed: true, running: false })).toMatchObject({
-      state: 'not-running',
-      applySetup: false,
+    expect(
+      planShizukuSetup({
+        installed: true,
+        running: false,
+        permissionGranted: false,
+      }),
+    ).toEqual({
+      state: 'binder-pending',
+      requestPermission: true,
+      applySetup: true,
     });
   });
 
-  test('requests permission only when the Binder is live and authorization is absent', () => {
+  test('requests permission when the Binder is live and authorization is absent', () => {
     expect(
       planShizukuSetup({
         installed: true,
