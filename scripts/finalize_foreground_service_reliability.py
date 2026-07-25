@@ -28,6 +28,30 @@ def replace_exact(
     path.write_text(text.replace(old, new), encoding="utf-8")
 
 
+def insert_array_items(
+    path: Path,
+    declaration: str,
+    items: tuple[str, ...],
+    indentation: str,
+    label: str,
+) -> None:
+    text = path.read_text(encoding="utf-8")
+    if text.count(declaration) != 1:
+        raise RuntimeError(
+            f"{label}: expected one array declaration, found {text.count(declaration)}"
+        )
+    start = text.index(declaration)
+    end = text.find("\n      ];", start)
+    if end < 0:
+        raise RuntimeError(f"{label}: array terminator not found")
+    block = text[start:end]
+    for item in items:
+        if item in block:
+            raise RuntimeError(f"{label}: duplicate item already present: {item}")
+    insertion = "".join(f"\n{indentation}'{item}'," for item in items)
+    path.write_text(text[:end] + insertion + text[end:], encoding="utf-8")
+
+
 def wrap_listener_call(
     path: Path,
     start_marker: str,
@@ -273,12 +297,11 @@ module.exports = async (inputData = null) => {""",
   }, [enableWSPage]);""",
         "pending-share runtime refs and session synchronization",
     )
-    replace_once(
+    insert_array_items(
         app,
-        """        'filesAvailableToDownload',""",
-        """        'filesAvailableToDownload',
-        'shared_payload_pending',
-        'enableWSButton',""",
+        "const POLL_KEYS = [",
+        ("shared_payload_pending", "enableWSButton"),
+        "        ",
         "pending-share polling fields",
     )
     replace_once(
