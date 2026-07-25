@@ -26,7 +26,10 @@ def apply(root: Path) -> None:
     for marker, label in (
         ("foregroundRuntimeCoordinator.acquire(", "coordinated runtime lease"),
         ("const runtimeCanAcceptEvents = () =>", "runtime admission predicate"),
-        ("runtimeAcceptingEvents && runtimeLease.isActive()", "active lease admission"),
+        (
+            "runtimeAcceptingEvents && runtimeLease?.isActive() === true",
+            "null-safe active lease admission",
+        ),
         ("const stopAcceptingRuntimeEvents = () =>", "runtime admission close"),
         ("const finishForegroundRuntime = async state =>", "runtime terminal release"),
     ):
