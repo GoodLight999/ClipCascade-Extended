@@ -57,10 +57,11 @@ def insert_array_items(
         if f"'{item}'" in block:
             raise RuntimeError(f"{label}: duplicate item already present: {item}")
     closing_line_start = text.rfind("\n", start, end) + 1
-    indentation = text[closing_line_start:end]
-    if indentation.strip() != "":
+    closing_indentation = text[closing_line_start:end]
+    if closing_indentation.strip() != "":
         raise RuntimeError(f"{label}: unexpected array terminator prefix")
-    insertion = "".join(f"{indentation}'{item}',\n" for item in items)
+    item_indentation = closing_indentation + "  "
+    insertion = "".join(f"{item_indentation}'{item}',\n" for item in items)
     path.write_text(
         text[:closing_line_start] + insertion + text[closing_line_start:],
         encoding="utf-8",
@@ -170,9 +171,13 @@ module.exports = async (inputData = null) => {""",
 
   try {
     await setDataInAsyncStorage('foreground_service_state', 'notification-starting');
+    await setDataInAsyncStorage(
+      'foreground_service_last_started_at',
+      String(Date.now()),
+    );
     await setDataInAsyncStorage('foreground_service_error', '');
     // Create a notification channel for the foreground service""",
-        "close foreground registration guard",
+        "close foreground registration guard and record start request",
     )
 
     replace_once(
