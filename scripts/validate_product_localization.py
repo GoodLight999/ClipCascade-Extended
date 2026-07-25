@@ -104,18 +104,19 @@ def main() -> None:
     require(panel, "Clipboard.setString(dialog.copy)", "one-tap dialog copy")
     require(panel, "ADB_COMMANDS", "canonical two-command ADB fallback")
 
-    # Shizuku must distinguish install/running/authorization states and must not
-    # be required after Android has retained the one-time grants. Failure prose is
-    # localized through setupFailed; codes stay machine-readable and language-neutral.
+    # Shizuku must distinguish install/Binder/authorization states and must not
+    # be required after Android has retained the one-time grants. An installed
+    # service whose Binder has not arrived yet enters the native bounded wait.
     require(panel, "planShizukuSetup(status)", "Shizuku setup planner wiring")
     require(panel, "isShizukuSetupVerified(status)", "Shizuku grant verification")
     require(panel, "formatSetupError(error, text)", "localized Shizuku failure wrapper")
+    require(panel, "SHIZUKU_NOT_RUNNING", "localized Binder-wait failure mapping")
     require(panel, "SHIZUKU_PERMISSION_NOT_RETAINED", "permission failure code")
     require(panel, "SHIZUKU_GRANTS_NOT_RETAINED", "grant verification failure code")
     forbid(panel, "Shizuku permission was not retained", "English-only Shizuku failure")
     forbid(panel, "Android did not retain the required grants", "English-only grant failure")
     require(shizuku_policy, "state: 'already-configured'", "post-setup independence")
-    require(shizuku_policy, "state: 'not-running'", "stopped Shizuku classification")
+    require(shizuku_policy, "state: 'binder-pending'", "bounded Binder startup classification")
     require(shizuku_policy, "state: 'permission-required'", "authorization classification")
 
     print("complete product/runtime localization and setup UX: OK")
