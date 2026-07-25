@@ -33,6 +33,10 @@ object ReliabilityAutoDebug {
         "p2p_compatible_peers",
         "p2p_incompatible_peers",
         "p2p_last_compatibility_error",
+        "p2s_last_inbound_error_code",
+        "p2s_last_inbound_error_count",
+        "p2s_last_inbound_error_at",
+        "p2s_last_inbound_error_detail",
         "accessibility_service_status",
         "accessibility_capture_status",
         "clipboard_fallback_status"
