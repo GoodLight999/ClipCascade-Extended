@@ -22,16 +22,16 @@ def main() -> None:
 
     replace_once(
         path,
-        "import { createP2SAckTracker } from './P2SAckTracker';",
-        """import { createP2SAckTracker } from './P2SAckTracker';
+        "import { createDurableOutboundQueue } from './DurableOutboundQueue';",
+        """import { createDurableOutboundQueue } from './DurableOutboundQueue';
 import { createInboundErrorCoalescer } from './InboundErrorPolicy';""",
         "P2S inbound error policy import",
     )
     replace_once(
         path,
-        """        const p2sAckTracker = createP2SAckTracker({timeoutMs: 10000});
+        """        const outboundQueue = createDurableOutboundQueue(outboundQueueScope);
         let sendClipBoardTransport = null;""",
-        """        const p2sAckTracker = createP2SAckTracker({timeoutMs: 10000});
+        """        const outboundQueue = createDurableOutboundQueue(outboundQueueScope);
         const p2sInboundErrorPolicy = createInboundErrorCoalescer({
           windowMs: 30000,
         });
