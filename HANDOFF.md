@@ -1,207 +1,236 @@
 # ClipCascade Extended — 正本引継ぎ
 
-Last updated: **2026-07-23 JST**
+Last updated: **2026-07-25 JST**
 
-新しいスレッドは、次のリポジトリと本書だけを正本として再開すること。
+新しいスレッドでは、次の一文だけで本書とリポジトリを正本として再開する。
 
 > https://github.com/GoodLight999/ClipCascade-Extended ←これを引継いで開発して！
 
 ## 1. Authority / active work
 
 - Repository: `GoodLight999/ClipCascade-Extended`
-- Branch: `stability-mobile-otp`（名称は歴史的事情。現在の最優先は汎用クリップボード同期）
+- Active branch: `stability-mobile-otp`
 - Draft PR: `#2`
+- Package: `com.clipcascade.extended`
+- Current version line: `3.2.0-extended.5` / versionCode `320005`
+- Fixed signer certificate SHA-256: `2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd`
 - Protocol/server authority: `Sathvik-Rao/ClipCascade`
 - Android behavior reference: `wuxinkami/ClipCascade_go_fork`
 - Shizuku API: `RikkaApps/Shizuku-API`
-- Guided user-facing Shizuku fork: `thedjchi/Shizuku`
-- **永久除外:** `GoodLight999/Trash-ClipCascade`。閲覧・参照・引用・試験・移植・事実抽出を一切しない。
+- Guided Shizuku distribution: `thedjchi/Shizuku`
 
-## 2. 非交渉要件
+過去の破綻した派生物、archive、trash、別リポジトリを資料として復活させない。一次資料は本リポジトリ、上記本家、Go版参考実装だけとする。
+
+## 2. Non-negotiable requirements
 
 1. Androidの汎用クリップボード同期を、前景・背景・画面OFF・再接続・プロセス死亡・再起動を含めて安定稼働させる。
-2. 通常経路はADB不要。Accessibilityのコピー信号と通常のオーバーレイ権限で取得する。
-3. Shizukuは一回だけ起動し、権限付与と実状態確認後に停止可能でなければならない。通常ランタイムのShizuku Binder依存は禁止。
+2. 通常経路はADB不要。Accessibilityの明示的コピー信号と短時間の透明ActivityでAndroidのクリップボード制限を正規に満たす。
+3. Shizukuは一回だけの権限設定補助。READ_LOGSとoverlayが保持された後、通常ランタイムはShizuku Binderへ依存しない。
 4. PC ADBは次善策。表示するのは必要な2コマンドだけで、選択・全文コピー可能にする。
-5. テキストコピー、Android共有テキスト、画像クリップボード、画像共有、単一／複数ファイル共有を送信対象とする。
+5. テキストコピー、Android共有テキスト、画像クリップボード、画像共有、単一／複数ファイル共有を送信対象にする。
 6. 本家サーバー、本家デスクトップ、P2S/STOMP、P2P/WebRTC、暗号化、受信画像／ファイルとの互換性を維持する。
-7. UI全体を日本語・英語・簡体字中国語へ統一する。追加部分だけ別言語にしない。ダークモードでも明確なコントラストを確保する。
-8. 本家由来の更新告知、更新確認通信、`GITHUB`、`HELP`、`DONATE`、`HOMEPAGE`、旧ADB説明を残さない。
-9. Packageは `com.clipcascade.extended`、署名鍵は固定、versionCodeは単調増加として上書き更新を維持する。
-10. OTP/SMS/emailは汎用クリップボードの実機受入完了まで延期する。
-11. 表示値の羅列ではなく実経路を検査する全自動デバッグを搭載する。
-12. `HANDOFF.md` と `WORKLOG.md` を挙動・証拠・受入状態の変更ごとに更新する。
+7. UI全体を日本語・英語・簡体字中国語へ統一する。追加部分だけ別言語にしない。
+8. ダークモードでも診断・本文・入力・ダイアログを明瞭に読める配色にする。
+9. 本家由来の更新告知、更新確認通信、外部リンク群、寄付、旧ADB説明を生成物へ残さない。
+10. 固定署名・単調増加versionCodeで上書き更新を維持する。
+11. OTP/SMS/emailの自動抽出は、汎用クリップボードの実機受入完了まで実装対象外とする。
+12. 表示値の羅列ではなく実経路を検査する全自動デバッグを搭載する。
+13. 挙動・証拠・受入状態が変わるたびに本書と `WORKLOG.md` を更新する。
 
-## 3. `.3` は実機不合格・再利用禁止
+## 3. Source architecture
 
-`3.2.0-extended.3` / versionCode `320003` はCIに成功したが、HONOR 400 Pro実機で次の不具合が確認されたため、完成品・基準APK・受入済みビルドとして扱わない。
+本プロジェクトは、固定した本家モバイルソースをCIで取得し、Extendedのoverlayと決定的finalizerを適用して生成する。
 
-- ダークモードで灰色背景に黒字となり、セルフテストが読めない。
-- 画面の大半が英語で、追加ボタンだけ日本語という言語混在。
-- ログイン前に `GITHUB` / `HELP` / `DONATE`、ログイン後に `HOMEPAGE` が残存。
-- 本家の `New version available!` が表示される。
-- Shizuku側でExtendedを許可済みでも、アプリがShizuku未起動と誤判定する。
-- PC ADBポップアップがコピー不能で、本家由来の旧3コマンド説明が重複。
-- アプリ前景でもクリップボード送信・受信が動かない。
-- Android共有テキスト、画像クリップボード、画像／ファイル共有が動かない。
-- 背景移行時にForeground Service系エラーで停止する。
-- `Peers: 21` と `AEADBadTagException` が反復表示される。
-- Self-Testは `capture-queued`、pending 0を示す一方、送信キューはcount 0で、イベントが消失していた。
-- この規模の不具合を毎回手書きさせる診断UX自体が不合格だった。
+- Pin: `UPSTREAM.lock`
+- Entry point: `scripts/materialize_upstream.sh`
+- Overlay source: `overlay/`
+- Static architecture guards: `scripts/validate_*.py`
+- Android CI: `.github/workflows/android-ci.yml`
 
-「机上に残っている既知の問題はありません」という旧記述は誤り。以後使用しない。
+### Cleanliness rule
 
-## 4. `.4` で確定した根本原因と修正
+- 最終設計を一度生成して後段で打ち消す補正工程を作らない。
+- finalizerは一つの責務だけを持ち、最終コードを直接生成する。
+- 同一パスを複数工程で往復編集するときは統合を優先する。
+- 文字列検索だけでなく、純粋関数・Android unit test・Jest・エミュレータ実経路で証明する。
+- 生成物が通るだけでなく、生成工程自体が読み解けることを品質条件とする。
 
-Target: `3.2.0-extended.4`, versionCode `320004`。
+現在、P2P互換性とExtended UIについて、後段で打ち消していた補正工程を廃止し、それぞれ一つの最終生成工程へ統合済み。
 
-### 4.1 イベント消失
+## 4. Android clipboard acquisition
 
-- ネイティブ保留イベントを排出した後にJS `onClipboardChange` リスナーを登録していた。
-- JSリスナーを先に登録し、その後 `ClipboardListener.startListening()` が配送準備を有効化して永続キューをdrainする順へ修正。
-- React Contextの存在をlistener readinessとみなさず、明示的なready gateを使用。
-- 能動診断はネイティブ→React専用イベントを実送信し、2秒以内の受信を検査する。
+### Primary path
 
-### 4.2 Extended専用UI / ローカライズ
+1. `ClipCascadeAccessibilityService` がコピー操作を示すAccessibilityイベントを分類する。
+2. `ClipboardCaptureCoordinator` が重複要求を直列化する。
+3. `ClipboardFloatingActivity` を透明・短時間・フォーカス可能なActivityとして表示する。
+4. Androidが前景アクセスとして許可した期間にクリップボードを読む。
+5. 最初の空読取／拒否は短い間隔で一回再試行する。
+6. JS listenerが未準備なら `PendingReactEventStore` へ永続化し、準備後に順序を保ってdrainする。
+7. Foreground Serviceが失われていれば、明示的コピーで表示されたActivityからHeadless JS復旧を試みる。
 
-- 本家画面への部分挿入を廃止し、ログイン・詳細設定・同期・端末設定・診断をExtended管理へ変更。
-- 本家フッター、Homepage、寄付、更新告知、更新／metadata通信、旧ADB説明を生成物から除去。
-- Android adaptive colorを使用し、本文・入力・ダイアログをダークモード対応。
-- 日英簡体字の同一辞書で画面、動的状態、P2P状態、セルフテスト、全自動診断、通知、通知チャンネル、ファイル保存Alertを切替。
-- 生JSON、例外名、スタックトレースは診断性のため原文を保持。
-- ADBダイアログと診断レポートは選択可能かつ全文コピー可能。
+### Fallback path
 
-### 4.3 Shizuku
+- READ_LOGSが付与されている場合だけログ信号を補助利用する。
+- READ_LOGSは必須条件ではない。
+- Shizuku／ADB設定後も通常コピー経路はShizukuへ依存しない。
 
-- 瞬間的な `pingBinder()` だけで未起動判定していた経路を廃止。
-- Sticky Binder受信、Binder死亡通知、最大8秒の非UI待機を実装。
-- 認可後は一時的なnon-daemon AIDL UserServiceでREAD_LOGSとoverlay app-opを適用し、各コマンド終了コードとExtended側の実権限状態を検証。
-- UserServiceは終了後削除。通常のコピー／通信経路はShizuku APIを呼ばない。
-- timeout、disconnect、世代交代後の遅延UserService作業を拒否する。
+## 5. Shizuku setup contract
 
-### 4.4 Android共有・画像クリップボード
+UI側は `ShizukuSetupPolicy.js` で次の状態を明確に分離する。
 
-- `String` / `text/plain` 限定を廃止し、`CharSequence`、Spanned、`text/html`、MIMEなし `ACTION_SEND`、`ACTION_PROCESS_TEXT` を処理。
-- 画像、単一ファイル、複数ファイルを処理。
-- 未対応共有は `shared_payload_pending=false` へ戻し、残留自動起動を防止。
-- Share URIとクリップボードURIは権限が有効な間に `cache/shared_outbound` へ即時コピーし、Extended FileProvider URIとして送る。
-- JSON URI配列、容量上限、失敗時部分削除、期限清掃、短時間URI重複抑止を実装。
-- 共有ファイル準備失敗Toastも日英簡体字リソース化。
+- `already-configured`: READ_LOGSとoverlayが保持済み。Shizuku停止中でも成功扱い。
+- `not-installed`: インストール／入手導線を表示。
+- `not-running`: サービス起動ガイドを表示。
+- `permission-required`: Binderは生きているがExtended未認可。
+- `ready-to-apply`: 認可済みで一回設定を実行可能。
 
-### 4.5 Foreground Service / `Peers: 21`
+ネイティブ側はSticky Binder受信、Binder死亡、bounded wait、UserService世代管理、コマンド終了値、Android側の実権限を検証する。設定完了後にUserServiceを削除する。
 
-- Foreground handler登録とネットワーク実体を単一化し、二重起動要求を抑止。
-- 開始停止判定を遅延し得るReact stateではなく永続 `wsIsRunning` から計算。
-- 停止待ちを10秒で打ち切り、timeoutを状態・診断へ保存。
-- 5秒heartbeatを保存し、要求中に15秒以上途絶えた場合は自動診断FAIL。
-- `pollFlagsLoop()` の未監督起動を廃止。ループ例外時はエラー保存、リスナー解放、Service停止、ランタイム・リース解放を必ず実行。
-- Service死亡後、同期要求中かつheartbeatが失われている場合、次の明示的コピーで表示中となった透明ActivityからHeadless JS復旧を起動。10秒の再試行抑止と成功／失敗状態を保存。
-- 本家P2PサーバーのPeer一覧は同一usernameのセッションであり、21 Peerは多重／残留セッションが有力。単一ランタイムと正しい停止で増殖を防ぐ。
-
-### 4.6 P2P暗号互換性
-
-- AEAD復号失敗を部屋全体の致命傷にせず、Peer単位で非互換判定・隔離する。
-- 隔離Peerを接続再生成と送信対象から外し、互換Peerとの同期は継続。
-- 独自DataChannel制御フレームは禁止。旧本家クライアントがクリップボード本文と誤読するため。
-- 独自 `COMPATIBILITY` WebSocket種別も禁止。本家サーバーが転送しないため。
-- 互換性情報は、本家サーバーがそのまま転送する `OFFER` / `ANSWER` の任意追加フィールドへ格納。旧クライアントは追加フィールドを無視し、Extended同士は接続前判定する。
-- Helloのない旧Peerはunknownとして接続し、最初の実ペイロードの暗号Envelope／復号結果で判定する。
-
-### 4.7 Durable transport
-
-- 送信キューはserver mode・URL・usernameでscopeし、process death／offlineを越えて保持。
-- P2Sは `metadata.extendedDeliveryId` のserver self-echoまでqueue headを解放しない。timeout、backoff、late ACKを処理。
-- P2Pはqueue IDを再試行間で固定し、UTF-8 code point境界でfragment化。
-- peer/message単位の並行再構成、duplicate/conflict/replay/TTL/容量上限、DataChannel backpressure timeoutを実装。
-- signaling接続と実DataChannel接続を区別し、古い成功状態を表示しない。
-
-## 5. 全自動デバッグの受入仕様
-
-一タップで次を採取・実行し、PASS／要確認／FAILへ分類し、全文コピー可能にする。
-
-- ネイティブ→Reactイベント実往復。
-- JSリスナー登録順とnative delivery ready。
-- Accessibility有効状態、最後のコピー信号、取得コーディネーター。
-- 前景クリップボード実読取、MIME、URI数。
-- 永続ネイティブイベント件数。
-- 耐久送信キュー件数・状態・失敗。
-- Android共有のpending／staging／cache件数・容量。
-- Foreground Service状態、最終エラー、heartbeat鮮度、instance ID、二重起動抑止履歴、loop failure、可視コピー復旧状態。
-- P2P候補／互換／非互換Peer数と最終非互換理由。
-- Shizuku Binder/API/UID/認可、READ_LOGS、overlay。
-- 再起動receiver状態。
-- 生状態JSONとネイティブ検査JSON。
-
-## 6. 確定した自動検査証拠
-
-Validated implementation commit:
+PC ADB fallbackは次の2コマンドだけを表示する。
 
 ```text
-225c15b221c5e33728b7997e34ff9221e9606730
+adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS
+adb shell appops set com.clipcascade.extended android:system_alert_window allow
 ```
 
-Successful CI run:
+## 6. Android Share and images/files
 
-```text
-30015603542
-```
+- `ACTION_SEND`, `ACTION_SEND_MULTIPLE`, `ACTION_PROCESS_TEXT` を処理する。
+- テキストは `CharSequence` として受け、`text/plain` に限定しない。
+- 画像／ファイルのContent URIは権限が有効な間に `cache/shared_outbound` へ退避する。
+- 退避後はExtended FileProvider URIを送信キューへ渡す。
+- 複数ファイル、容量上限、期限清掃、部分失敗清掃、短時間重複抑止を実装する。
+- 未対応共有はpending状態を解除し、誤自動起動を残さない。
+- logcatへ共有内容そのものを出さず、event種別・件数・保留件数だけを証跡化する。
 
-Validated artifact:
+## 7. Transport reliability
 
-```text
-Version: 3.2.0-extended.4
-versionCode: 320004
-Application ID: com.clipcascade.extended
-APK size: 93,636,243 bytes
-APK SHA-256: af6fcf2b274c5bd57a08c2632fcb7efaa618dccab78250231b575c3006aefa48
-Signature: APK Signature Scheme v2
-Signer certificate SHA-256:
-2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
-```
+### Durable outbound queue
 
-Run `30015603542` passed:
+- server mode・URL・usernameでscopeする。
+- offline／process deathを越えて保持する。
+- 失敗回数・backoff・drop理由を診断へ残す。
+- 新規イベントと既存queue headの順序を逆転させない。
 
-- exact pinned-upstream materialization and all guarded finalizers;
-- final architecture/scope invariants;
-- stable signing-key inspection;
-- `npm ci`, ESLint and all Jest suites;
-- Android Lint and all Extended Kotlin unit tests;
-- `assembleExtended`;
-- APK ZIP integrity and zipalign;
-- APK Signature Scheme v2 verification;
-- package/version/Accessibility/READ_LOGS/overlay/Shizuku Manifest checks;
-- non-debuggable and OTP-free Manifest/DEX checks;
-- required native reliability markers in DEX;
-- required listener, singleton, recovery, share and localization markers in the Hermes bundle;
-- absence of upstream update/metadata URLs in the release bundle;
-- checksum generation and installable artifact upload.
+### P2S
 
-CI artifact取得後の独立照合でも、APK SHA-256、ZIP integrity report、Manifest、DEX markers、Hermes markers、OTP除外、更新URL除外が一致した。
+- 本家 `/clipsocket`、`/app/cliptext`、`/user/queue/cliptext` と互換。
+- `metadata.extendedDeliveryId` の自己echoまでqueue headを解放しない。
+- timeout、late ACK、再試行を処理する。
+- 受信復号失敗を分類し、同一事故の画面表示を30秒単位で一件へ集約する。
+- 発生回数・時刻・詳細を診断へ保存し、正常受信で即時リセットする。
 
-## 7. 現在の証拠境界
+### P2P
 
-- `.3`の過去CI成功はパッケージング履歴としてのみ保存する。製品受入証拠ではない。
-- `.4`はdesk/static自動ゲートと独立artifact照合が完了した実機試験候補。
-- **まだ「全部直った」と宣言しない。** HONOR 400 Proと実サーバーで次を実測する必要がある。
-  - `.3`→`.4`同一package／同一署名の上書き更新と設定保持。
-  - 前景／背景／画面OFFでの双方向テキスト。
-  - Android共有テキスト、画像クリップボード、画像／複数ファイル共有。
-  - P2S／P2P、本家デスクトップとの相互運用とexactly-onceに近い挙動。
-  - Shizuku一回設定→完全停止→再試験→Shizukuなし再起動。
-  - rapid A→B→C、重複、順序、process kill、reboot、長時間idle/reconnect。
-  - typing latency、battery、Foreground Service停止／次回コピー復旧。
-  - `Peers`増殖とAEAD BadTag反復が実機で消えたこと。
+- 本家のOFFER／ANSWERへ任意compatibility metadataを追加するだけで、未知メッセージ種別を追加しない。
+- クリップボードDataChannelへ独自control frameを送信しない。
+- 暗号モード不一致やAEAD復号失敗はPeer単位で隔離する。
+- 互換Peerとの通信を継続し、隔離Peerを送信・再接続対象から除外する。
+- 互換性情報にパスワード由来fingerprintを含めない。
+- fragmentの順序、重複、競合、TTL、容量、backpressureを検証する。
 
-## 8. 直近の継続順
+## 8. Foreground Service reliability
 
-1. `.4` APKを`.3`へアンインストールせず上書きする。
-2. versionCode、署名継続、設定・権限保持を記録する。
-3. 何も権限変更せず、最初に全自動デバッグを実行して全文コピーする。
-4. ADB／Shizukuなしの五アプリtext matrixを実施する。
-5. Android共有テキスト、画像クリップボード、画像、単一／複数ファイルを実施する。
-6. P2S／P2P、本家デスクトップ、背景、画面OFF、process kill、reboot、再接続を実施する。
-7. Shizuku一回設定後にShizukuを完全停止し、再起動後も再試験する。
-8. 不具合時は長文手書き報告を要求せず、コピー可能な全自動診断レポートを主証拠に修正する。
-9. generic clipboard matrixが全て緑になるまでOTPへ進まない。
+- Foreground handlerとネットワーク実体を一つに限定する。
+- 二重ランタイム要求はleaseで抑止し、instance IDと抑止時刻を保存する。
+- 5秒heartbeatを保存し、同期要求中に15秒以上古ければ自動診断FAIL。
+- poll loop、timer、WebRTC callback、signaling reconnectの例外を監督する。
+- 停止待ちはbounded timeoutとし、永久待ちを禁止する。
+- loop終了時はlistener、timer、connection、foreground notification、runtime leaseを必ず解放する。
+- 画面外から禁止されるForeground Service開始を無理に行わず、次の明示的コピーで可視Activityから復旧する。
 
-`WORKLOG.md` は時系列証拠、`docs/TEST_PLAN.md` は実行マトリクス。PR #2は実機受入までDraftを維持する。
+## 9. Product UI / localization
+
+- Extended専用のログイン、詳細設定、同期、端末設定、診断UIを生成する。
+- 本家更新確認通信と外部リンク群は生成時に除去し、validatorでも禁止する。
+- 日本語・英語・簡体字中国語は同一キー集合を持つ。
+- ログイン、接続、P2P、通知、ダウンロード、診断、Shizuku、失敗表示までローカライズする。
+- 例外コード・プロトコル値・生JSONは診断性のため機械可読のまま保持する。
+- 診断カードはOEMテーマ属性に依存せず、明暗双方でコントラスト比7以上をJestで検証する。
+- ADBと診断ダイアログは選択可能で、全文コピーを一タップで行える。
+
+## 10. One-tap automatic debugging
+
+「全自動デバッグ」は次を能動的に検査・採取し、PASS／要確認／FAILへ分類する。
+
+- ネイティブ→Reactイベント実配送と2秒timeout。
+- JS listener readinessとpending native events。
+- Accessibility有効状態、最後の信号、取得コーディネーター。
+- 前景クリップボード実読取、payload有無、MIME、URI件数。
+- durable outbound queueの件数・状態・失敗。
+- Android Shareのpending／staging／cache件数・容量。
+- Foreground Service heartbeat、instance、重複抑止、detached callback error、復旧状態。
+- P2P候補／互換／非互換数、signaling／peer setup／peer operationの最終エラー。
+- P2S受信事故code・回数・時刻・詳細。
+- Shizuku Binder／認可／READ_LOGS／overlay。
+- package、version、SDK、manufacturer、model。
+
+レポートは全文コピー可能だが、password、hashed password、username、server URL、WebSocket URL、saltを含めない。
+
+## 11. Automated verification
+
+CIは次を実行する。
+
+1. 固定upstreamの取得とoverlay生成。
+2. canonical-source／architecture／forbidden-residue validators。
+3. JavaScript lintとJest。
+4. Android lint、Kotlin unit tests、assembleRelease。
+5. package、version、署名、DEX marker、禁止文字列、SHA-256検証。
+6. API 35 / API 36 emulator smoke。
+
+エミュレータsmokeは次を実行する。
+
+- 同一APKのinstall `-r`。
+- light/dark launch、PID、screenshot、UI XML。
+- 通知許可ダイアログが画面を隠していないこと。
+- `ACTION_SEND` text。
+- `ACTION_PROCESS_TEXT`。
+- MediaStoreへ作成した実PNG Content URIの `ACTION_SEND image/png`。
+- staged payloadとnative eventの正のlog marker。
+- HOMEへ移動後のbackground lifecycle。
+- crash／ANR／既知のStatusBar、React host、Foreground Service、AEAD回帰signatureの不在。
+
+## 12. Current evidence state
+
+- 基礎実装の過去の緑証跡: commit `57f738fa3d91e6b78c648c6d540cc25d1124a788`, workflow run `30096422731`。
+- 上記証跡ではAndroid buildとAPI 35／36 launch・text share・process text・dark modeが成功した。
+- その後、Shizuku状態試験、実PNG共有、background lifecycle、P2S error coalescing、配色比試験、生成工程統合を追加した。
+- 現在のHEADは最新CIで再検証中。最終APK authorityは、HEADのbuildとAPI 35／36 smokeが全て成功したrunへ更新してから確定する。
+- 古いAPKを完成品として再配布しない。
+
+## 13. Real-device acceptance boundary
+
+エミュレータ緑だけで「安定稼働完成」と宣言しない。次は実機／実サーバーで必要。
+
+- HONOR 400 Proで上書きinstall。
+- 日本語・英語・簡体字、light/darkの目視。
+- Shizuku未導入／停止／起動済み未認可／認可済み／設定保持後停止の全状態。
+- 本家サーバーP2Sと本家デスクトップ間の双方向text／image／file。
+- P2Pの2台以上、同一鍵、不一致暗号モード、不一致鍵、Peer離脱／再接続。
+- 前景、HOME、画面OFF、Doze、ネット切断復帰、process kill、端末再起動。
+- Accessibilityコピー信号のGoogle、Chrome、Firefox、各種入力欄での挙動。
+- 長時間実行時のbattery、duplicate send、stale Peer、queue残留。
+
+## 14. Immediate continuation procedure
+
+1. `stability-mobile-otp` HEADとDraft PR #2を確認する。
+2. 最新 `Android reliability CI` のbuild/API35/API36を確認する。
+3. 失敗時は対応artifactのcheckpoint、summary、exit-info、logcat、screen、UI XMLを読む。
+4. 原因を純粋関数または再現可能なemulator stepへ落とし、回帰試験を先に追加する。
+5. 全緑後、APKを独立検証し、SHA-256・bytes・signer・commit・runを本書、README、TEST_PLAN、PR本文へ記録する。
+6. 実機受入が終わるまでDraft PRを完成扱いにしない。
+
+## 15. Definition of done
+
+次を全て満たすまで完成ではない。
+
+- 最新HEADの生成・lint・unit・Jest・APK検証が成功。
+- API 35／36の実PNG共有を含むsmokeが成功。
+- 固定署名で旧Extended APKへ上書きinstall成功。
+- HONOR 400 Proと本家サーバー／本家desktopで双方向text／image／file成功。
+- Shizuku一回設定後、Shizuku停止状態で通常運用成功。
+- 前景・背景・画面OFF・再接続・process death・再起動の長時間受入成功。
+- 日英簡体字とlight/darkの実画面受入成功。
+- 自動診断が実際の故障をFAILとして捕捉し、秘密情報なしでコピー可能。
+- `HANDOFF.md`、`WORKLOG.md`、`README.md`、`docs/TEST_PLAN.md`、PR本文が同じ証拠を指す。
