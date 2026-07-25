@@ -102,12 +102,6 @@ def apply(root: Path) -> None:
         """          })
           .catch(async error => {
             const detail = String(error?.stack || error);
-            if (
-              runtimeId != null &&
-              activeForegroundRuntimeId === runtimeId
-            ) {
-              activeForegroundRuntimeId = null;
-            }
             try {
               await setDataInAsyncStorage(
                 'foreground_service_error',
@@ -125,6 +119,7 @@ def apply(root: Path) -> None:
               );
             } finally {
               cleanupClipboardListeners();
+              runtimeLease?.finish();
               resolve();
             }
           });""",
@@ -132,12 +127,6 @@ def apply(root: Path) -> None:
           .catch(error => {
             runDetached('foreground-handler-unhandled-failure', async () => {
               const detail = String(error?.stack || error);
-              if (
-                runtimeId != null &&
-                activeForegroundRuntimeId === runtimeId
-              ) {
-                activeForegroundRuntimeId = null;
-              }
               try {
                 await setDataInAsyncStorage(
                   'foreground_service_error',
@@ -155,11 +144,12 @@ def apply(root: Path) -> None:
                 );
               } finally {
                 cleanupClipboardListeners();
+                runtimeLease?.finish();
                 resolve();
               }
             });
           });""",
-        "supervised terminal foreground error handler",
+        "supervised coordinated terminal foreground error handler",
     )
 
     path.write_text(text, encoding="utf-8")
