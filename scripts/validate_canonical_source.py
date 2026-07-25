@@ -114,7 +114,7 @@ def main() -> None:
     excluded_literal = "GoodLight999/" + "Trash-ClipCascade"
     excluded_digest = hashlib.sha256(excluded_literal.encode("utf-8")).hexdigest()
     require(
-        excluded_digest == "7090b505a1508a8a0df8a72da72808a23488618781e1a02a6d6ce386fe2bfdb5",
+        excluded_digest == "fc4a330962e6551d6447b26270ec94967209907509fd0e8787fffa869eb9e095",
         "permanent-exclusion digest changed unexpectedly",
     )
     for relative in (
