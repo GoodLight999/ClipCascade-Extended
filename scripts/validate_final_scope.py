@@ -38,6 +38,7 @@ def main() -> None:
     control_panel = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
     i18n = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
     shizuku_policy = (root / "ShizukuSetupPolicy.js").read_text(encoding="utf-8")
+    pending_share_policy = (root / "PendingShareStartPolicy.js").read_text(encoding="utf-8")
     inbound_policy = (root / "InboundErrorPolicy.js").read_text(encoding="utf-8")
     sync_cache = (java_root / "SyncRequestCache.kt").read_text(encoding="utf-8")
     shizuku = (java_root / "ShizukuSetup.kt").read_text(encoding="utf-8")
@@ -71,10 +72,31 @@ def main() -> None:
     require(control_panel, "Clipboard.setString(dialog.copy)", "copyable reports and ADB commands")
     require(control_panel, "createStyles(useColorScheme() === 'dark')", "readable diagnostic theme")
     require(shizuku_policy, "state: 'already-configured'", "Shizuku-free retained-grant state")
+    require(shizuku_policy, "state: 'binder-pending'", "bounded Shizuku startup state")
     require(shizuku_policy, "state: 'permission-required'", "Shizuku permission state")
     require(i18n, "ja:", "Japanese product dictionary")
     require(i18n, "zh:", "Chinese product dictionary")
     require(i18n, "en:", "English product dictionary")
+
+    # A share must start the transport whether it arrived during restored-session
+    # initialization, immediately after login, or while the websocket screen was
+    # already open. One persisted watcher owns all three cases.
+    require(app, "import { shouldStartPendingShare }", "pending-share policy import")
+    require(app, "sessionReadyRef.current = true", "session-ready share gate")
+    require(app, "shared_payload_pending", "persisted pending-share polling")
+    require(app, "pendingShareStartInFlightRef", "share-start concurrency guard")
+    require(app, "pendingShareLastAttemptAtRef", "share-start retry throttle")
+    require(
+        app,
+        "service-start-requested-from-active-ui",
+        "observable share-triggered service start",
+    )
+    require(
+        pending_share_policy,
+        "elapsed < 0 || elapsed >= Number(retryMs)",
+        "rollback-safe pending-share retry",
+    )
+
     # The detailed listener-ownership invariants live in
     # validate_service_and_p2p_controls.py. This final-scope check preserves only
     # the cross-phase ordering contract using the same canonical marker.
@@ -92,7 +114,7 @@ def main() -> None:
     require(inbound_policy, "shouldReport: false", "duplicate inbound suppression")
     require(foreground, "quarantinedPeers", "P2P incompatible peer isolation")
     require(foreground, "foreground_service_error", "foreground-service error persistence")
-    require(foreground, "shared_payload_pending", "share auto-start state")
+    require(foreground, "shared_payload_pending", "share event completion state")
 
     forbid(
         foreground,
