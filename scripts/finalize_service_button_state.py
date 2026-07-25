@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Use explicit service intents and bounded UI stop waiting."""
+"""Use explicit service intents, owned control locking, and bounded stop waiting."""
 from __future__ import annotations
 
 import argparse
@@ -35,12 +35,20 @@ import {
 
     replace_once(
         app,
-        """  const foregroundService = async () => {""",
+        """  const foregroundService = async () => {
+    try {
+      if ((await getDataFromAsyncStorage('enableWSButton')) === 'true') {
+        await setDataInAsyncStorage('enableWSButton', 'false');""",
         """  const foregroundService = async (
     desiredState = null,
     forceRestart = false,
-  ) => {""",
-        "explicit foreground service intent",
+  ) => {
+    let controlLockAcquired = false;
+    try {
+      if ((await getDataFromAsyncStorage('enableWSButton')) !== 'true') return;
+      await setDataInAsyncStorage('enableWSButton', 'false');
+      controlLockAcquired = true;""",
+        "explicit foreground service intent and owned lock acquisition",
     )
 
     replace_once(
@@ -61,6 +69,29 @@ import {
           return;
         }""",
         "persisted explicit foreground service state",
+    )
+
+    replace_once(
+        app,
+        """        setWsIsRunning(wsIsRunning_s);
+      }
+    } catch (error) {""",
+        """        setWsIsRunning(wsIsRunning_s);
+    } catch (error) {""",
+        "remove obsolete conditional lock scope",
+    )
+
+    replace_once(
+        app,
+        """    } finally {
+      await setDataInAsyncStorage('enableWSButton', 'true');
+    }""",
+        """    } finally {
+      if (controlLockAcquired) {
+        await setDataInAsyncStorage('enableWSButton', 'true');
+      }
+    }""",
+        "owner-only foreground control unlock",
     )
 
     replace_once(
