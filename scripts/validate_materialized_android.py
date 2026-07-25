@@ -56,6 +56,12 @@ def main() -> None:
     control_panel_js = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
     auto_debug_js = (root / "AutoDebug.js").read_text(encoding="utf-8")
     p2p_compat_js = (root / "P2PCompatibility.js").read_text(encoding="utf-8")
+    pending_share_policy_js = (root / "PendingShareStartPolicy.js").read_text(
+        encoding="utf-8"
+    )
+    service_policy_js = (root / "ServiceControlPolicy.js").read_text(
+        encoding="utf-8"
+    )
 
     require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
     require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
@@ -84,8 +90,40 @@ def main() -> None:
     require(app_js, "EXTENDED_TEXT.username", "localized login form")
     require(app_js, "EXTENDED_TEXT.start", "localized synchronization controls")
     require(app_js, "APP_VERSION}</Text>", "visible product version")
-    require(app_js, "service-started-for-share", "automatic share service start")
-    require(app_js, "service-started-after-login", "share service start after authentication")
+    require(app_js, "planPendingShareStart", "pending-share recovery planner")
+    require(app_js, "service-start-requested:", "observable share service start")
+    require(app_js, "pendingSharePlan.forceRestart", "stale runtime restart request")
+    require(app_js, "foreground_service_heartbeat_at", "share heartbeat liveness input")
+    require(app_js, "foreground_service_last_started_at", "share start-grace input")
+    require_before(
+        app_js,
+        "const [enableWSPage, setEnableWSPage] = useState(false);",
+        "sessionReadyRef.current = enableWSPage;",
+        "websocket state declaration before session-ready synchronization",
+    )
+    require_before(
+        app_js,
+        "sessionReadyRef.current = enableWSPage;",
+        "async function pollUIFlags()",
+        "session-ready synchronization before pending-share polling",
+    )
+    require(
+        pending_share_policy_js,
+        "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
+        "bounded heartbeat stale policy",
+    )
+    require(
+        pending_share_policy_js,
+        "reason: forceRestart ? 'stale-runtime' : 'runtime-stopped'",
+        "stale runtime classification",
+    )
+    require(
+        pending_share_policy_js,
+        "elapsed >= 0 && elapsed <= Number(maxAgeMs)",
+        "rollback-safe liveness timestamp",
+    )
+    require(service_policy_js, "forceRestart = false", "forced service restart input")
+    require(service_policy_js, "forcedStart", "forced service restart result")
     for inherited in (
         "New version available!",
         "GITHUB",
