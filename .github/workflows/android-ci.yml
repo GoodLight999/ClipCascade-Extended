@@ -156,9 +156,9 @@ jobs:
           test -s apk-js-bundle.txt
           for marker in \
             ready-after-registration duplicate-runtime-suppressed \
-            foreground_service_loop_failed_at service-started-for-share \
-            notificationConnectionRestored diagnosticsOverall diagnosticRecovery \
-            notificationDownloadFiles checkingService; do
+            foreground_service_loop_failed_at service-start-requested: stale-runtime \
+            FOREGROUND_HEARTBEAT_STALE_MS notificationConnectionRestored \
+            diagnosticsOverall diagnosticRecovery notificationDownloadFiles checkingService; do
             grep -Fq "$marker" apk-js-bundle.txt
           done
           ! grep -Fq 'New version available!' apk-js-bundle.txt
@@ -194,12 +194,22 @@ jobs:
           name: ClipCascade-Extended-failure-reports-${{ github.sha }}
           path: |
             materialize.log
+            build/mobile/App.js
+            build/mobile/StartForegroundService.js
+            build/mobile/PendingShareStartPolicy.js
+            build/mobile/ServiceControlPolicy.js
             build/mobile/lint.log
             build/mobile/jest.log
             build/mobile/gradle-build.log
             build/mobile/gradle-repository-audit.txt
             build/mobile/android/app/build/reports/**
             build/mobile/android/build/reports/**
+            scripts/finalize_foreground_service_reliability.py
+            scripts/finalize_service_button_state.py
+            scripts/validate_canonical_source.py
+            scripts/validate_materialized_android.py
+            scripts/validate_service_and_p2p_controls.py
+            scripts/validate_final_scope.py
             apk-signature.txt
             apk-manifest.xml
             apk-zip-test.txt
