@@ -23,8 +23,8 @@ def main() -> None:
 
     replace_once(
         service,
-        "import { createP2SAckTracker } from './P2SAckTracker';",
-        """import { createP2SAckTracker } from './P2SAckTracker';
+        "import { createDurableOutboundQueue } from './DurableOutboundQueue';",
+        """import { createDurableOutboundQueue } from './DurableOutboundQueue';
 import { parseOutboundFileUris } from './OutboundFileUris';""",
         "outbound file URI parser import",
     )
