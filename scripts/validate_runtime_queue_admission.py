@@ -61,11 +61,7 @@ def main() -> None:
         "if (scopeMatches && (removedCount > 0 || normalized))",
         "same-scope-only normalization write",
     )
-    require(
-        queue,
-        "raw.scope !== scope",
-        "mismatched-scope clear guard",
-    )
+    require(queue, "raw.scope !== scope", "mismatched-scope clear guard")
     require(queue, "skipped: true", "non-destructive stale clear result")
     forbid(
         queue,
@@ -76,7 +72,12 @@ def main() -> None:
     require(service, "let runtimeAcceptingEvents = true", "runtime event-admission state")
     require(service, "const runtimeCanAcceptEvents = () =>", "runtime admission predicate")
     require(service, "const stopAcceptingRuntimeEvents = () =>", "runtime admission close operation")
-    require(service, "activeForegroundRuntimeId === runtimeId", "runtime identity admission guard")
+    require(
+        service,
+        "runtimeAcceptingEvents && runtimeLease?.isActive() === true",
+        "null-safe coordinated lease admission guard",
+    )
+    require(service, "foregroundRuntimeCoordinator.acquire(", "coordinated runtime identity")
     require(service, "runtimeCanAcceptEvents,", "queue admission predicate wiring")
     require(service, "if (enqueueResult.cancelled)", "cancelled enqueue handling")
     require(service, "ignored-after-runtime-stop", "post-stop event evidence")
@@ -111,7 +112,7 @@ def main() -> None:
     )
 
     print(
-        "runtime lease closes queue admission, persisted bounds are migrated, "
+        "coordinated runtime lease closes queue admission, persisted bounds are migrated, "
         "and stale scopes cannot erase active data: OK"
     )
 
