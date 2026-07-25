@@ -67,15 +67,29 @@ def main() -> None:
     pending_share_policy = read("overlay/PendingShareStartPolicy.js")
     for marker in (
         "PENDING_SHARE_START_RETRY_MS = 5_000",
+        "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
+        "FOREGROUND_START_GRACE_MS = 20_000",
+        "isForegroundRuntimeFresh",
+        "planPendingShareStart",
         "shouldStartPendingShare",
-        "payloadPending !== true",
-        "serviceRequested === true",
-        "elapsed < 0 || elapsed >= Number(retryMs)",
+        "serviceRequested === true && runtimeFresh",
+        "forceRestart ? 'stale-runtime' : 'runtime-stopped'",
+        "elapsed >= 0 && elapsed <= Number(maxAgeMs)",
     ):
         require(
             marker in pending_share_policy,
             f"canonical pending-share start marker missing: {marker}",
         )
+
+    service_policy = read("overlay/ServiceControlPolicy.js")
+    for marker in (
+        "FOREGROUND_STOP_TIMEOUT_MS = 10_000",
+        "resolveRequestedServiceState",
+        "forceRestart = false",
+        "forcedStart",
+        "elapsed < 0 || elapsed >= Number(timeoutMs)",
+    ):
+        require(marker in service_policy, f"canonical service-control marker missing: {marker}")
 
     inbound_policy = read("overlay/InboundErrorPolicy.js")
     for marker in (
@@ -126,9 +140,8 @@ def main() -> None:
         f"finalizer count grew to {finalizer_count}; maximum is {MAX_FINALIZERS}",
     )
 
-    # A previously rejected project must never become an input again. Keep its
-    # literal out of all user-facing documentation and compare only a digest here,
-    # so future handoffs cannot accidentally promote it by name.
+    # A permanently rejected input must never become a source again. Keep its
+    # literal out of user-facing documentation and compare only a digest here.
     excluded_literal = "GoodLight999/" + "Trash-ClipCascade"
     excluded_digest = hashlib.sha256(excluded_literal.encode("utf-8")).hexdigest()
     require(
@@ -158,7 +171,7 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        "canonical i18n, unified pending-share startup, migrated stop-safe UTF-8 queue, "
+        "canonical i18n, heartbeat-aware pending-share recovery, migrated stop-safe UTF-8 queue, "
         "bounded signaling and detached supervision complete, no excluded-project input, "
         f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
