@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Use persisted service state, pending-share policy, and bound UI stop waiting."""
+"""Use explicit service intents, pending-share policy, and bounded UI stop waiting."""
 from __future__ import annotations
 
 import argparse
@@ -28,9 +28,16 @@ import { shouldStartPendingShare } from './PendingShareStartPolicy';
 import {
   FOREGROUND_STOP_TIMEOUT_MS,
   hasForegroundStopTimedOut,
-  nextRequestedServiceState,
+  resolveRequestedServiceState,
 } from './ServiceControlPolicy';""",
         "service and pending-share policy imports",
+    )
+
+    replace_once(
+        app,
+        """  const foregroundService = async () => {""",
+        """  const foregroundService = async (desiredState = null) => {""",
+        "explicit foreground service intent",
     )
 
     replace_once(
@@ -40,8 +47,38 @@ import {
         """        const persistedWsIsRunning = await getDataFromAsyncStorage(
           'wsIsRunning',
         );
-        const wsIsRunning_s = nextRequestedServiceState(persistedWsIsRunning);""",
-        "persisted foreground service toggle",
+        const requested = resolveRequestedServiceState(
+          persistedWsIsRunning,
+          desiredState,
+        );
+        const wsIsRunning_s = requested.nextState;
+        if (requested.noOp) {
+          setWsIsRunning(requested.persistedState);
+          return;
+        }""",
+        "persisted explicit foreground service state",
+    )
+
+    replace_once(
+        app,
+        """        try {
+          await foregroundService();
+        } finally {
+          pendingShareStartInFlightRef.current = false;
+        }""",
+        """        try {
+          await foregroundService('true');
+        } finally {
+          pendingShareStartInFlightRef.current = false;
+        }""",
+        "idempotent pending-share start request",
+    )
+
+    replace_once(
+        app,
+        """            onPress={foregroundService}""",
+        """            onPress={() => foregroundService()}""",
+        "UI-only service toggle",
     )
 
     replace_once(
