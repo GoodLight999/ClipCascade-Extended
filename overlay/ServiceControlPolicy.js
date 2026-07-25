@@ -30,5 +30,6 @@ export function hasForegroundStopTimedOut(
   now,
   timeoutMs = FOREGROUND_STOP_TIMEOUT_MS,
 ) {
-  return Number(now) - Number(startedAt) >= Number(timeoutMs);
+  const elapsed = Number(now) - Number(startedAt);
+  return elapsed < 0 || elapsed >= Number(timeoutMs);
 }
