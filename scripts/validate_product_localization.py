@@ -105,9 +105,15 @@ def main() -> None:
     require(panel, "ADB_COMMANDS", "canonical two-command ADB fallback")
 
     # Shizuku must distinguish install/running/authorization states and must not
-    # be required after Android has retained the one-time grants.
+    # be required after Android has retained the one-time grants. Failure prose is
+    # localized through setupFailed; codes stay machine-readable and language-neutral.
     require(panel, "planShizukuSetup(status)", "Shizuku setup planner wiring")
     require(panel, "isShizukuSetupVerified(status)", "Shizuku grant verification")
+    require(panel, "formatSetupError(error, text)", "localized Shizuku failure wrapper")
+    require(panel, "SHIZUKU_PERMISSION_NOT_RETAINED", "permission failure code")
+    require(panel, "SHIZUKU_GRANTS_NOT_RETAINED", "grant verification failure code")
+    forbid(panel, "Shizuku permission was not retained", "English-only Shizuku failure")
+    forbid(panel, "Android did not retain the required grants", "English-only grant failure")
     require(shizuku_policy, "state: 'already-configured'", "post-setup independence")
     require(shizuku_policy, "state: 'not-running'", "stopped Shizuku classification")
     require(shizuku_policy, "state: 'permission-required'", "authorization classification")
