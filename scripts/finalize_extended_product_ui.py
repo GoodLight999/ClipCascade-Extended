@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Replace the inherited upstream presentation with ClipCascade Extended's product UI."""
+"""Generate ClipCascade Extended's final localized, readable product UI."""
 from __future__ import annotations
 
 import argparse
-import re
 from pathlib import Path
 
 
@@ -31,12 +30,39 @@ def main() -> None:
     path = root / "App.js"
     text = path.read_text(encoding="utf-8")
 
+    text = replace_once(text, "  Image,\n", "", "remove inherited Image import")
     text = replace_once(text, "  Linking,\n", "", "remove inherited Linking import")
     text = replace_once(
         text,
         "  StatusBar,\n} from 'react-native';",
-        "  StatusBar,\n  PlatformColor,\n} from 'react-native';",
-        "PlatformColor import",
+        "  StatusBar,\n  PlatformColor,\n  useColorScheme,\n} from 'react-native';",
+        "adaptive color imports",
+    )
+    text = replace_once(
+        text,
+        "  getMultipleDataFromAsyncStorage,\n  clearAsyncStorage,\n",
+        "",
+        "remove unused inherited storage imports",
+    )
+    text = replace_once(
+        text,
+        """  // Request permissions for notifications
+  PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+
+""",
+        "",
+        "remove render-time notification permission request",
+    )
+    text = replace_once(
+        text,
+        """      try {
+        // enable websocket button""",
+        """      try {
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        );
+        // enable websocket button""",
+        "one-shot notification permission request",
     )
     text = replace_once(
         text,
@@ -47,7 +73,7 @@ import { getExtendedStrings, localizeRuntimeMessage } from './ExtendedI18n';""",
         "Extended UI imports",
     )
 
-    # Remove the earlier partial setup dictionary. The complete dictionary now lives in ExtendedI18n.js.
+    # Remove the earlier partial setup dictionary. The complete dictionary lives in ExtendedI18n.js.
     setup_start = text.find("const EXTENDED_SETUP_TEXT = (() => {")
     if setup_start >= 0:
         setup_end = text.find("})();", setup_start)
@@ -61,8 +87,9 @@ import { getExtendedStrings, localizeRuntimeMessage } from './ExtendedI18n';""",
         """const EXTENDED_TEXT = getExtendedStrings();
 
 // Main App
-export default function App() {""",
-        "Extended localization constant",
+export default function App() {
+  const extendedColorScheme = useColorScheme();""",
+        "Extended localization and color-scheme hook",
     )
 
     for obsolete in (
@@ -124,7 +151,7 @@ export default function App() {""",
       <SafeAreaView style={styles.screen}>
         <View style={styles.centered}>
           <Text style={styles.appTitle}>{APP_NAME}</Text>
-          <Text style={styles.subtitle}>{EXTENDED_TEXT.appSubtitle}</Text>
+          <Text style={styles.subtitle}>{EXTENDED_TEXT.appSubtitle} · {APP_VERSION}</Text>
           <Text selectable style={styles.errorText}>
             {EXTENDED_TEXT.initError}: {String(initError[1])}
           </Text>
@@ -136,13 +163,13 @@ export default function App() {""",
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar
-        backgroundColor={PlatformColor('?android:attr/colorBackground')}
-        barStyle="default"
+        backgroundColor={extendedColorScheme === 'dark' ? '#121212' : '#ffffff'}
+        barStyle={extendedColorScheme === 'dark' ? 'light-content' : 'dark-content'}
       />
       {enableLoadingPage && (
         <View style={styles.centered}>
           <Text style={styles.appTitle}>{APP_NAME}</Text>
-          <Text style={styles.subtitle}>{EXTENDED_TEXT.appSubtitle}</Text>
+          <Text style={styles.subtitle}>{EXTENDED_TEXT.appSubtitle} · {APP_VERSION}</Text>
           <ActivityIndicator size="large" />
           <Text style={styles.statusText}>
             {localizeRuntimeMessage(loadingPageMessage, EXTENDED_TEXT)}
@@ -156,7 +183,7 @@ export default function App() {""",
           keyboardShouldPersistTaps="handled"
         >
           <Text style={styles.appTitle}>{APP_NAME}</Text>
-          <Text style={styles.subtitle}>{EXTENDED_TEXT.appSubtitle}</Text>
+          <Text style={styles.subtitle}>{EXTENDED_TEXT.appSubtitle} · {APP_VERSION}</Text>
           {fieldRow(EXTENDED_TEXT.username, 'username')}
           {fieldRow(EXTENDED_TEXT.password, 'password')}
           {fieldRow(EXTENDED_TEXT.serverUrl, 'server_url', { trim: true })}
@@ -203,7 +230,7 @@ export default function App() {""",
       {enableWSPage && (
         <ScrollView contentContainerStyle={styles.container}>
           <Text style={styles.appTitle}>{APP_NAME}</Text>
-          <Text style={styles.subtitle}>{EXTENDED_TEXT.appSubtitle}</Text>
+          <Text style={styles.subtitle}>{EXTENDED_TEXT.appSubtitle} · {APP_VERSION}</Text>
 
           <TouchableOpacity
             style={wsIsRunning === 'true' ? styles.stopButton : styles.primaryButton}
@@ -298,9 +325,9 @@ const styles = StyleSheet.create({
   },
   input: {
     color: PlatformColor('?android:attr/textColorPrimary'),
-    backgroundColor: PlatformColor('?android:attr/editTextBackground'),
+    backgroundColor: PlatformColor('?android:attr/colorBackgroundFloating'),
     borderWidth: 1,
-    borderColor: PlatformColor('?android:attr/listDivider'),
+    borderColor: PlatformColor('?android:attr/textColorSecondary'),
     paddingHorizontal: 10,
     paddingVertical: 9,
     borderRadius: 8,
@@ -311,7 +338,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: PlatformColor('?android:attr/colorBackgroundFloating'),
     borderWidth: 1,
-    borderColor: PlatformColor('?android:attr/listDivider'),
+    borderColor: PlatformColor('?android:attr/textColorSecondary'),
   },
   cardTitle: {
     color: PlatformColor('?android:attr/textColorPrimary'),
@@ -378,9 +405,12 @@ const styles = StyleSheet.create({
         "raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/metadata.json",
         "adb -d shell am force-stop",
         "EXTENDED_SETUP_TEXT",
+        "PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);",
+        "PlatformColor('?android:attr/editTextBackground')",
+        "PlatformColor('?android:attr/listDivider')",
     ):
         if forbidden in text:
-            raise RuntimeError(f"inherited UI residue remained: {forbidden}")
+            raise RuntimeError(f"inherited or unsafe UI residue remained: {forbidden}")
 
     path.write_text(text, encoding="utf-8")
 
