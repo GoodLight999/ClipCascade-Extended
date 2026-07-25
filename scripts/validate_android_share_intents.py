@@ -47,10 +47,21 @@ def main() -> None:
         "PendingReactEventStore.emitOrQueue",
         "durable share event fallback",
     )
+    require(
+        activity,
+        '"Shared payload staged: event=$eventName;count=${staged.size}"',
+        "non-sensitive staged-payload CI evidence",
+    )
+    require(
+        activity,
+        '"Native event accepted: event=$eventName;delivered=$delivered;pending=${',
+        "non-sensitive native-event CI evidence",
+    )
     forbid(activity, 'intent.type == "text/plain"', "text/plain-only share restriction")
     forbid(activity, "getStringExtra(Intent.EXTRA_TEXT)", "String-only text share")
     forbid(activity, "reactInstanceManager.currentReactContext", "Activity delegate React host race")
     forbid(activity, '"ClipCascade Extended could not prepare the shared file."', "hard-coded English Toast")
+    forbid(activity, "Log.i(TAG, value", "shared content written to logcat")
 
     for directory in ("values", "values-ja", "values-zh-rCN"):
         strings = (android / f"res/{directory}/clipcascade_extended_strings.xml").read_text(
@@ -62,7 +73,7 @@ def main() -> None:
             f"localized share failure in {directory}",
         )
 
-    print("Android Share intent coverage and localization: OK")
+    print("Android Share intent coverage, evidence, and localization: OK")
 
 
 if __name__ == "__main__":
