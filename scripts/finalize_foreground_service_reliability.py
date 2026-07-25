@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make foreground runtime ownership deterministic and auto-start pending shares."""
+"""Make foreground runtime ownership deterministic and recover pending shares."""
 from __future__ import annotations
 
 import argparse
@@ -54,7 +54,7 @@ def insert_array_items(
         raise RuntimeError(f"{label}: array terminator not found")
     block = text[start:end]
     for item in items:
-        if item in block:
+        if f"'{item}'" in block:
             raise RuntimeError(f"{label}: duplicate item already present: {item}")
     closing_line_start = text.rfind("\n", start, end) + 1
     indentation = text[closing_line_start:end]
@@ -305,17 +305,29 @@ module.exports = async (inputData = null) => {""",
         """  const isMountedRef = useRef(true);
   const sessionReadyRef = useRef(false);
   const pendingShareStartInFlightRef = useRef(false);
-  const pendingShareLastAttemptAtRef = useRef(null);
+  const pendingShareLastAttemptAtRef = useRef(null);""",
+        "pending-share runtime refs",
+    )
+    insert_after_once(
+        app,
+        """  const [enableWSPage, setEnableWSPage] = useState(false);""",
+        """
 
   useEffect(() => {
     sessionReadyRef.current = enableWSPage;
   }, [enableWSPage]);""",
-        "pending-share runtime refs and session synchronization",
+        "session-ready synchronization after state declaration",
     )
     insert_array_items(
         app,
         "const POLL_KEYS = [",
-        ("shared_payload_pending", "enableWSButton"),
+        (
+            "shared_payload_pending",
+            "enableWSButton",
+            "foreground_service_state",
+            "foreground_service_heartbeat_at",
+            "foreground_service_last_started_at",
+        ),
         "pending-share polling fields",
     )
     insert_after_once(
@@ -323,30 +335,32 @@ module.exports = async (inputData = null) => {""",
         "      const latest = JSON.parse(json);",
         """
       const pendingShareNow = Date.now();
-      if (
-        shouldStartPendingShare({
-          sessionReady: sessionReadyRef.current,
-          payloadPending: latest.shared_payload_pending === 'true',
-          serviceRequested: latest.wsIsRunning === 'true',
-          buttonEnabled: latest.enableWSButton !== 'false',
-          startInFlight: pendingShareStartInFlightRef.current,
-          lastAttemptAt: pendingShareLastAttemptAtRef.current,
-          now: pendingShareNow,
-        })
-      ) {
+      const pendingSharePlan = planPendingShareStart({
+        sessionReady: sessionReadyRef.current,
+        payloadPending: latest.shared_payload_pending === 'true',
+        serviceRequested: latest.wsIsRunning === 'true',
+        serviceState: latest.foreground_service_state,
+        heartbeatAt: latest.foreground_service_heartbeat_at,
+        lastStartedAt: latest.foreground_service_last_started_at,
+        buttonEnabled: latest.enableWSButton !== 'false',
+        startInFlight: pendingShareStartInFlightRef.current,
+        lastAttemptAt: pendingShareLastAttemptAtRef.current,
+        now: pendingShareNow,
+      });
+      if (pendingSharePlan.start) {
         pendingShareStartInFlightRef.current = true;
         pendingShareLastAttemptAtRef.current = pendingShareNow;
         await setDataInAsyncStorage(
           'shared_payload_status',
-          'service-start-requested-from-active-ui',
+          `service-start-requested:${pendingSharePlan.reason}`,
         );
         try {
-          await foregroundService();
+          await foregroundService('true', pendingSharePlan.forceRestart);
         } finally {
           pendingShareStartInFlightRef.current = false;
         }
       }""",
-        "unified pending-share runtime start",
+        "unified heartbeat-aware pending-share runtime start",
     )
 
 
