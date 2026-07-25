@@ -61,8 +61,21 @@ module.exports = async (inputData = null) => {""",
           .then(async () => {
             const runtimeId = `runtime-${Date.now()}-${Math.random()}`;
             let runtimeAcceptingEvents = true;
+            const runtimeCanAcceptEvents = () =>
+              runtimeAcceptingEvents && runtimeLease?.isActive() === true;
             const stopAcceptingRuntimeEvents = () => {
               runtimeAcceptingEvents = false;
+            };
+            const finishForegroundRuntime = async state => {
+              stopAcceptingRuntimeEvents();
+              if (!runtimeLease?.isActive()) {
+                resolve();
+                return;
+              }
+              await setDataInAsyncStorage('foreground_service_state', state);
+              await setDataInAsyncStorage('foreground_service_instance_id', '');
+              runtimeLease.finish();
+              resolve();
             };
             runtimeLease = foregroundRuntimeCoordinator.acquire(
               runtimeId,
@@ -87,19 +100,6 @@ module.exports = async (inputData = null) => {""",
               resolve();
               return;
             }
-            const runtimeCanAcceptEvents = () =>
-              runtimeAcceptingEvents && runtimeLease.isActive();
-            const finishForegroundRuntime = async state => {
-              stopAcceptingRuntimeEvents();
-              if (!runtimeLease?.isActive()) {
-                resolve();
-                return;
-              }
-              await setDataInAsyncStorage('foreground_service_state', state);
-              await setDataInAsyncStorage('foreground_service_instance_id', '');
-              runtimeLease.finish();
-              resolve();
-            };
             try {
               await setDataInAsyncStorage('foreground_service_instance_id', runtimeId);
               await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
