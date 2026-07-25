@@ -82,7 +82,11 @@ def main() -> None:
     # initialization, immediately after login, or while the websocket screen was
     # already open. One persisted watcher owns all three cases.
     require(app, "import { shouldStartPendingShare }", "pending-share policy import")
-    require(app, "sessionReadyRef.current = true", "session-ready share gate")
+    require(
+        app,
+        "sessionReadyRef.current = enableWSPage;",
+        "websocket-screen-derived share readiness",
+    )
     require(app, "shared_payload_pending", "persisted pending-share polling")
     require(app, "pendingShareStartInFlightRef", "share-start concurrency guard")
     require(app, "pendingShareLastAttemptAtRef", "share-start retry throttle")
