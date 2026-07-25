@@ -81,10 +81,10 @@ def apply(root: Path) -> None:
     text = replace_once(
         text,
         """          stopServicesP2S = async () => {
-            p2sAckTracker.cancel();""",
+            // 1) Stop clipboard listening""",
         """          stopServicesP2S = async () => {
             stopAcceptingRuntimeEvents();
-            p2sAckTracker.cancel();""",
+            // 1) Stop clipboard listening""",
         "close P2S event admission before queue handling",
     )
     text = replace_once(
