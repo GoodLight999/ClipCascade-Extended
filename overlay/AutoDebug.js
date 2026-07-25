@@ -149,8 +149,11 @@ export function analyzeDiagnostics(
   const peerOperationError = String(status.p2pLastPeerOperationError || '');
   const signalingError = String(status.p2pLastSignalingError || '');
   const incompatiblePeers = Number(status.p2pIncompatiblePeers || 0);
-  const p2pLevel =
-    peerSetupError || peerOperationError || signalingError
+  const p2sInboundCode = String(status.p2sLastInboundErrorCode || '');
+  const p2sInboundCount = Number(status.p2sLastInboundErrorCount || 0);
+  const p2sInboundDetail = String(status.p2sLastInboundErrorDetail || '');
+  const transportLevel =
+    peerSetupError || peerOperationError || signalingError || p2sInboundCode
       ? 'FAIL'
       : incompatiblePeers > 0
         ? 'WARN'
@@ -158,14 +161,16 @@ export function analyzeDiagnostics(
   checks.push(
     check(
       'p2p-compatibility',
-      p2pLevel,
+      transportLevel,
       `compatible=${status.p2pCompatiblePeers || 0}; incompatible=${
         status.p2pIncompatiblePeers || 0
       }; candidates=${status.p2pCandidatePeers || 0}; signalingError=${
         signalingError || 'none'
       }; setupError=${peerSetupError || 'none'}; operationError=${
         peerOperationError || 'none'
-      }`,
+      }; p2sInboundCode=${p2sInboundCode || 'none'}; p2sInboundCount=${
+        p2sInboundCount
+      }; p2sInboundDetail=${p2sInboundDetail || 'none'}`,
     ),
   );
 
@@ -214,7 +219,7 @@ const DEFAULT_REPORT_TEXT = {
   diagnosticSingleton: 'Foreground runtime singleton',
   diagnosticRecovery: 'Visible-capture runtime recovery',
   diagnosticSharedPayload: 'Android Share / staged payload',
-  diagnosticP2P: 'P2P compatibility',
+  diagnosticP2P: 'P2P / P2S transport compatibility',
   diagnosticClipboardProbe: 'Foreground clipboard probe',
 };
 
