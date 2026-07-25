@@ -12,6 +12,10 @@ function normalizeStatus(input) {
  * Pure, unit-testable setup planner. Shizuku is only a one-time privilege
  * bootstrapper; once READ_LOGS and overlay app-ops are retained, runtime must
  * remain independent from the Shizuku process.
+ *
+ * An installed-but-not-yet-observed Binder is deliberately allowed to enter
+ * requestPermission. The native layer has a bounded sticky-Binder wait and can
+ * distinguish a startup race from a genuinely stopped Shizuku service.
  */
 export function planShizukuSetup(statusInput) {
   const status = normalizeStatus(statusInput);
@@ -34,9 +38,9 @@ export function planShizukuSetup(statusInput) {
   }
   if (status.running !== true) {
     return {
-      state: 'not-running',
-      requestPermission: false,
-      applySetup: false,
+      state: 'binder-pending',
+      requestPermission: true,
+      applySetup: true,
     };
   }
   if (status.permissionGranted !== true) {
