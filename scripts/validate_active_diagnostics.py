@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require active event, heartbeat, detached-error and recovery diagnostics."""
+"""Require active, localized, non-secret automatic diagnostics."""
 from __future__ import annotations
 
 import argparse
@@ -9,6 +9,11 @@ from pathlib import Path
 def require(text: str, needle: str, label: str) -> None:
     if needle not in text:
         raise RuntimeError(f"missing {label}: {needle!r}")
+
+
+def forbid(text: str, needle: str, label: str) -> None:
+    if needle in text:
+        raise RuntimeError(f"forbidden {label}: {needle!r}")
 
 
 def main() -> None:
@@ -34,11 +39,13 @@ def main() -> None:
     require(panel, "probe.eventBridge = eventBridge", "active event result in report")
     require(panel, "formatDiagnosticsReport(report, text)", "localized report dictionary")
     require(panel, "foregroundServiceRecoveryStatus", "recovery state in self-test")
+    require(panel, "p2sLastInboundErrorCode", "P2S incident in self-test")
     require(analyzer, "native-react-event-bridge", "active event verdict")
     require(analyzer, "heartbeatAgeMs", "heartbeat freshness verdict")
     require(analyzer, "foregroundServiceDetachedError", "detached callback verdict")
     require(analyzer, "foreground-runtime-singleton", "foreground runtime singleton verdict")
     require(analyzer, "foreground-recovery", "visible recovery verdict")
+    require(analyzer, "p2sInboundCount", "coalesced P2S incident verdict")
     require(analyzer, "CHECK_LABEL_KEYS", "localized diagnostic check mapping")
     require(analyzer, "diagnosticsRawStatus", "localized raw-status heading")
     require(analyzer, "diagnosticsNativeProbe", "localized native-probe heading")
@@ -60,17 +67,34 @@ def main() -> None:
     require(foreground, "activeForegroundRuntimeId", "single foreground runtime lease")
     require(foreground, "duplicate-runtime-suppressed", "duplicate runtime suppression")
     require(foreground, "finishForegroundRuntime", "runtime lease release")
+    require(foreground, "p2s_last_inbound_error_count", "P2S incident occurrence count")
     require(native_bridge, "foregroundServiceHeartbeatAt", "heartbeat status bridge")
     require(native_bridge, "foregroundServiceDetachedError", "detached error status bridge")
     require(native_bridge, "foregroundServiceDetachedErrorAt", "detached error time bridge")
     require(native_bridge, "foregroundServiceInstanceId", "runtime instance status bridge")
     require(native_bridge, "foregroundServiceDuplicateSuppressedAt", "duplicate status bridge")
     require(native_bridge, "foregroundServiceRecoveryStatus", "recovery status bridge")
+    require(native_bridge, "p2sLastInboundErrorCode", "P2S status bridge")
     require(native_debug, '"foreground_service_heartbeat_at"', "heartbeat raw snapshot")
     require(native_debug, '"foreground_service_instance_id"', "runtime lease raw snapshot")
     require(native_debug, '"foreground_service_recovery_status"', "recovery raw snapshot")
+    require(native_debug, '"p2s_last_inbound_error_code"', "P2S incident raw snapshot")
     require(native_debug, 'put("uriCount", uriCount)', "clipboard URI visibility")
+    require(native_debug, 'put("packageName", app.packageName)', "diagnostic package identity")
+    require(native_debug, 'put("versionName", BuildConfig.VERSION_NAME)', "diagnostic version identity")
     require(panel, "Clipboard.setString(dialog.copy)", "one-tap full report copy")
+
+    # One-tap reports are intended for issue sharing. Credentials and server
+    # endpoints must never be copied into them.
+    for secret in (
+        '"password"',
+        '"hashed_password"',
+        '"server_url"',
+        '"websocket_url"',
+        '"username"',
+        '"salt"',
+    ):
+        forbid(native_debug, secret, f"diagnostic secret key {secret}")
 
     require(recovery, 'EVENT = "com.clipcascade.CAPTURE_RECOVERY"', "capture recovery event")
     require(recovery, 'bridge.getValue("wsIsRunning") != "true"', "requested-runtime guard")
@@ -81,7 +105,7 @@ def main() -> None:
     require(headless, "restartFromVisibleCapture", "Headless capture recovery")
     require(headless, "foreground-start-requested", "Headless recovery evidence")
 
-    print("active localized automatic diagnostics, detached failures and visible recovery: OK")
+    print("active localized non-secret diagnostics and visible recovery: OK")
 
 
 if __name__ == "__main__":
