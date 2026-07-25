@@ -137,6 +137,7 @@ class MainActivity : ReactActivity() {
                 setValue("shared_payload_pending", "false")
                 setValue("shared_payload_status", "unsupported-share:${intent.action}:${intent.type}")
             }
+            Log.w(TAG, "Unsupported shared payload: action=${intent.action};type=${intent.type}")
         }
 
         if (intent.action == "com.clipcascade.NOTIFICATION_ACTION" &&
@@ -169,6 +170,10 @@ class MainActivity : ReactActivity() {
                         "shared_payload_status",
                         "staged:${staged.size}"
                     )
+                    Log.i(
+                        TAG,
+                        "Shared payload staged: event=$eventName;count=${staged.size}"
+                    )
                     dispatch(eventName, key, value)
                 }.onFailure { error ->
                     val outcome = "staging-error:${error.javaClass.simpleName}:${error.message}"
@@ -190,11 +195,17 @@ class MainActivity : ReactActivity() {
     }
 
     private fun dispatch(eventName: String, key: String, value: String) {
-        PendingReactEventStore.emitOrQueue(
+        val delivered = PendingReactEventStore.emitOrQueue(
             applicationContext,
             applicationReactInstanceManager()?.currentReactContext,
             eventName,
             mapOf(key to value)
+        )
+        Log.i(
+            TAG,
+            "Native event accepted: event=$eventName;delivered=$delivered;pending=${
+                PendingReactEventStore.pendingCount(applicationContext)
+            }"
         )
     }
 
