@@ -36,7 +36,10 @@ import {
     replace_once(
         app,
         """  const onDisplayNotification = async () => {""",
-        """  const onDisplayNotification = async (forceRestart = false) => {""",
+        """  const onDisplayNotification = async (
+    forceRestart = false,
+    restartReason = 'manual-start',
+  ) => {""",
         "coordinated notification start API",
     )
     replace_once(
@@ -49,16 +52,51 @@ import {
 
       // start foreground service
       const result = await StartForegroundService();""",
-        """      // A forced restart is serialized inside StartForegroundService so the
-      // old JavaScript runtime releases listeners and transports before the new
-      // foreground notification can create a replacement callback.
-      if (!forceRestart) {
-        await notifee.cancelAllNotifications();
-        await notifee.stopForegroundService();
-      }
+        """      // StartForegroundService serializes the transition and waits until
+      // the Notifee callback owns a live runtime lease.
+      const result = await StartForegroundService({
+        forceRestart,
+        restartReason,
+      });""",
+        "coordinated foreground start handoff",
+    )
 
-      const result = await StartForegroundService({ forceRestart });""",
-        "coordinated stop-before-start handoff",
+    replace_once(
+        app,
+        """        // start polling UI flags
+        isMountedRef.current = true;
+        pollUIFlags();""",
+        """        // start polling UI flags with observable failure evidence
+        isMountedRef.current = true;
+        pollUIFlags().catch(error => {
+          setInItError([true, String(error?.stack || error)]);
+        });""",
+        "supervised UI polling",
+    )
+
+    replace_once(
+        app,
+        """            setEnableWSPage(true);
+            setDataInAsyncStorage('wsIsRunning', 'false');
+            // start foreground service (work manager notification click handler)
+            if (
+              foregroundServiceStoppedRunning &&
+              foregroundServiceStoppedRunning === 'true'
+            ) {
+              foregroundService();
+            }""",
+        """            setEnableWSPage(true);
+            await setDataInAsyncStorage('wsIsRunning', 'false');
+            // A recovered WorkManager request is an explicit start, never a
+            // toggle based on stale persisted state.
+            if (foregroundServiceStoppedRunning === 'true') {
+              await foregroundService(
+                'true',
+                true,
+                'work-manager-recovery',
+              );
+            }""",
+        "explicit WorkManager recovery",
     )
 
     replace_once(
@@ -70,6 +108,7 @@ import {
         """  const foregroundService = async (
     desiredState = null,
     forceRestart = false,
+    restartReason = null,
   ) => {
     let controlLockAcquired = false;
     try {
@@ -77,6 +116,18 @@ import {
       await setDataInAsyncStorage('enableWSButton', 'false');
       controlLockAcquired = true;""",
         "explicit foreground service intent and owned lock acquisition",
+    )
+
+    replace_once(
+        app,
+        """        setWsPageMessage('');
+        setWsPageP2PMessage('');
+        await clearFiles();
+        const wsIsRunning = await getDataFromAsyncStorage('wsIsRunning');""",
+        """        setWsPageMessage('');
+        setWsPageP2PMessage('');
+        const wsIsRunning = await getDataFromAsyncStorage('wsIsRunning');""",
+        "delay clearFiles until requested state is known",
     )
 
     replace_once(
@@ -95,6 +146,9 @@ import {
         if (requested.noOp) {
           setWsIsRunning(requested.persistedState);
           return;
+        }
+        if (desiredState == null) {
+          await clearFiles();
         }""",
         "persisted explicit foreground service state",
     )
@@ -102,8 +156,12 @@ import {
     replace_once(
         app,
         """          await onDisplayNotification();""",
-        """          await onDisplayNotification(requested.forcedStart);""",
-        "forward forced restart to runtime coordinator",
+        """          await onDisplayNotification(
+            requested.forcedStart,
+            restartReason ||
+              (requested.forcedStart ? 'stale-runtime' : 'manual-start'),
+          );""",
+        "forward restart intent to runtime coordinator",
     )
 
     replace_once(
