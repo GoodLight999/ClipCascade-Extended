@@ -27,8 +27,11 @@ def main() -> None:
     apply_overlay = read("scripts/apply_overlay.py")
     require("NotificationCaptureService" not in apply_overlay, "OTP service reintroduced")
     require("OtpExtractor" not in apply_overlay, "OTP extractor reintroduced")
-    require("versionCode 320005" in apply_overlay, "canonical versionCode is not extended.5")
-    require("APP_VERSION = '3.2.0-extended.5'" in apply_overlay, "canonical version is not extended.5")
+    require('VERSION_CODE = "320005"' in apply_overlay, "canonical versionCode is not extended.5")
+    require(
+        'VERSION_NAME = "3.2.0-extended.5"' in apply_overlay,
+        "canonical versionName is not extended.5",
+    )
 
     i18n = read("overlay/ExtendedI18n.js")
     for locale in ("ja:", "zh:", "en:"):
