@@ -1,6 +1,7 @@
 import {
   FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS,
   createForegroundRuntimeCoordinator,
+  shouldPreserveOutboundQueue,
 } from '../ForegroundRuntimeCoordinator';
 
 function deferred() {
@@ -96,5 +97,13 @@ describe('foreground runtime coordinator', () => {
       error: 'foreground-runtime-stop-timeout',
     });
     expect(coordinator.activeRuntimeId()).toBe('runtime-1');
+  });
+
+  test('only an explicit manual stop discards durable outbound work', () => {
+    expect(shouldPreserveOutboundQueue('manual')).toBe(false);
+    expect(shouldPreserveOutboundQueue(null)).toBe(false);
+    expect(shouldPreserveOutboundQueue('forced-share-recovery')).toBe(true);
+    expect(shouldPreserveOutboundQueue('capture-recovery')).toBe(true);
+    expect(shouldPreserveOutboundQueue('runtime-failure')).toBe(true);
   });
 });
