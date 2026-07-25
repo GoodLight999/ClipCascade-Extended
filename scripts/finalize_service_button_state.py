@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Use persisted service state and bound UI stop waiting."""
+"""Use persisted service state, pending-share policy, and bound UI stop waiting."""
 from __future__ import annotations
 
 import argparse
@@ -24,12 +24,13 @@ def main() -> None:
         app,
         "import { getExtendedStrings, localizeRuntimeMessage } from './ExtendedI18n';",
         """import { getExtendedStrings, localizeRuntimeMessage } from './ExtendedI18n';
+import { shouldStartPendingShare } from './PendingShareStartPolicy';
 import {
   FOREGROUND_STOP_TIMEOUT_MS,
   hasForegroundStopTimedOut,
   nextRequestedServiceState,
 } from './ServiceControlPolicy';""",
-        "service control policy imports",
+        "service and pending-share policy imports",
     )
 
     replace_once(
