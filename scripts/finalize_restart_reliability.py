@@ -62,7 +62,7 @@ def main() -> None:
         'foreground_service_recovery_status',
         `headless-running:${event}`,
       );
-      const result = await StartForegroundService();
+      const result = await StartForegroundService({ forceRestart: true });
       if (result[0] === false) {
         throw result[1];
       }
@@ -71,7 +71,7 @@ def main() -> None:
         `foreground-start-requested:${event}`,
       );
     }''',
-        "boot/update/capture headless restart events",
+        "boot/update/capture coordinated headless restart events",
     )
 
     replace_once(
