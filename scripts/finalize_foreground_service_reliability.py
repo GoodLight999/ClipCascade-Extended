@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Make foreground-service registration idempotent and auto-start pending shares."""
+"""Make foreground runtime ownership deterministic and auto-start pending shares."""
 from __future__ import annotations
 
 import argparse
@@ -262,53 +262,81 @@ module.exports = async (inputData = null) => {""",
     app = root / "App.js"
     replace_once(
         app,
-        """            // start foreground service (work manager notification click handler)
-            if (
-              foregroundServiceStoppedRunning &&
-              foregroundServiceStoppedRunning === 'true'
-            ) {
-              foregroundService();
-            }""",
-        """            const sharedPayloadPending = await getDataFromAsyncStorage(
-              'shared_payload_pending',
-            );
-            if (sharedPayloadPending === 'true') {
-              wsIsRunning_s = 'true';
-              await setDataInAsyncStorage('wsIsRunning', 'true');
-              await setDataInAsyncStorage('wsForegroundServiceTerminated', 'false');
-              setWsIsRunning('true');
-              await onDisplayNotification();
-              await setDataInAsyncStorage('shared_payload_status', 'service-started-for-share');
-            } else if (
-              foregroundServiceStoppedRunning &&
-              foregroundServiceStoppedRunning === 'true'
-            ) {
-              foregroundService();
-            }""",
-        "auto-start service for share on restored session",
+        """  const isMountedRef = useRef(true);""",
+        """  const isMountedRef = useRef(true);
+  const sessionReadyRef = useRef(false);
+  const pendingShareStartInFlightRef = useRef(false);
+  const pendingShareLastAttemptAtRef = useRef(null);""",
+        "pending-share runtime refs",
+    )
+    replace_exact(
+        app,
+        """          setEnableWSPage(true);""",
+        """          sessionReadyRef.current = true;
+          setEnableWSPage(true);""",
+        3,
+        "session-ready websocket navigation",
     )
     replace_once(
         app,
-        """        // Save data_s in data state hook
-        setData(data_s);
+        """      setEnableWSPage(false);""",
+        """      sessionReadyRef.current = false;
+      setEnableWSPage(false);""",
+        "logout session-ready reset",
+    )
+    replace_once(
+        app,
+        """      const POLL_KEYS = [
+        'wsIsRunning',
+        'wsStatusMessage',
+        'server_mode',
+        'p2pStatusMessage',
+        'filesAvailableToDownload',
+      ];""",
+        """      const POLL_KEYS = [
+        'wsIsRunning',
+        'wsStatusMessage',
+        'server_mode',
+        'p2pStatusMessage',
+        'filesAvailableToDownload',
+        'shared_payload_pending',
+        'enableWSButton',
+      ];""",
+        "pending-share polling fields",
+    )
+    replace_once(
+        app,
+        """      const latest = JSON.parse(json);
 
-        // Navigation to the websocket screen""",
-        """        // Save data_s in data state hook
-        setData(data_s);
-
-        const sharedPayloadPending = await getDataFromAsyncStorage(
-          'shared_payload_pending',
+      if (latest.wsIsRunning === 'true') {""",
+        """      const latest = JSON.parse(json);
+      const pendingShareNow = Date.now();
+      if (
+        shouldStartPendingShare({
+          sessionReady: sessionReadyRef.current,
+          payloadPending: latest.shared_payload_pending === 'true',
+          serviceRequested: latest.wsIsRunning === 'true',
+          buttonEnabled: latest.enableWSButton !== 'false',
+          startInFlight: pendingShareStartInFlightRef.current,
+          lastAttemptAt: pendingShareLastAttemptAtRef.current,
+          now: pendingShareNow,
+        })
+      ) {
+        pendingShareStartInFlightRef.current = true;
+        pendingShareLastAttemptAtRef.current = pendingShareNow;
+        await setDataInAsyncStorage(
+          'shared_payload_status',
+          'service-start-requested-from-active-ui',
         );
-        if (sharedPayloadPending === 'true') {
-          await setDataInAsyncStorage('wsIsRunning', 'true');
-          await setDataInAsyncStorage('wsForegroundServiceTerminated', 'false');
-          setWsIsRunning('true');
-          await onDisplayNotification();
-          await setDataInAsyncStorage('shared_payload_status', 'service-started-after-login');
+        try {
+          await foregroundService();
+        } finally {
+          pendingShareStartInFlightRef.current = false;
         }
+      }
 
-        // Navigation to the websocket screen""",
-        "auto-start service for share after login",
+      if (latest.wsIsRunning === 'true') {""",
+        "unified pending-share runtime start",
     )
 
 
