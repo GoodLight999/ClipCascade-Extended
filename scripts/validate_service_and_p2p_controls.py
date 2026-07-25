@@ -25,12 +25,18 @@ def main() -> None:
     policy = (root / "ServiceControlPolicy.js").read_text(encoding="utf-8")
     detached_supervisor = (root / "DetachedTaskSupervisor.js").read_text(encoding="utf-8")
 
-    require(app, "nextRequestedServiceState(persistedWsIsRunning)", "persisted service toggle")
+    require(app, "resolveRequestedServiceState(", "persisted explicit service intent")
+    require(app, "const foregroundService = async (desiredState = null)", "explicit service API")
+    require(app, "await foregroundService('true');", "idempotent automatic start")
+    require(app, "onPress={() => foregroundService()}", "UI-only service toggle")
+    require(app, "requested.noOp", "already-satisfied service intent guard")
     require(app, "hasForegroundStopTimedOut", "bounded stop policy")
     require(app, "stop-timeout", "truthful stop timeout state")
     require(app, "FOREGROUND_STOP_TIMEOUT_MS", "explicit stop timeout")
     forbid(app, "wsIsRunning === 'true' ? 'false' : 'true'", "stale React-state toggle")
     require(policy, "FOREGROUND_STOP_TIMEOUT_MS = 10_000", "10 second stop bound")
+    require(policy, "resolveRequestedServiceState", "explicit service-state resolver")
+    require(policy, "persistedState === desiredState", "idempotent desired-state check")
 
     require(service, "activeClipboardSubscriptions", "owned clipboard subscription registry")
     require(service, "trackClipboardSubscription", "owned subscription registration")
@@ -183,7 +189,7 @@ def main() -> None:
     forbid(service, "localKeyFingerprint", "local password-derived verifier")
 
     print(
-        "service state, owned listeners, runtime-scoped host callbacks and secret-free P2P controls: OK"
+        "explicit service intents, owned listeners, runtime-scoped host callbacks and secret-free P2P controls: OK"
     )
 
 
