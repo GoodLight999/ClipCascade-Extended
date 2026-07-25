@@ -275,22 +275,10 @@ module.exports = async (inputData = null) => {""",
     )
     replace_once(
         app,
-        """      const POLL_KEYS = [
-        'wsIsRunning',
-        'wsStatusMessage',
-        'server_mode',
-        'p2pStatusMessage',
-        'filesAvailableToDownload',
-      ];""",
-        """      const POLL_KEYS = [
-        'wsIsRunning',
-        'wsStatusMessage',
-        'server_mode',
-        'p2pStatusMessage',
-        'filesAvailableToDownload',
+        """        'filesAvailableToDownload',""",
+        """        'filesAvailableToDownload',
         'shared_payload_pending',
-        'enableWSButton',
-      ];""",
+        'enableWSButton',""",
         "pending-share polling fields",
     )
     replace_once(
