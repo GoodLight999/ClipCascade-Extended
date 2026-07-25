@@ -11,6 +11,13 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def replace_exact(text: str, old: str, new: str, expected: int, label: str) -> str:
+    count = text.count(old)
+    if count != expected:
+        raise RuntimeError(f"{label}: expected {expected} markers, found {count}")
+    return text.replace(old, new)
+
+
 def require(text: str, marker: str, label: str) -> None:
     if marker not in text:
         raise RuntimeError(f"{label}: missing marker {marker!r}")
@@ -20,9 +27,8 @@ def apply(root: Path) -> None:
     path = root / "StartForegroundService.js"
     text = path.read_text(encoding="utf-8")
 
-    # The single-runtime finalizer owns the canonical lease and admission
-    # predicate. Queue hardening attaches to that predicate rather than creating
-    # a second ownership model.
+    # The single-runtime finalizer owns the canonical lease, stop reason and
+    # admission predicate. Queue hardening attaches to that one ownership model.
     for marker, label in (
         ("foregroundRuntimeCoordinator.acquire(", "coordinated runtime lease"),
         ("const runtimeCanAcceptEvents = () =>", "runtime admission predicate"),
@@ -30,6 +36,9 @@ def apply(root: Path) -> None:
             "runtimeAcceptingEvents && runtimeLease?.isActive() === true",
             "null-safe active lease admission",
         ),
+        ("let runtimeStopReason = 'manual'", "explicit runtime stop reason"),
+        ("const shouldPreserveRuntimeQueue = () =>", "queue preservation predicate"),
+        ("shouldPreserveOutboundQueue(runtimeStopReason)", "tested stop-reason policy"),
         ("const stopAcceptingRuntimeEvents = () =>", "runtime admission close"),
         ("const finishForegroundRuntime = async state =>", "runtime terminal release"),
     ):
@@ -76,7 +85,7 @@ def apply(root: Path) -> None:
         """          stopServicesP2S = async () => {
             stopAcceptingRuntimeEvents();
             p2sAckTracker.cancel();""",
-        "close P2S event admission before queue clear",
+        "close P2S event admission before queue handling",
     )
     text = replace_once(
         text,
@@ -85,7 +94,25 @@ def apply(root: Path) -> None:
         """          stopServicesP2P = async () => {
             stopAcceptingRuntimeEvents();
             clearSignalingReconnect();""",
-        "close P2P event admission before queue clear",
+        "close P2P event admission before queue handling",
+    )
+
+    text = replace_exact(
+        text,
+        """            cancelOutboundRetry();
+            await outboundQueue.clear();
+            await updateOutboundQueueStatus('cleared-on-manual-stop');""",
+        """            cancelOutboundRetry();
+            if (shouldPreserveRuntimeQueue()) {
+              await updateOutboundQueueStatus(
+                `preserved-for-${runtimeStopReason}`,
+              );
+            } else {
+              await outboundQueue.clear();
+              await updateOutboundQueueStatus('cleared-on-manual-stop');
+            }""",
+        2,
+        "P2S/P2P stop-aware queue preservation",
     )
 
     text = replace_once(
