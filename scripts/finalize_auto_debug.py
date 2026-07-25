@@ -103,6 +103,10 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
                 put("p2pLastPeerSetupError", bridge.getValue("p2p_last_peer_setup_error").orEmpty())
                 put("p2pLastPeerOperationError", bridge.getValue("p2p_last_peer_operation_error").orEmpty())
                 put("p2pLastSignalingError", bridge.getValue("p2p_last_signaling_error").orEmpty())
+                put("p2sLastInboundErrorCode", bridge.getValue("p2s_last_inbound_error_code").orEmpty())
+                put("p2sLastInboundErrorCount", bridge.getValue("p2s_last_inbound_error_count")?.toIntOrNull() ?: 0)
+                put("p2sLastInboundErrorAt", bridge.getValue("p2s_last_inbound_error_at").orEmpty())
+                put("p2sLastInboundErrorDetail", bridge.getValue("p2s_last_inbound_error_detail").orEmpty())
                 put("readLogs", readLogs)''',
         "automatic diagnostic status fields",
     )
