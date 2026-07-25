@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Negotiate P2P encryption compatibility and quarantine only mismatched peers."""
+"""Negotiate P2P compatibility and quarantine only the mismatched peer.
+
+The wire hello contains protocol and encryption-mode metadata only. A wrong
+shared key is learned from authenticated decryption and never from a stable
+password-derived verifier. This phase writes the final implementation directly;
+no later corrective patch is required.
+"""
 from __future__ import annotations
 
 import argparse
@@ -22,25 +28,13 @@ def main() -> None:
 
     replace_once(
         service,
-        """          websocket_url,
-          username,
-          cipher_enabled,""",
-        """          websocket_url,
-          username,
-          hashed_password,
-          cipher_enabled,""",
-        "P2P compatibility key destructuring",
-    )
-    replace_once(
-        service,
-        """          'websocket_url',
-          'username',
-          'cipher_enabled',""",
-        """          'websocket_url',
-          'username',
-          'hashed_password',
-          'cipher_enabled',""",
-        "P2P compatibility key storage",
+        "import { sendP2PFragment } from './P2PChannelSender';",
+        """import { sendP2PFragment } from './P2PChannelSender';
+import {
+  evaluateP2PCompatibility,
+  isEncryptedEnvelope,
+} from './P2PCompatibility';""",
+        "P2P compatibility helper imports",
     )
 
     replace_once(
@@ -52,23 +46,17 @@ def main() -> None:
           const dataChannelHeartbeatTimers = {};
           const compatibilityByPeer = new Map();
           const quarantinedPeers = new Set();
-          const localKeyFingerprint =
-            cipher_enabled === 'true'
-              ? await hashCB(hashed_password || '', 7342)
-              : 'none';
           const P2P_COMPATIBILITY_PROTOCOL = 1;
           const P2P_COMPATIBILITY_JSON = JSON.stringify({
             _cc_compat: true,
             protocol: P2P_COMPATIBILITY_PROTOCOL,
             cipherEnabled: cipher_enabled === 'true',
-            keyFingerprint: localKeyFingerprint,
           });
           const P2P_DC_KEEPALIVE_JSON = JSON.stringify({
             _cc_keepalive: true,
             compatibility: {
               protocol: P2P_COMPATIBILITY_PROTOCOL,
               cipherEnabled: cipher_enabled === 'true',
-              keyFingerprint: localKeyFingerprint,
             },
           });
 
@@ -105,7 +93,7 @@ def main() -> None:
             }
             await syncP2PCompatibilityStatus();
           };""",
-        "P2P compatibility runtime",
+        "final P2P compatibility runtime",
     )
 
     replace_once(
@@ -133,44 +121,75 @@ def main() -> None:
 
     replace_once(
         service,
+        """          const runSerializedPeerOp = (peerId, op) => {
+            const prev = peerOpChains[peerId] || Promise.resolve();
+            const next = prev.then(() => op()).catch(() => {});
+            peerOpChains[peerId] = next;
+            return next;
+          };""",
+        """          const clearPeerErrorIfOwned = async (key, peerId) => {
+            const current = String((await getDataFromAsyncStorage(key)) || '');
+            if (current.startsWith(`${peerId}:`)) {
+              await setDataInAsyncStorage(key, '');
+            }
+          };
+
+          const runSerializedPeerOp = (peerId, op) => {
+            const previous = peerOpChains[peerId] || Promise.resolve();
+            const current = previous.catch(() => undefined).then(async () => {
+              const result = await op();
+              await clearPeerErrorIfOwned(
+                'p2p_last_peer_operation_error',
+                peerId,
+              );
+              return result;
+            });
+            peerOpChains[peerId] = current.catch(async error => {
+              await setDataInAsyncStorage(
+                'p2p_last_peer_operation_error',
+                `${peerId}:${String(error?.stack || error)}`.slice(0, 1000),
+              );
+            });
+            return current;
+          };""",
+        "observable serialized peer operation",
+    )
+
+    replace_once(
+        service,
         """              if (message && message._cc_keepalive === true) {
                 return;
               }
 
               await clearFiles(true);""",
         """              if (message && message._cc_compat === true) {
-                const mismatch =
-                  Number(message.protocol) !== P2P_COMPATIBILITY_PROTOCOL
-                    ? 'protocol-version'
-                    : Boolean(message.cipherEnabled) !== (cipher_enabled === 'true')
-                      ? 'encryption-mode'
-                      : cipher_enabled === 'true' &&
-                          String(message.keyFingerprint || '') !== localKeyFingerprint
-                        ? 'encryption-key'
-                        : '';
+                const compatibility = evaluateP2PCompatibility(
+                  {
+                    protocol: P2P_COMPATIBILITY_PROTOCOL,
+                    cipherEnabled: cipher_enabled === 'true',
+                  },
+                  message,
+                );
                 await markPeerCompatibility(
                   remotePeerId,
-                  mismatch ? 'incompatible' : 'compatible',
-                  mismatch,
+                  compatibility.state,
+                  compatibility.reason,
                 );
                 return;
               }
               if (message && message._cc_keepalive === true) {
                 if (message.compatibility) {
-                  const hello = message.compatibility;
-                  const mismatch =
-                    Number(hello.protocol) !== P2P_COMPATIBILITY_PROTOCOL
-                      ? 'protocol-version'
-                      : Boolean(hello.cipherEnabled) !== (cipher_enabled === 'true')
-                        ? 'encryption-mode'
-                        : cipher_enabled === 'true' &&
-                            String(hello.keyFingerprint || '') !== localKeyFingerprint
-                          ? 'encryption-key'
-                          : '';
+                  const compatibility = evaluateP2PCompatibility(
+                    {
+                      protocol: P2P_COMPATIBILITY_PROTOCOL,
+                      cipherEnabled: cipher_enabled === 'true',
+                    },
+                    message.compatibility,
+                  );
                   await markPeerCompatibility(
                     remotePeerId,
-                    mismatch ? 'incompatible' : 'compatible',
-                    mismatch,
+                    compatibility.state,
+                    compatibility.reason,
                   );
                 }
                 return;
@@ -195,8 +214,8 @@ def main() -> None:
               }
 
               // hash clipboard content""",
-        """              // Decrypt only for this peer. A wrong key/mode must not flood the
-              // entire room with repeated AEAD errors or stop compatible peers.
+        """              // Decrypt only for this peer. A wrong key or mode must not flood
+              // the room with repeated AEAD errors or stop compatible peers.
               if (cipher_enabled === 'true') {
                 try {
                   cb = await decrypt(JSON.parse(cb));
@@ -205,28 +224,18 @@ def main() -> None:
                   await markPeerCompatibility(
                     remotePeerId,
                     'incompatible',
-                    `decrypt:${String(error?.message || error)}`,
+                    `encryption-key:${String(error?.message || error)}`,
                   );
                   return;
                 }
               } else {
-                try {
-                  const maybeEncrypted = JSON.parse(cb);
-                  if (
-                    maybeEncrypted &&
-                    maybeEncrypted.nonce &&
-                    maybeEncrypted.ciphertext &&
-                    maybeEncrypted.tag
-                  ) {
-                    await markPeerCompatibility(
-                      remotePeerId,
-                      'incompatible',
-                      'remote-encryption-enabled',
-                    );
-                    return;
-                  }
-                } catch (_) {
-                  // Plaintext clipboard data is expected when encryption is disabled.
+                if (isEncryptedEnvelope(cb)) {
+                  await markPeerCompatibility(
+                    remotePeerId,
+                    'incompatible',
+                    'remote-encryption-enabled',
+                  );
+                  return;
                 }
                 await markPeerCompatibility(remotePeerId, 'compatible');
               }
@@ -239,12 +248,48 @@ def main() -> None:
         service,
         """            peers.forEach(async pid => {
               if (pid === myPeerId) return; // skip self
-              if (!peerConnections[pid]) {""",
-        """            peers.forEach(async pid => {
-              if (pid === myPeerId) return; // skip self
-              if (quarantinedPeers.has(pid)) return;
-              if (!peerConnections[pid]) {""",
-        "skip quarantined peers during peer-list reconciliation",
+              if (!peerConnections[pid]) {
+                // Create new PeerConnection
+                const pc = await createPeerConnection(pid);
+                peerConnections[pid] = pc;
+
+                // Tie-breaker: only the "lower" ID makes the offer to avoid collisions
+                if (myPeerId < pid) {
+                  const channel = await pc.createDataChannel('cliptext');
+                  dataChannels[pid] = channel;
+                  await setupDataChannel(pid, channel);
+                  await createOffer(pid);
+                }
+              }
+            });""",
+        """            for (const pid of peers) {
+              if (pid === myPeerId) continue; // skip self
+              if (quarantinedPeers.has(pid)) continue;
+              if (peerConnections[pid]) {
+                await clearPeerErrorIfOwned('p2p_last_peer_setup_error', pid);
+                continue;
+              }
+              try {
+                const pc = await createPeerConnection(pid);
+                peerConnections[pid] = pc;
+
+                // Tie-breaker: only the "lower" ID makes the offer to avoid collisions.
+                if (myPeerId < pid) {
+                  const channel = await pc.createDataChannel('cliptext');
+                  dataChannels[pid] = channel;
+                  await setupDataChannel(pid, channel);
+                  await createOffer(pid);
+                }
+                await clearPeerErrorIfOwned('p2p_last_peer_setup_error', pid);
+              } catch (error) {
+                await setDataInAsyncStorage(
+                  'p2p_last_peer_setup_error',
+                  `${pid}:${String(error?.stack || error)}`.slice(0, 1000),
+                );
+                await disposePeerConnection(pid);
+              }
+            }""",
+        "awaited P2P peer-list reconciliation",
     )
 
     replace_once(
@@ -257,6 +302,7 @@ def main() -> None:
               startDataChannelHeartbeat(remotePeerId, channel);""",
         "send P2P compatibility hello",
     )
+
     replace_once(
         service,
         """              await recoverPeerTransport(remotePeerId, null);""",
