@@ -91,6 +91,23 @@ def main() -> None:
     ):
         require(marker in service_policy, f"canonical service-control marker missing: {marker}")
 
+    runtime_coordinator = read("overlay/ForegroundRuntimeCoordinator.js")
+    for marker in (
+        "FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000",
+        "MANUAL_FOREGROUND_STOP_REASON = 'manual'",
+        "shouldPreserveOutboundQueue",
+        "createForegroundRuntimeCoordinator",
+        "acquire(runtimeId, requestStop)",
+        "requestRestart(",
+        "current.completion.then(() => true)",
+        "foreground-runtime-stop-timeout",
+        "activeRuntimeId()",
+    ):
+        require(
+            marker in runtime_coordinator,
+            f"canonical foreground-runtime coordinator marker missing: {marker}",
+        )
+
     inbound_policy = read("overlay/InboundErrorPolicy.js")
     for marker in (
         "encryption-mismatch",
@@ -171,8 +188,9 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        "canonical i18n, heartbeat-aware pending-share recovery, migrated stop-safe UTF-8 queue, "
-        "bounded signaling and detached supervision complete, no excluded-project input, "
+        "canonical i18n, heartbeat-aware pending-share recovery, coordinated runtime handoff, "
+        "recovery-safe durable queue, bounded signaling and detached supervision complete, "
+        "no excluded-project input, "
         f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
 
