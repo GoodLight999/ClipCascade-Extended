@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject label-only localization, unsafe adaptive colors, and inherited UI regressions."""
+"""Reject label-only localization, unreadable diagnostics, and inherited UI regressions."""
 from __future__ import annotations
 
 import argparse
@@ -24,6 +24,7 @@ def main() -> None:
     i18n = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
     panel = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
     analyzer = (root / "AutoDebug.js").read_text(encoding="utf-8")
+    shizuku_policy = (root / "ShizukuSetupPolicy.js").read_text(encoding="utf-8")
 
     for expression, label in (
         ("localizeRuntimeMessage(loadingPageMessage, EXTENDED_TEXT)", "loading-state localization"),
@@ -89,7 +90,29 @@ def main() -> None:
     require(analyzer, "CHECK_LABEL_KEYS", "localized diagnostic check names")
     require(analyzer, "levels = { PASS: text.pass", "localized diagnostic levels")
 
-    print("complete product/runtime localization: OK")
+    # The original self-test rendered dark text on a gray surface. Do not entrust
+    # this critical report to OEM-dependent Android theme attributes again.
+    require(panel, "createStyles(useColorScheme() === 'dark')", "deterministic panel theme")
+    require(panel, "surface: '#1b1b1f'", "dark diagnostic surface")
+    require(panel, "text: '#f5f5f7'", "dark diagnostic text")
+    require(panel, "surface: '#ffffff'", "light diagnostic surface")
+    require(panel, "text: '#15171a'", "light diagnostic text")
+    forbid(panel, "PlatformColor(", "OEM-dependent diagnostic colors")
+
+    # Setup instructions and ADB commands must be selectable and one-tap copyable.
+    require(panel, "<Text selectable style={styles.dialogBody}>", "selectable dialog body")
+    require(panel, "Clipboard.setString(dialog.copy)", "one-tap dialog copy")
+    require(panel, "ADB_COMMANDS", "canonical two-command ADB fallback")
+
+    # Shizuku must distinguish install/running/authorization states and must not
+    # be required after Android has retained the one-time grants.
+    require(panel, "planShizukuSetup(status)", "Shizuku setup planner wiring")
+    require(panel, "isShizukuSetupVerified(status)", "Shizuku grant verification")
+    require(shizuku_policy, "state: 'already-configured'", "post-setup independence")
+    require(shizuku_policy, "state: 'not-running'", "stopped Shizuku classification")
+    require(shizuku_policy, "state: 'permission-required'", "authorization classification")
+
+    print("complete product/runtime localization and setup UX: OK")
 
 
 if __name__ == "__main__":
