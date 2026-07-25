@@ -95,18 +95,20 @@ def main() -> None:
     require(app_js, "pendingSharePlan.forceRestart", "stale runtime restart request")
     require(app_js, "foreground_service_heartbeat_at", "share heartbeat liveness input")
     require(app_js, "foreground_service_last_started_at", "share start-grace input")
+    require(app_js, "      'shared_payload_pending',", "formatted pending-share poll key")
     require_before(
         app_js,
         "const [enableWSPage, setEnableWSPage] = useState(false);",
         "sessionReadyRef.current = enableWSPage;",
         "websocket state declaration before session-ready synchronization",
     )
-    require_before(
+    require(app_js, "let controlLockAcquired = false;", "foreground control lock ownership")
+    require(
         app_js,
-        "sessionReadyRef.current = enableWSPage;",
-        "async function pollUIFlags()",
-        "session-ready synchronization before pending-share polling",
+        "if ((await getDataFromAsyncStorage('enableWSButton')) !== 'true') return;",
+        "foreground control lock rejection",
     )
+    require(app_js, "if (controlLockAcquired) {", "owner-only foreground control unlock")
     require(
         pending_share_policy_js,
         "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
@@ -193,6 +195,7 @@ def main() -> None:
     require(foreground_js, "ready-after-registration", "listener-order evidence")
     require(foreground_js, "foregroundServiceHandlerRegistered", "single foreground handler")
     require(foreground_js, "foreground_service_error", "persistent foreground-service error")
+    require(foreground_js, "foreground_service_last_started_at", "foreground start evidence")
     require(foreground_js, "share-image-enqueued", "image share enqueue evidence")
     require(foreground_js, "share-files-enqueued", "file share enqueue evidence")
     require(foreground_js, "⏳ Connecting...", "fresh connection status")
