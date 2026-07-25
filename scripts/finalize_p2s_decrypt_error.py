@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Replace the inherited room-wide encryption wording in the P2S receive path."""
+"""Classify and coalesce P2S inbound failures instead of flooding the UI."""
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+
+
+def replace_once(path: Path, old: str, new: str, label: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    count = text.count(old)
+    if count != 1:
+        raise RuntimeError(f"{label}: expected one marker, found {count}")
+    path.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
 def main() -> None:
@@ -11,17 +19,98 @@ def main() -> None:
     parser.add_argument("destination", type=Path)
     root = parser.parse_args().destination.resolve()
     path = root / "StartForegroundService.js"
-    text = path.read_text(encoding="utf-8")
-    old = """                        throw new Error(
+
+    replace_once(
+        path,
+        "import { createP2SAckTracker } from './P2SAckTracker';",
+        """import { createP2SAckTracker } from './P2SAckTracker';
+import { createInboundErrorCoalescer } from './InboundErrorPolicy';""",
+        "P2S inbound error policy import",
+    )
+    replace_once(
+        path,
+        """        const p2sAckTracker = createP2SAckTracker({timeoutMs: 10000});
+        let sendClipBoardTransport = null;""",
+        """        const p2sAckTracker = createP2SAckTracker({timeoutMs: 10000});
+        const p2sInboundErrorPolicy = createInboundErrorCoalescer({
+          windowMs: 30000,
+        });
+        let sendClipBoardTransport = null;""",
+        "P2S inbound error policy instance",
+    )
+
+    replace_once(
+        path,
+        """                  await clearFiles();
+                  await setDataInAsyncStorage(
+                    'wsStatusMessage',
+                    '✅ Connected - Subscribed',
+                  );
+
+                  if (message && message.body) {""",
+        """                  await clearFiles();
+
+                  if (message && message.body) {""",
+        "do not hide inbound failures before validation",
+    )
+
+    replace_once(
+        path,
+        """                        throw new Error(
                           `Encryption must be enabled on all devices if enabled. JSON parsing failed: ${error.message}`,
-                        );"""
-    new = """                        throw new Error(
+                        );""",
+        """                        throw new Error(
                           `Unable to decrypt P2S payload. Check the encryption setting and shared key: ${error.message}`,
-                        );"""
-    count = text.count(old)
-    if count != 1:
-        raise RuntimeError(f"P2S decrypt wording: expected one marker, found {count}")
-    path.write_text(text.replace(old, new, 1), encoding="utf-8")
+                        );""",
+        "P2S decrypt wording",
+    )
+
+    replace_once(
+        path,
+        """                  }
+                } catch (e) {
+                  await setDataInAsyncStorage(
+                    'wsStatusMessage',
+                    '❌ Inbound Error: ' + e,
+                  );
+                }""",
+        """                  }
+                  p2sInboundErrorPolicy.reset();
+                  await setDataInAsyncStorage('p2s_last_inbound_error_code', '');
+                  await setDataInAsyncStorage('p2s_last_inbound_error_count', '0');
+                  await setDataInAsyncStorage('p2s_last_inbound_error_at', '');
+                  await setDataInAsyncStorage('p2s_last_inbound_error_detail', '');
+                  await setDataInAsyncStorage(
+                    'wsStatusMessage',
+                    '✅ Connected - Subscribed',
+                  );
+                } catch (e) {
+                  const inbound = p2sInboundErrorPolicy.record(e);
+                  await setDataInAsyncStorage(
+                    'p2s_last_inbound_error_code',
+                    inbound.code,
+                  );
+                  await setDataInAsyncStorage(
+                    'p2s_last_inbound_error_count',
+                    String(inbound.count),
+                  );
+                  await setDataInAsyncStorage(
+                    'p2s_last_inbound_error_at',
+                    String(inbound.lastAt),
+                  );
+                  await setDataInAsyncStorage(
+                    'p2s_last_inbound_error_detail',
+                    String(inbound.detail || '').slice(0, 1000),
+                  );
+                  if (inbound.shouldReport) {
+                    await setDataInAsyncStorage(
+                      'wsStatusMessage',
+                      '❌ Inbound Error: ' + inbound.code,
+                    );
+                  }
+                }""",
+        "P2S inbound error coalescing and success reset",
+    )
 
 
 if __name__ == "__main__":
