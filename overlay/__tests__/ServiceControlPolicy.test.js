@@ -46,7 +46,18 @@ describe('foreground service control policy', () => {
   });
 
   test('bounds stop waiting', () => {
-    expect(hasForegroundStopTimedOut(1000, 1000 + FOREGROUND_STOP_TIMEOUT_MS - 1)).toBe(false);
-    expect(hasForegroundStopTimedOut(1000, 1000 + FOREGROUND_STOP_TIMEOUT_MS)).toBe(true);
+    expect(
+      hasForegroundStopTimedOut(
+        1000,
+        1000 + FOREGROUND_STOP_TIMEOUT_MS - 1,
+      ),
+    ).toBe(false);
+    expect(
+      hasForegroundStopTimedOut(1000, 1000 + FOREGROUND_STOP_TIMEOUT_MS),
+    ).toBe(true);
+  });
+
+  test('clock rollback cannot make stop waiting unbounded', () => {
+    expect(hasForegroundStopTimedOut(10_000, 9_999)).toBe(true);
   });
 });
