@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require stop-safe, scope-isolated durable-queue admission."""
+"""Require stop-safe, scope-isolated durable-queue admission and recovery."""
 from __future__ import annotations
 
 import argparse
@@ -29,6 +29,7 @@ def main() -> None:
     root = parser.parse_args().root.resolve()
     service = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     queue = (root / "DurableOutboundQueue.js").read_text(encoding="utf-8")
+    coordinator = (root / "ForegroundRuntimeCoordinator.js").read_text(encoding="utf-8")
 
     require(queue, "SCHEMA_VERSION = 2", "queue schema version")
     require(queue, "enqueue(content, type, shouldEnqueue = null)", "queue admission parameter")
@@ -63,13 +64,20 @@ def main() -> None:
     )
     require(queue, "raw.scope !== scope", "mismatched-scope clear guard")
     require(queue, "skipped: true", "non-destructive stale clear result")
-    forbid(
-        queue,
-        "expired > 0 || state !== raw || normalized",
-        "scope-mismatch read overwrite",
+    forbid(queue, "expired > 0 || state !== raw || normalized", "scope-mismatch read overwrite")
+
+    require(coordinator, "shouldPreserveOutboundQueue", "stop-reason queue policy")
+    require(coordinator, "MANUAL_FOREGROUND_STOP_REASON = 'manual'", "manual stop identity")
+    require(
+        coordinator,
+        "!== MANUAL_FOREGROUND_STOP_REASON",
+        "non-manual queue preservation",
     )
 
     require(service, "let runtimeAcceptingEvents = true", "runtime event-admission state")
+    require(service, "let runtimeStopReason = 'manual'", "default manual stop reason")
+    require(service, "runtimeStopReason = String(reason || 'restart')", "restart reason propagation")
+    require(service, "const shouldPreserveRuntimeQueue = () =>", "runtime queue policy binding")
     require(service, "const runtimeCanAcceptEvents = () =>", "runtime admission predicate")
     require(service, "const stopAcceptingRuntimeEvents = () =>", "runtime admission close operation")
     require(
@@ -82,28 +90,20 @@ def main() -> None:
     require(service, "if (enqueueResult.cancelled)", "cancelled enqueue handling")
     require(service, "ignored-after-runtime-stop", "post-stop event evidence")
     require(service, "queued-before-runtime-stop", "stop-during-enqueue evidence")
-    require(
-        service,
-        "stopServicesP2S = async () => {\n            stopAcceptingRuntimeEvents();",
-        "P2S admission closure before stop",
-    )
-    require(
-        service,
-        "stopServicesP2P = async () => {\n            stopAcceptingRuntimeEvents();",
-        "P2P admission closure before stop",
-    )
-    require_before(
-        service,
-        "stopServicesP2S = async () => {\n            stopAcceptingRuntimeEvents();",
-        "await outboundQueue.clear();",
-        "P2S admission closure before queue clear",
-    )
-    p2p_stop = service.find(
-        "stopServicesP2P = async () => {\n            stopAcceptingRuntimeEvents();"
-    )
-    p2p_clear = service.find("await outboundQueue.clear();", p2p_stop)
-    if p2p_stop < 0 or p2p_clear < 0 or p2p_stop >= p2p_clear:
-        raise RuntimeError("invalid ordering for P2P admission closure before queue clear")
+    require(service, "if (shouldPreserveRuntimeQueue())", "recovery queue branch")
+    require(service, "`preserved-for-${runtimeStopReason}`", "queue preservation evidence")
+    if service.count("await outboundQueue.clear();") != 2:
+        raise RuntimeError("manual-only P2S/P2P queue clear count changed")
+    if service.count("if (shouldPreserveRuntimeQueue())") != 2:
+        raise RuntimeError("P2S/P2P queue preservation branch count changed")
+
+    for mode in ("P2S", "P2P"):
+        marker = f"stopServices{mode} = async () => {{\n            stopAcceptingRuntimeEvents();"
+        require(service, marker, f"{mode} admission closure before stop")
+        preserve = service.find("if (shouldPreserveRuntimeQueue())", service.find(marker))
+        clear = service.find("await outboundQueue.clear();", preserve)
+        if preserve < 0 or clear < 0 or preserve >= clear:
+            raise RuntimeError(f"invalid {mode} preserve-before-clear ordering")
 
     forbid(
         service,
@@ -112,8 +112,8 @@ def main() -> None:
     )
 
     print(
-        "coordinated runtime lease closes queue admission, persisted bounds are migrated, "
-        "and stale scopes cannot erase active data: OK"
+        "coordinated runtime lease closes queue admission, recovery preserves durable work, "
+        "manual stop clears explicitly, and stale scopes cannot erase active data: OK"
     )
 
 
