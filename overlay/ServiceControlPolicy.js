@@ -5,23 +5,30 @@ export function nextRequestedServiceState(persistedValue) {
 }
 
 /**
- * UI presses toggle. Recovery paths request an explicit state and become
- * idempotent even if another actor changes persisted state between polling and
- * execution.
+ * UI presses toggle. Recovery paths request an explicit state. A stale-runtime
+ * recovery may force the start branch even when the persisted request is still
+ * true, because that flag is not proof that the Notifee handler is alive.
  */
-export function resolveRequestedServiceState(persistedValue, desiredState = null) {
+export function resolveRequestedServiceState(
+  persistedValue,
+  desiredState = null,
+  forceRestart = false,
+) {
   const persistedState = persistedValue === 'true' ? 'true' : 'false';
   if (desiredState === 'true' || desiredState === 'false') {
+    const forcedStart = desiredState === 'true' && forceRestart === true;
     return {
       nextState: desiredState,
-      noOp: persistedState === desiredState,
+      noOp: persistedState === desiredState && !forcedStart,
       persistedState,
+      forcedStart,
     };
   }
   return {
     nextState: nextRequestedServiceState(persistedState),
     noOp: false,
     persistedState,
+    forcedStart: false,
   };
 }
 
