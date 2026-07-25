@@ -1,4 +1,10 @@
 export const FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000;
+export const MANUAL_FOREGROUND_STOP_REASON = 'manual';
+
+/** Explicit user stop may discard the queue; recovery and failure stops must not. */
+export function shouldPreserveOutboundQueue(stopReason) {
+  return String(stopReason || MANUAL_FOREGROUND_STOP_REASON) !== MANUAL_FOREGROUND_STOP_REASON;
+}
 
 /**
  * Own exactly one JavaScript clipboard/network runtime. A forced restart first
