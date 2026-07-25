@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Allow only one live clipboard/network runtime per JavaScript process."""
+"""Allow one runtime and serialize forced restart handoff before replacement."""
 from __future__ import annotations
 
 import argparse
@@ -30,14 +30,22 @@ def main() -> None:
 
     replace_once(
         path,
+        "import notifee, { AndroidImportance } from '@notifee/react-native';",
+        """import notifee, { AndroidImportance } from '@notifee/react-native';
+import { createForegroundRuntimeCoordinator } from './ForegroundRuntimeCoordinator';""",
+        "foreground runtime coordinator import",
+    )
+
+    replace_once(
+        path,
         """let foregroundServiceHandlerRegistered = false;
 
 module.exports = async (inputData = null) => {""",
         """let foregroundServiceHandlerRegistered = false;
-let activeForegroundRuntimeId = null;
+const foregroundRuntimeCoordinator = createForegroundRuntimeCoordinator();
 
 module.exports = async (inputData = null) => {""",
-        "foreground runtime singleton state",
+        "foreground runtime coordinator state",
     )
 
     replace_once(
@@ -48,11 +56,26 @@ module.exports = async (inputData = null) => {""",
         await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
         """    notifee.registerForegroundService(notification => {
       return new Promise(resolve => {
-        let runtimeId = null;
+        let runtimeLease = null;
         Promise.resolve()
           .then(async () => {
-            runtimeId = `runtime-${Date.now()}-${Math.random()}`;
-            if (activeForegroundRuntimeId != null) {
+            const runtimeId = `runtime-${Date.now()}-${Math.random()}`;
+            let runtimeAcceptingEvents = true;
+            const stopAcceptingRuntimeEvents = () => {
+              runtimeAcceptingEvents = false;
+            };
+            runtimeLease = foregroundRuntimeCoordinator.acquire(
+              runtimeId,
+              async reason => {
+                stopAcceptingRuntimeEvents();
+                await setDataInAsyncStorage(
+                  'foreground_service_state',
+                  `restart-stop-requested:${reason}`,
+                );
+                await setDataInAsyncStorage('wsIsRunning', 'false');
+              },
+            );
+            if (!runtimeLease) {
               await setDataInAsyncStorage(
                 'foreground_service_state',
                 'duplicate-runtime-suppressed',
@@ -64,21 +87,23 @@ module.exports = async (inputData = null) => {""",
               resolve();
               return;
             }
-            activeForegroundRuntimeId = runtimeId;
+            const runtimeCanAcceptEvents = () =>
+              runtimeAcceptingEvents && runtimeLease.isActive();
             const finishForegroundRuntime = async state => {
-              if (activeForegroundRuntimeId !== runtimeId) {
+              stopAcceptingRuntimeEvents();
+              if (!runtimeLease?.isActive()) {
                 resolve();
                 return;
               }
-              activeForegroundRuntimeId = null;
               await setDataInAsyncStorage('foreground_service_state', state);
               await setDataInAsyncStorage('foreground_service_instance_id', '');
+              runtimeLease.finish();
               resolve();
             };
             try {
               await setDataInAsyncStorage('foreground_service_instance_id', runtimeId);
               await setDataInAsyncStorage('foreground_service_state', 'handler-starting');""",
-        "foreground runtime lease",
+        "foreground runtime coordinated lease",
     )
 
     replace_once(
@@ -115,18 +140,12 @@ module.exports = async (inputData = null) => {""",
     replace_once(
         path,
         """      }
-      });
-    });""",
+       });
+     });""",
         """      }
           })
           .catch(async error => {
             const detail = String(error?.stack || error);
-            if (
-              runtimeId != null &&
-              activeForegroundRuntimeId === runtimeId
-            ) {
-              activeForegroundRuntimeId = null;
-            }
             try {
               await setDataInAsyncStorage(
                 'foreground_service_error',
@@ -144,12 +163,44 @@ module.exports = async (inputData = null) => {""",
               );
             } finally {
               cleanupClipboardListeners();
+              runtimeLease?.finish();
               resolve();
             }
           });
       });
     });""",
-        "synchronous Promise executor with terminal async catch",
+        "synchronous Promise executor with coordinated terminal cleanup",
+    )
+
+    replace_once(
+        path,
+        """  try {
+    await setDataInAsyncStorage('foreground_service_state', 'notification-starting');""",
+        """  try {
+    if (inputData?.forceRestart === true) {
+      await setDataInAsyncStorage(
+        'foreground_service_state',
+        'restart-waiting-for-old-runtime',
+      );
+      const restart = await foregroundRuntimeCoordinator.requestRestart(
+        'forced-share-recovery',
+      );
+      if (!restart.stopped) {
+        throw new Error(
+          `Foreground runtime restart failed: ${restart.error || restart.runtimeId}`,
+        );
+      }
+      await setDataInAsyncStorage('wsIsRunning', 'true');
+      await setDataInAsyncStorage('wsForegroundServiceTerminated', 'false');
+      await setDataInAsyncStorage(
+        'foreground_service_state',
+        restart.hadActiveRuntime
+          ? 'restart-old-runtime-stopped'
+          : 'restart-no-active-runtime',
+      );
+    }
+    await setDataInAsyncStorage('foreground_service_state', 'notification-starting');""",
+        "forced foreground runtime stop-before-start handoff",
     )
 
 
