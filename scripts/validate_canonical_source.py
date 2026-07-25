@@ -64,6 +64,19 @@ def main() -> None:
     ):
         require(marker in shizuku_policy, f"canonical Shizuku state missing: {marker}")
 
+    pending_share_policy = read("overlay/PendingShareStartPolicy.js")
+    for marker in (
+        "PENDING_SHARE_START_RETRY_MS = 5_000",
+        "shouldStartPendingShare",
+        "payloadPending !== true",
+        "serviceRequested === true",
+        "elapsed < 0 || elapsed >= Number(retryMs)",
+    ):
+        require(
+            marker in pending_share_policy,
+            f"canonical pending-share start marker missing: {marker}",
+        )
+
     inbound_policy = read("overlay/InboundErrorPolicy.js")
     for marker in (
         "encryption-mismatch",
@@ -145,8 +158,8 @@ def main() -> None:
 
     print(
         "Canonical source cleanliness validated: no OTP/version staging, "
-        "canonical i18n, migrated stop-safe UTF-8 queue, bounded signaling and "
-        "detached supervision complete, no excluded-project input, "
+        "canonical i18n, unified pending-share startup, migrated stop-safe UTF-8 queue, "
+        "bounded signaling and detached supervision complete, no excluded-project input, "
         f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
     )
 
