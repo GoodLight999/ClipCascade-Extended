@@ -26,6 +26,9 @@ describe('automatic diagnostics', () => {
     p2pLastPeerSetupError: '',
     p2pLastPeerOperationError: '',
     p2pLastSignalingError: '',
+    p2sLastInboundErrorCode: '',
+    p2sLastInboundErrorCount: 0,
+    p2sLastInboundErrorDetail: '',
   };
   const healthyProbe = {
     eventBridge: { received: true, token: 'test' },
@@ -159,6 +162,26 @@ describe('automatic diagnostics', () => {
     expect(
       result.checks.find(item => item.id === 'p2p-compatibility'),
     ).toMatchObject({ level: 'FAIL' });
+  });
+
+  test('detects a coalesced P2S encryption incident without log flooding', () => {
+    const result = analyzeDiagnostics(
+      {
+        ...healthyStatus,
+        p2sLastInboundErrorCode: 'encryption-mismatch',
+        p2sLastInboundErrorCount: 21,
+        p2sLastInboundErrorDetail: 'AEADBadTagException: Bad auth tag',
+      },
+      healthyProbe,
+      now,
+    );
+    expect(result.overall).toBe('FAIL');
+    expect(
+      result.checks.find(item => item.id === 'p2p-compatibility'),
+    ).toMatchObject({
+      level: 'FAIL',
+      detail: expect.stringContaining('p2sInboundCount=21'),
+    });
   });
 
   test('reports foreground-service failure and queued outbound data', () => {
