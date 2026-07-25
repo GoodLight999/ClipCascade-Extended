@@ -58,7 +58,7 @@ def main() -> None:
     for marker in (
         "already-configured",
         "not-installed",
-        "not-running",
+        "binder-pending",
         "permission-required",
         "ready-to-apply",
     ):
