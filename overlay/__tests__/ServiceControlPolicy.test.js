@@ -17,11 +17,13 @@ describe('foreground service control policy', () => {
       nextState: 'false',
       noOp: false,
       persistedState: 'true',
+      forcedStart: false,
     });
     expect(resolveRequestedServiceState('false')).toEqual({
       nextState: 'true',
       noOp: false,
       persistedState: 'false',
+      forcedStart: false,
     });
   });
 
@@ -30,18 +32,40 @@ describe('foreground service control policy', () => {
       nextState: 'true',
       noOp: true,
       persistedState: 'true',
+      forcedStart: false,
     });
     expect(resolveRequestedServiceState('false', 'true')).toEqual({
       nextState: 'true',
       noOp: false,
       persistedState: 'false',
+      forcedStart: false,
+    });
+  });
+
+  test('stale-runtime recovery can force the start branch despite persisted true', () => {
+    expect(resolveRequestedServiceState('true', 'true', true)).toEqual({
+      nextState: 'true',
+      noOp: false,
+      persistedState: 'true',
+      forcedStart: true,
+    });
+  });
+
+  test('forceRestart cannot turn an explicit stop into a start', () => {
+    expect(resolveRequestedServiceState('true', 'false', true)).toEqual({
+      nextState: 'false',
+      noOp: true,
+      persistedState: 'true',
+      forcedStart: false,
     });
   });
 
   test('invalid desired states cannot bypass normal toggle semantics', () => {
-    expect(resolveRequestedServiceState('true', 'start-now')).toMatchObject({
+    expect(resolveRequestedServiceState('true', 'start-now', true)).toEqual({
       nextState: 'false',
       noOp: false,
+      persistedState: 'true',
+      forcedStart: false,
     });
   });
 
