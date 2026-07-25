@@ -266,23 +266,12 @@ module.exports = async (inputData = null) => {""",
         """  const isMountedRef = useRef(true);
   const sessionReadyRef = useRef(false);
   const pendingShareStartInFlightRef = useRef(false);
-  const pendingShareLastAttemptAtRef = useRef(null);""",
-        "pending-share runtime refs",
-    )
-    replace_exact(
-        app,
-        """          setEnableWSPage(true);""",
-        """          sessionReadyRef.current = true;
-          setEnableWSPage(true);""",
-        3,
-        "session-ready websocket navigation",
-    )
-    replace_once(
-        app,
-        """      setEnableWSPage(false);""",
-        """      sessionReadyRef.current = false;
-      setEnableWSPage(false);""",
-        "logout session-ready reset",
+  const pendingShareLastAttemptAtRef = useRef(null);
+
+  useEffect(() => {
+    sessionReadyRef.current = enableWSPage;
+  }, [enableWSPage]);""",
+        "pending-share runtime refs and session synchronization",
     )
     replace_once(
         app,
