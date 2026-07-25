@@ -72,7 +72,7 @@ def main() -> None:
     ):
         require(marker in inbound_policy, f"canonical inbound-error marker missing: {marker}")
 
-    queue = read("overlay/OutboundQueue.js")
+    queue = read("overlay/DurableOutboundQueue.js")
     for marker in (
         "scopeFingerprint",
         "claimHeadForSend",
