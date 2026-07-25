@@ -51,10 +51,10 @@ describe('foreground service control policy', () => {
     });
   });
 
-  test('forceRestart cannot turn an explicit stop into a start', () => {
+  test('forceRestart preserves an explicit stop and executes it', () => {
     expect(resolveRequestedServiceState('true', 'false', true)).toEqual({
       nextState: 'false',
-      noOp: true,
+      noOp: false,
       persistedState: 'true',
       forcedStart: false,
     });
