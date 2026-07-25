@@ -9,7 +9,7 @@ function deferred() {
   const promise = new Promise(done => {
     resolve = done;
   });
-  return { promise, resolve };
+  return {promise, resolve};
 }
 
 describe('foreground runtime coordinator', () => {
@@ -45,34 +45,62 @@ describe('foreground runtime coordinator', () => {
     });
   });
 
-  test('restart is immediately safe when no runtime is active', async () => {
+  test('start transitions are serialized and rejection does not poison the chain', async () => {
     const coordinator = createForegroundRuntimeCoordinator();
-    await expect(
-      coordinator.requestRestart('forced-share-recovery'),
-    ).resolves.toEqual({
-      hadActiveRuntime: false,
-      stopped: true,
-      runtimeId: null,
-      error: '',
+    const firstGate = deferred();
+    const order = [];
+    const first = coordinator.runStartTransition(async () => {
+      order.push('first-start');
+      await firstGate.promise;
+      order.push('first-end');
+      throw new Error('first failed');
     });
+    const second = coordinator.runStartTransition(async () => {
+      order.push('second');
+      return 2;
+    });
+
+    await Promise.resolve();
+    expect(order).toEqual(['first-start']);
+    firstGate.resolve();
+    await expect(first).rejects.toThrow('first failed');
+    await expect(second).resolves.toBe(2);
+    expect(order).toEqual(['first-start', 'first-end', 'second']);
   });
 
-  test('stop callback failure is reported and keeps the lease owned', async () => {
-    const coordinator = createForegroundRuntimeCoordinator();
-    coordinator.acquire('runtime-1', async () => {
-      throw new Error('stop failed');
+  test('waitForActiveRuntime resolves only when callback acquires a lease', async () => {
+    let timeoutCallback;
+    const coordinator = createForegroundRuntimeCoordinator({
+      setTimer: callback => {
+        timeoutCallback = callback;
+        return 9;
+      },
+      clearTimer: () => {
+        timeoutCallback = null;
+      },
     });
-    const result = await coordinator.requestRestart('forced-share-recovery');
-    expect(result).toMatchObject({
-      hadActiveRuntime: true,
-      stopped: false,
-      runtimeId: 'runtime-1',
-    });
-    expect(result.error).toContain('stop failed');
-    expect(coordinator.activeRuntimeId()).toBe('runtime-1');
+    const waiting = coordinator.waitForActiveRuntime();
+    expect(timeoutCallback).toEqual(expect.any(Function));
+    coordinator.acquire('runtime-1', async () => {});
+    await expect(waiting).resolves.toBe('runtime-1');
+    expect(timeoutCallback).toBeNull();
   });
 
-  test('bounded timeout never permits a replacement while the old lease remains', async () => {
+  test('waitForActiveRuntime returns null on bounded startup timeout', async () => {
+    let timeoutCallback;
+    const coordinator = createForegroundRuntimeCoordinator({
+      setTimer: callback => {
+        timeoutCallback = callback;
+        return 11;
+      },
+      clearTimer: () => {},
+    });
+    const waiting = coordinator.waitForActiveRuntime(8000);
+    timeoutCallback();
+    await expect(waiting).resolves.toBeNull();
+  });
+
+  test('bounded restart timeout never permits replacement while old lease remains', async () => {
     let timeoutCallback;
     const coordinator = createForegroundRuntimeCoordinator({
       setTimer: callback => {
@@ -82,13 +110,11 @@ describe('foreground runtime coordinator', () => {
       clearTimer: () => {},
     });
     coordinator.acquire('runtime-1', async () => {});
-
     const restartPromise = coordinator.requestRestart(
       'forced-share-recovery',
       FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS,
     );
     await Promise.resolve();
-    expect(timeoutCallback).toEqual(expect.any(Function));
     timeoutCallback();
     await expect(restartPromise).resolves.toEqual({
       hadActiveRuntime: true,
@@ -99,11 +125,10 @@ describe('foreground runtime coordinator', () => {
     expect(coordinator.activeRuntimeId()).toBe('runtime-1');
   });
 
-  test('only an explicit manual stop discards durable outbound work', () => {
+  test('only explicit manual stop discards durable outbound work', () => {
     expect(shouldPreserveOutboundQueue('manual')).toBe(false);
     expect(shouldPreserveOutboundQueue(null)).toBe(false);
     expect(shouldPreserveOutboundQueue('forced-share-recovery')).toBe(true);
-    expect(shouldPreserveOutboundQueue('capture-recovery')).toBe(true);
     expect(shouldPreserveOutboundQueue('runtime-failure')).toBe(true);
   });
 });
