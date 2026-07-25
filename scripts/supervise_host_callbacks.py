@@ -47,13 +47,6 @@ def wrap_between(
     )
 
 
-def replace_once(text: str, old: str, new: str, label: str) -> str:
-    count = text.count(old)
-    if count != 1:
-        raise RuntimeError(f"{label}: expected one marker, found {count}")
-    return text.replace(old, new, 1)
-
-
 def apply(root: Path) -> None:
     path = root / "StartForegroundService.js"
     text = path.read_text(encoding="utf-8")
@@ -174,50 +167,7 @@ def apply(root: Path) -> None:
         label="P2S subscription callback",
     )
 
-    text = replace_once(
-        text,
-        """                      p2sAckTracker.begin(p2sDeliveryId, timedOutId => {
-                        toggle = false;
-                        Promise.resolve()
-                          .then(async () => {
-                            const failure = await outboundQueue.recordFailure(
-                              timedOutId,
-                              'P2S server echo acknowledgement timed out',
-                            );
-                            await updateOutboundQueueStatus(
-                              failure.dropped
-                                ? 'p2s-ack-timeout-dropped'
-                                : 'p2s-ack-timeout',
-                            );
-                            if (!failure.dropped) {
-                              scheduleOutboundRetry(failure.item?.failures);
-                            }
-                          })
-                          .catch(async error => {
-                            await setDataInAsyncStorage(
-                              'wsStatusMessage',
-                              '❌ P2S ACK Error: ' + error,
-                            );
-                          });
-                      });""",
-        """                      p2sAckTracker.begin(p2sDeliveryId, timedOutId => {
-                        toggle = false;
-                        runDetached('p2s-ack-timeout', async () => {
-                          const failure = await outboundQueue.recordFailure(
-                            timedOutId,
-                            'P2S server echo acknowledgement timed out',
-                          );
-                          await updateOutboundQueueStatus(
-                            failure.dropped
-                              ? 'p2s-ack-timeout-dropped'
-                              : 'p2s-ack-timeout',
-                          );
-                          if (!failure.dropped) {
-                            scheduleOutboundRetry(failure.item?.failures);
-                          }
-                        });
-                      });""",
-        "P2S ACK timeout supervision",
-    )
-
+    # Standard STOMP receipt and timeout callbacks are generated later by
+    # finalize_transport_delivery_semantics.py already wrapped with
+    # runRuntimeDetached. There is no early proprietary ACK callback to rewrite.
     path.write_text(text, encoding="utf-8")
