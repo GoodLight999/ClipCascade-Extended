@@ -54,8 +54,15 @@ function setupError(code, detail = '') {
 
 function formatSetupError(error, text) {
   const code = String(error?.code || 'SETUP_FAILED');
-  const detail = String(error?.detail || '');
-  return `${text.setupFailed}\n\n${code}${detail ? `\n${detail}` : ''}`;
+  const technicalDetail = String(error?.detail || '');
+  const localizedDetail = ['SHIZUKU_NOT_RUNNING', 'SHIZUKU_PERMISSION_TIMEOUT'].includes(
+    code,
+  )
+    ? text.shizukuGuide
+    : technicalDetail;
+  return `${text.setupFailed}\n\n${code}${
+    localizedDetail ? `\n${localizedDetail}` : ''
+  }`;
 }
 
 export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
@@ -192,10 +199,6 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
     if (plan.state === 'not-installed') {
       await NativeBridgeModule.openOrGetShizuku();
       show('Shizuku', `${text.shizukuOpen}\n\n${text.shizukuGuide}`);
-      return;
-    }
-    if (plan.state === 'not-running') {
-      show('Shizuku', text.shizukuGuide);
       return;
     }
 
