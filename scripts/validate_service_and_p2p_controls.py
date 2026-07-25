@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prevent stale service toggles, detached async work and unsafe P2P controls."""
+"""Prevent stale service toggles, unsafe runtime replacement and P2P controls."""
 from __future__ import annotations
 
 import argparse
@@ -26,6 +26,9 @@ def main() -> None:
     pending_share_policy = (root / "PendingShareStartPolicy.js").read_text(
         encoding="utf-8"
     )
+    runtime_coordinator = (root / "ForegroundRuntimeCoordinator.js").read_text(
+        encoding="utf-8"
+    )
     detached_supervisor = (root / "DetachedTaskSupervisor.js").read_text(encoding="utf-8")
 
     require(app, "resolveRequestedServiceState(", "persisted explicit service intent")
@@ -42,6 +45,9 @@ def main() -> None:
     require(app, "planPendingShareStart", "pending-share start planner")
     require(app, "service-start-requested:", "observable automatic start reason")
     require(app, "onPress={() => foregroundService()}", "UI-only service toggle")
+    require(app, "onDisplayNotification(requested.forcedStart)", "forced restart forwarding")
+    require(app, "StartForegroundService({ forceRestart })", "coordinator restart input")
+    require(app, "if (!forceRestart) {", "normal-only direct Notifee stop")
     require(app, "requested.noOp", "already-satisfied service intent guard")
     require(app, "hasForegroundStopTimedOut", "bounded stop policy")
     require(app, "stop-timeout", "truthful stop timeout state")
@@ -61,6 +67,28 @@ def main() -> None:
         "forceRestart ? 'stale-runtime' : 'runtime-stopped'",
         "stale runtime restart classification",
     )
+
+    for marker, label in (
+        ("FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000", "bounded restart wait"),
+        ("createForegroundRuntimeCoordinator", "runtime coordinator factory"),
+        ("acquire(runtimeId, requestStop)", "single runtime acquisition"),
+        ("requestRestart(", "serialized restart request"),
+        ("current.completion.then(() => true)", "exact lease completion wait"),
+        ("foreground-runtime-stop-timeout", "restart timeout evidence"),
+        ("activeRuntimeId()", "coordinator diagnostics accessor"),
+    ):
+        require(runtime_coordinator, marker, label)
+
+    require(service, "createForegroundRuntimeCoordinator", "coordinator import")
+    require(service, "foregroundRuntimeCoordinator.acquire", "coordinated runtime lease")
+    require(service, "foregroundRuntimeCoordinator.requestRestart", "coordinated forced restart")
+    require(service, "restart-waiting-for-old-runtime", "restart waiting evidence")
+    require(service, "restart-stop-requested:", "old runtime stop request evidence")
+    require(service, "restart-old-runtime-stopped", "old runtime completion evidence")
+    require(service, "Foreground runtime restart failed", "restart failure evidence")
+    require(service, "runtimeLease.finish()", "runtime lease terminal release")
+    require(service, "duplicate-runtime-suppressed", "duplicate runtime suppression")
+    forbid(service, "let activeForegroundRuntimeId", "uncoordinated runtime ownership")
 
     require(service, "activeClipboardSubscriptions", "owned clipboard subscription registry")
     require(service, "trackClipboardSubscription", "owned subscription registration")
@@ -146,10 +174,8 @@ def main() -> None:
     ):
         forbid(service, marker, f"async host {label}")
 
-    require(service, "activeForegroundRuntimeId", "single foreground runtime lease")
-    require(service, "duplicate-runtime-suppressed", "duplicate runtime suppression")
     require(service, "return new Promise(resolve => {", "synchronous foreground Promise executor")
-    require(service, "let runtimeId = null", "terminal-cleanup runtime identifier scope")
+    require(service, "let runtimeLease = null", "terminal-cleanup lease scope")
     require(service, "Promise.resolve()\n          .then(async () => {", "supervised foreground Promise chain")
     require(service, "handler-unhandled-failure", "terminal foreground async failure state")
     forbid(service, "new Promise(async", "async Promise executor")
@@ -213,7 +239,7 @@ def main() -> None:
     forbid(service, "localKeyFingerprint", "local password-derived verifier")
 
     print(
-        "explicit/forced service intents, owned listeners, runtime-scoped host callbacks and secret-free P2P controls: OK"
+        "coordinated service handoff, owned listeners, runtime-scoped callbacks and secret-free P2P controls: OK"
     )
 
 
