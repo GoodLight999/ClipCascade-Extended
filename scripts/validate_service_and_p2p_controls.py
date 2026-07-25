@@ -23,11 +23,24 @@ def main() -> None:
     app = (root / "App.js").read_text(encoding="utf-8")
     service = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     policy = (root / "ServiceControlPolicy.js").read_text(encoding="utf-8")
+    pending_share_policy = (root / "PendingShareStartPolicy.js").read_text(
+        encoding="utf-8"
+    )
     detached_supervisor = (root / "DetachedTaskSupervisor.js").read_text(encoding="utf-8")
 
     require(app, "resolveRequestedServiceState(", "persisted explicit service intent")
-    require(app, "const foregroundService = async (desiredState = null)", "explicit service API")
-    require(app, "await foregroundService('true');", "idempotent automatic start")
+    require(
+        app,
+        "const foregroundService = async (\n    desiredState = null,\n    forceRestart = false,",
+        "explicit and forceable service API",
+    )
+    require(
+        app,
+        "await foregroundService('true', pendingSharePlan.forceRestart);",
+        "heartbeat-aware automatic start",
+    )
+    require(app, "planPendingShareStart", "pending-share start planner")
+    require(app, "service-start-requested:", "observable automatic start reason")
     require(app, "onPress={() => foregroundService()}", "UI-only service toggle")
     require(app, "requested.noOp", "already-satisfied service intent guard")
     require(app, "hasForegroundStopTimedOut", "bounded stop policy")
@@ -36,7 +49,18 @@ def main() -> None:
     forbid(app, "wsIsRunning === 'true' ? 'false' : 'true'", "stale React-state toggle")
     require(policy, "FOREGROUND_STOP_TIMEOUT_MS = 10_000", "10 second stop bound")
     require(policy, "resolveRequestedServiceState", "explicit service-state resolver")
-    require(policy, "persistedState === desiredState", "idempotent desired-state check")
+    require(policy, "forceRestart = false", "forced restart parameter")
+    require(policy, "forcedStart", "forced restart result")
+    require(
+        pending_share_policy,
+        "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
+        "bounded foreground heartbeat freshness",
+    )
+    require(
+        pending_share_policy,
+        "forceRestart ? 'stale-runtime' : 'runtime-stopped'",
+        "stale runtime restart classification",
+    )
 
     require(service, "activeClipboardSubscriptions", "owned clipboard subscription registry")
     require(service, "trackClipboardSubscription", "owned subscription registration")
@@ -189,7 +213,7 @@ def main() -> None:
     forbid(service, "localKeyFingerprint", "local password-derived verifier")
 
     print(
-        "explicit service intents, owned listeners, runtime-scoped host callbacks and secret-free P2P controls: OK"
+        "explicit/forced service intents, owned listeners, runtime-scoped host callbacks and secret-free P2P controls: OK"
     )
 
 
