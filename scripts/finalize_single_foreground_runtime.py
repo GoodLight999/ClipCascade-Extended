@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Allow one runtime and serialize forced restart handoff before replacement."""
+"""Own one runtime, serialize starts, and verify callback lease acquisition."""
 from __future__ import annotations
 
 import argparse
@@ -80,13 +80,17 @@ module.exports = async (inputData = null) => {""",
               }
               await setDataInAsyncStorage('foreground_service_state', state);
               await setDataInAsyncStorage('foreground_service_instance_id', '');
+              await setDataInAsyncStorage(
+                'wsForegroundServiceTerminated',
+                'true',
+              );
               runtimeLease.finish();
               resolve();
             };
             runtimeLease = foregroundRuntimeCoordinator.acquire(
               runtimeId,
               async reason => {
-                runtimeStopReason = String(reason || 'restart');
+                runtimeStopReason = String(reason || 'replacement-start');
                 stopAcceptingRuntimeEvents();
                 await setDataInAsyncStorage(
                   'foreground_service_state',
@@ -183,31 +187,108 @@ module.exports = async (inputData = null) => {""",
         path,
         """  try {
     await setDataInAsyncStorage('foreground_service_state', 'notification-starting');""",
-        """  try {
-    if (inputData?.forceRestart === true) {
+        """  return foregroundRuntimeCoordinator.runStartTransition(async () => {
+    try {
+      const restartReason = String(
+        inputData?.restartReason ||
+          (inputData?.forceRestart === true
+            ? 'forced-share-recovery'
+            : 'replacement-start'),
+      );
+      const activeRuntimeId = foregroundRuntimeCoordinator.activeRuntimeId();
+      if (activeRuntimeId && inputData?.forceRestart !== true) {
+        await setDataInAsyncStorage(
+          'foreground_service_state',
+          `start-coalesced:${activeRuntimeId}`,
+        );
+        return [true, 'Foreground service is already running'];
+      }
       await setDataInAsyncStorage(
         'foreground_service_state',
-        'restart-waiting-for-old-runtime',
+        `restart-waiting:${restartReason}`,
       );
       const restart = await foregroundRuntimeCoordinator.requestRestart(
-        'forced-share-recovery',
+        restartReason,
       );
       if (!restart.stopped) {
         throw new Error(
           `Foreground runtime restart failed: ${restart.error || restart.runtimeId}`,
         );
       }
+      await notifee.stopForegroundService();
+      await notifee.cancelNotification(
+        'ClipCascade_Foreground_Service_Notification_Id',
+      );
       await setDataInAsyncStorage('wsIsRunning', 'true');
       await setDataInAsyncStorage('wsForegroundServiceTerminated', 'false');
       await setDataInAsyncStorage(
         'foreground_service_state',
         restart.hadActiveRuntime
-          ? 'restart-old-runtime-stopped'
-          : 'restart-no-active-runtime',
+          ? `restart-old-runtime-stopped:${restartReason}`
+          : `restart-no-active-runtime:${restartReason}`,
       );
+      await setDataInAsyncStorage('foreground_service_state', 'notification-starting');""",
+        "serialize every foreground start",
+    )
+
+    replace_once(
+        path,
+        """    await notifee.displayNotification({
+      title: 'ClipCascade Extended',""",
+        """    await notifee.displayNotification({
+      id: 'ClipCascade_Foreground_Service_Notification_Id',
+      title: 'ClipCascade Extended',""",
+        "stable foreground notification id",
+    )
+
+    replace_once(
+        path,
+        """    });
+
+    // Create a notification channel for download progress""",
+        """    });
+    const startedRuntimeId =
+      await foregroundRuntimeCoordinator.waitForActiveRuntime();
+    if (!startedRuntimeId) {
+      await notifee.stopForegroundService();
+      await notifee.cancelNotification(
+        'ClipCascade_Foreground_Service_Notification_Id',
+      );
+      throw new Error('Foreground runtime callback did not acquire its lease');
     }
-    await setDataInAsyncStorage('foreground_service_state', 'notification-starting');""",
-        "forced foreground runtime stop-before-start handoff",
+    await setDataInAsyncStorage(
+      'foreground_service_state',
+      `handler-confirmed:${startedRuntimeId}`,
+    );
+
+    // Create a notification channel for download progress""",
+        "confirm foreground runtime callback lease",
+    )
+
+    replace_once(
+        path,
+        """  } catch (error) {
+    const detail = String(error?.stack || error);
+    await setDataInAsyncStorage('foreground_service_error', detail.slice(0, 4000));
+    await setDataInAsyncStorage('foreground_service_state', 'start-failed');
+    await setDataInAsyncStorage('wsStatusMessage', '❌ Foreground service: ' + detail);
+    await setDataInAsyncStorage('wsIsRunning', 'false');
+    await setDataInAsyncStorage('wsForegroundServiceTerminated', 'true');
+    return [false, detail];
+  }
+};""",
+        """    } catch (error) {
+      const detail = String(error?.stack || error);
+      await setDataInAsyncStorage('foreground_service_error', detail.slice(0, 4000));
+      await setDataInAsyncStorage('foreground_service_state', 'start-failed');
+      await setDataInAsyncStorage('wsStatusMessage', '❌ Foreground service: ' + detail);
+      await setDataInAsyncStorage('wsIsRunning', 'false');
+      await setDataInAsyncStorage('wsForegroundServiceTerminated', 'true');
+      return [false, detail];
+    }
+  });
+};""",
+        "close serialized foreground start transition",
     )
 
 
