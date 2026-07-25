@@ -3,10 +3,10 @@ import {
   ActivityIndicator,
   Modal,
   NativeEventEmitter,
-  PlatformColor,
   ScrollView,
   Text,
   TouchableOpacity,
+  useColorScheme,
   View,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -16,6 +16,10 @@ import {
   getExtendedStrings,
   localizeRuntimeMessage,
 } from './ExtendedI18n';
+import {
+  isShizukuSetupVerified,
+  planShizukuSetup,
+} from './ShizukuSetupPolicy';
 
 const ADB_COMMANDS = [
   'adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS',
@@ -32,8 +36,18 @@ function pretty(value) {
   }
 }
 
+function parseJson(value) {
+  if (value && typeof value === 'object') return value;
+  try {
+    return JSON.parse(String(value || '{}'));
+  } catch (_) {
+    return {};
+  }
+}
+
 export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
   const text = getExtendedStrings();
+  const styles = createStyles(useColorScheme() === 'dark');
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState({
     visible: false,
@@ -93,9 +107,7 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
     });
 
   const showStatus = async () => {
-    const status = JSON.parse(
-      await NativeBridgeModule.getReliabilityStatus(),
-    );
+    const status = parseJson(await NativeBridgeModule.getReliabilityStatus());
     const lines = [
       `${text.packageLabel}: ${status.packageName}`,
       `${text.requestedLabel}: ${status.serviceRequested}`,
@@ -136,11 +148,9 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
 
   const runAutoDebug = async () => {
     const eventBridge = await runEventBridgeProbe();
-    const status = JSON.parse(
-      await NativeBridgeModule.getReliabilityStatus(),
-    );
+    const status = parseJson(await NativeBridgeModule.getReliabilityStatus());
     const probe = NativeBridgeModule.runNativeAutoDebug
-      ? JSON.parse(await NativeBridgeModule.runNativeAutoDebug())
+      ? parseJson(await NativeBridgeModule.runNativeAutoDebug())
       : { clipboard: { clipboardRead: null }, reason: 'native probe unavailable' };
     probe.eventBridge = eventBridge;
     const report = analyzeDiagnostics(status, probe);
@@ -148,22 +158,51 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
     show(text.autoDebug, body);
   };
 
+  const getShizukuStatus = async () =>
+    parseJson(await NativeBridgeModule.getShizukuStatus());
+
   const runShizuku = async () => {
-    try {
-      await NativeBridgeModule.requestShizukuPermission();
-      await NativeBridgeModule.applyShizukuOneTimeSetup();
-      const status = JSON.parse(
-        await NativeBridgeModule.getShizukuStatus(),
-      );
+    let status = await getShizukuStatus();
+    const plan = planShizukuSetup(status);
+
+    if (plan.state === 'already-configured') {
       show(
         'Shizuku',
-        `${text.setupComplete}\n\nREAD_LOGS: ${status.readLogs}\nOverlay: ${
-          status.overlay
-        }\nBinder: ${status.binderEvent || '—'}`,
+        `${text.setupComplete}\n\nREAD_LOGS: ${status.readLogs}\nOverlay: ${status.overlay}`,
       );
-    } catch (error) {
-      show(text.setupFailed, `${String(error)}\n\n${text.shizukuGuide}`);
+      return;
     }
+    if (plan.state === 'not-installed') {
+      await NativeBridgeModule.openOrGetShizuku();
+      show('Shizuku', `${text.shizukuOpen}\n\n${text.shizukuGuide}`);
+      return;
+    }
+    if (plan.state === 'not-running') {
+      show('Shizuku', text.shizukuGuide);
+      return;
+    }
+
+    if (plan.requestPermission) {
+      await NativeBridgeModule.requestShizukuPermission();
+      status = await getShizukuStatus();
+      if (status.permissionGranted !== true) {
+        throw new Error('Shizuku permission was not retained');
+      }
+    }
+    if (plan.applySetup) {
+      await NativeBridgeModule.applyShizukuOneTimeSetup();
+    }
+
+    status = await getShizukuStatus();
+    if (!isShizukuSetupVerified(status)) {
+      throw new Error(`Android did not retain the required grants: ${pretty(status)}`);
+    }
+    show(
+      'Shizuku',
+      `${text.setupComplete}\n\nREAD_LOGS: ${status.readLogs}\nOverlay: ${
+        status.overlay
+      }\nBinder: ${status.binderEvent || '—'}`,
+    );
   };
 
   const button = (label, action, backgroundColor = '#2457a6') => (
@@ -239,6 +278,7 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
             </ScrollView>
             <View style={styles.dialogActions}>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={[styles.actionButton, styles.copyButton]}
                 onPress={() => {
                   Clipboard.setString(dialog.copy);
@@ -251,6 +291,7 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
                 <Text style={styles.buttonText}>{text.copy}</Text>
               </TouchableOpacity>
               <TouchableOpacity
+                accessibilityRole="button"
                 style={[
                   styles.actionButton,
                   styles.closeButton,
@@ -270,72 +311,87 @@ export default function ExtendedControlPanel({ NativeBridgeModule, notifee }) {
   );
 }
 
-const styles = {
-  card: {
-    marginTop: 18,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: PlatformColor('?android:attr/colorBackgroundFloating'),
-    borderWidth: 1,
-    borderColor: PlatformColor('?android:attr/textColorSecondary'),
-  },
-  heading: {
-    color: PlatformColor('?android:attr/textColorPrimary'),
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  busy: { marginVertical: 8 },
-  button: {
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginVertical: 5,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  dialog: {
-    maxHeight: '88%',
-    borderRadius: 14,
-    padding: 16,
-    backgroundColor: PlatformColor('?android:attr/colorBackgroundFloating'),
-    borderWidth: 1,
-    borderColor: PlatformColor('?android:attr/textColorSecondary'),
-  },
-  dialogTitle: {
-    color: PlatformColor('?android:attr/textColorPrimary'),
-    fontSize: 19,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-  dialogScroll: { minHeight: 120 },
-  dialogBodyContainer: { paddingBottom: 8 },
-  dialogBody: {
-    color: PlatformColor('?android:attr/textColorPrimary'),
-    fontFamily: 'monospace',
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  dialogActions: { flexDirection: 'row', marginTop: 12 },
-  actionButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  rightActionButton: { marginLeft: 10 },
-  copyButton: { backgroundColor: '#2457a6' },
-  closeButton: { backgroundColor: '#5b6168' },
-};
+function createStyles(isDark) {
+  const palette = isDark
+    ? {
+        surface: '#1b1b1f',
+        border: '#7a7a84',
+        text: '#f5f5f7',
+        scrim: 'rgba(0,0,0,0.78)',
+      }
+    : {
+        surface: '#ffffff',
+        border: '#6d7077',
+        text: '#15171a',
+        scrim: 'rgba(0,0,0,0.58)',
+      };
+  return {
+    card: {
+      marginTop: 18,
+      padding: 14,
+      borderRadius: 12,
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    heading: {
+      color: palette.text,
+      fontSize: 18,
+      fontWeight: '700',
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    busy: { marginVertical: 8 },
+    button: {
+      paddingVertical: 12,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginVertical: 5,
+    },
+    buttonText: {
+      color: '#ffffff',
+      fontSize: 15,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    backdrop: {
+      flex: 1,
+      backgroundColor: palette.scrim,
+      justifyContent: 'center',
+      padding: 16,
+    },
+    dialog: {
+      maxHeight: '88%',
+      borderRadius: 14,
+      padding: 16,
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    dialogTitle: {
+      color: palette.text,
+      fontSize: 19,
+      fontWeight: '700',
+      marginBottom: 10,
+    },
+    dialogScroll: { minHeight: 120 },
+    dialogBodyContainer: { paddingBottom: 8 },
+    dialogBody: {
+      color: palette.text,
+      fontFamily: 'monospace',
+      fontSize: 13,
+      lineHeight: 20,
+    },
+    dialogActions: { flexDirection: 'row', marginTop: 12 },
+    actionButton: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    rightActionButton: { marginLeft: 10 },
+    copyButton: { backgroundColor: '#2457a6' },
+    closeButton: { backgroundColor: '#5b6168' },
+  };
+}
