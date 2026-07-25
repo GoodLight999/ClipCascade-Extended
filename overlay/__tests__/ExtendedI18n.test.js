@@ -41,6 +41,23 @@ describe('Extended product localization', () => {
     }
   });
 
+  test('all supported locales expose the exact same key set', () => {
+    const canonical = Object.keys(STRINGS.en).sort();
+    expect(Object.keys(STRINGS.ja).sort()).toEqual(canonical);
+    expect(Object.keys(STRINGS.zh).sort()).toEqual(canonical);
+  });
+
+  test.each(['ja', 'zh', 'en'])(
+    '%s has no blank or non-string translation values',
+    locale => {
+      for (const [key, value] of Object.entries(STRINGS[locale])) {
+        expect(typeof value).toBe('string');
+        expect(value.trim().length).toBeGreaterThan(0);
+        expect(key.trim().length).toBeGreaterThan(0);
+      }
+    },
+  );
+
   test('Japanese and Chinese are not accidental English fallbacks', () => {
     expect(STRINGS.ja.login).not.toBe(STRINGS.en.login);
     expect(STRINGS.zh.login).not.toBe(STRINGS.en.login);
