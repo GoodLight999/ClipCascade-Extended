@@ -172,6 +172,8 @@ The emulator matrix exercised light/dark launch, text Share, process text, a rea
 
 The downloaded APK was independently checked. Hash, size, signer, Manifest identity, required runtime/receipt/feedback markers and forbidden obsolete/OTP/update markers matched. Both emulator evidence archives were independently inspected.
 
+Documentation and packaged-APK CI assertions were then synchronized to this evidence without changing application behavior. The artifact authority remains the implementation/run/hash above unless application source changes and a new three-job green run replaces it.
+
 ## Remaining acceptance boundary
 
 This is a strong automated device-test candidate, not final product acceptance. Still required:
