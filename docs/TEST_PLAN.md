@@ -9,16 +9,13 @@ Every behavioral source head must pass:
 - exact pinned-upstream materialization and every guarded finalizer;
 - canonical-source, architecture, ordering and forbidden-residue validators;
 - stable signing-key inspection;
-- `npm ci`, repository audit, ESLint and every Jest suite;
-- Android Lint and every Extended Kotlin unit test;
-- `assembleExtended`;
-- APK ZIP integrity and zipalign;
-- APK Signature Scheme v2 and fixed certificate verification;
+- dependency/repository audit, ESLint and every Jest suite;
+- Android Lint, every Extended Kotlin unit test and `assembleExtended`;
+- APK ZIP integrity, zipalign, fixed v2 signature and checksum;
 - package/version/non-debuggable/Accessibility/permission/Shizuku Manifest checks;
-- native reliability DEX checks;
-- packaged Hermes checks for listener readiness, runtime serialization, start confirmation, standard receipt/self-echo delivery, typed feedback, queue preservation and localization;
-- packaged absence of OTP classes, inherited update URLs/UI and obsolete transport markers;
-- checksum and artifact upload;
+- native DEX reliability checks;
+- packaged Hermes checks for listener readiness, serialized runtime/start confirmation, receipt/self-echo delivery, typed feedback, queue preservation and localization;
+- packaged absence of OTP, inherited update URLs/UI and obsolete transport markers;
 - API 35 and API 36 smoke using the uploaded signed release APK.
 
 Current behavioral implementation authority:
@@ -34,222 +31,104 @@ Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 Signature: APK Signature Scheme v2
 ```
 
-Run `30187796193` passed build and API 35/API 36 smoke. Both emulator evidence archives contain `checkpoint=passed`, exit code `0`, numeric MediaStore URI, image staging/native-event markers, a live background PID, light/dark screenshots and no app crash/ANR/known-regression marker. The APK and evidence were independently rechecked.
+Run `30187796193` passed build and both emulator jobs. API 35/API 36 evidence contains `checkpoint=passed`, exit code `0`, numeric MediaStore URI, image staging/native-event markers, background PID, light/dark screenshots and no app crash/ANR/known-regression marker. APK and evidence were independently rechecked.
 
-Documentation and packaged-APK assertion updates performed after this evidence do not alter application behavior. A new behavioral-source change requires a new fully green build/API35/API36 authority and replacement of the block above.
+Later documentation and packaged-APK assertion updates do not alter application behavior. Any application-source change requires a new fully green build/API35/API36 authority.
 
-`3.2.0-extended.3` is device-failed and must not be used as an acceptance baseline.
+`3.2.0-extended.3` is device-failed and is not an acceptance baseline.
 
 ## 2. Upgrade-first install
 
-1. Do **not** uninstall the existing Extended build before recording upgrade behavior.
-2. Install `.5` / `320005` over the currently installed same-package build.
-3. Record installer failure instead of bypassing it with uninstall.
-4. Verify application ID and signer remain the values above.
-5. Verify server URL, username, settings, requested synchronization state and retained permissions/app-ops.
-6. Before changing setup, run automatic diagnostics and copy the complete report.
+1. Do not uninstall before recording upgrade behavior.
+2. Install `.5` / `320005` over the installed same-package build.
+3. Record installer failure rather than bypassing it with uninstall.
+4. Verify application ID and signer.
+5. Verify server/settings/requested-state and retained permissions/app-ops.
+6. Run/copy automatic diagnostics before setup changes.
 7. Record Reliability Self-Test.
-8. Perform a separate clean-install onboarding test only after upgrade evidence is saved.
+8. Perform a separate clean-install test only after upgrade evidence is saved.
 
-## 3. Product UI and localization
+## 3. UI and localization
 
-Test Android language in Japanese, English and Simplified Chinese, in light and dark mode.
+Test Japanese, English and Simplified Chinese in light and dark mode.
 
-Require:
-
-- login, advanced settings, synchronization, setup, Self-Test and diagnostics consistently use the selected language;
-- dynamic connection/login/logout/error state and notifications are localized;
-- technical exception detail and raw JSON remain available;
-- ADB commands and reports are selectable and one-tap copyable;
-- input, card, dialog and body contrast is readable;
-- inherited GitHub/help/donate/homepage/footer/update prompt and obsolete ADB guidance are absent;
-- no upstream update/metadata request occurs.
-
-Any mixed inherited UI, hidden permission dialog or unreadable screen is a failure.
+Require complete language consistency across login, advanced settings, synchronization, setup, Self-Test, diagnostics, dynamic runtime states and notifications. Technical details/raw JSON remain available. ADB/report text is selectable and copyable. No inherited footer/link/funding/update UI, obsolete ADB guidance or update/metadata request. Any unreadable/mixed screen or obscuring permission dialog fails.
 
 ## 4. ADB-free clipboard path
 
-1. Enable **ClipCascade copy detector** through Extended.
-2. Confirm Accessibility states that window content is not retrieved.
-3. Allow overlay through Extended.
-4. Keep Shizuku stopped and PC ADB disconnected.
-5. Connect to a known-good server.
-6. Require Connected only after real P2S transport or an open compatible P2P DataChannel. Signaling alone must say it is waiting for a peer.
+Enable the copy detector and overlay through Extended, keep Shizuku stopped and PC ADB disconnected, then connect to a known-good server. Connected is allowed only after real P2S transport or an open compatible P2P DataChannel.
 
-Test at least browser, messaging, notes/editor, document/PDF viewer and an OEM/system app.
+Across browser, messaging, notes/editor, document/PDF viewer and an OEM/system app:
 
-For each:
+- hidden unique text copy → exactly one peer delivery;
+- selection without copy → no stale resend;
+- rapid A→B→C → exact order/no miss;
+- repeated same value and A/B/A/B;
+- removed-from-recents, idle and recoverable runtime/process death;
+- multilingual feedback, rotation and battery saver where available.
 
-- copy unique text while Extended is hidden; require exactly one peer delivery;
-- select without copying; stale clipboard must not resend;
-- rapid A→B→C; require order, no miss and no stale value;
-- repeat the same value and alternate A/B/A/B;
-- repeat after removing UI from recents while runtime remains requested;
-- repeat after recoverable process/runtime death;
-- inspect classifier/coordinator/capture/native-event/queue state after any miss.
+Inspect classifier/coordinator/capture/native-event/queue state after any miss.
 
-Repeat representative tests with multilingual copy feedback, rotation, battery saver and available screen states.
+## 5. Share text/process text
 
-## 5. Android Share text/process text
+While Extended is closed and already open, test ordinary text, Spanned/styled text, HTML, MIME-less `ACTION_SEND` with `EXTRA_TEXT` and `ACTION_PROCESS_TEXT`. Require one durable item, listener-safe native delivery, runtime start only when requested and pending-state cleanup for unsupported/empty intents.
 
-Test while Extended is closed and while already open:
-
-- ordinary `text/plain`;
-- Spanned/styled text;
-- HTML text;
-- MIME-less `ACTION_SEND` with `EXTRA_TEXT`;
-- `ACTION_PROCESS_TEXT`.
-
-Require exactly one durable item, listener-safe native delivery, automatic runtime start only when synchronization is requested, and pending-state cleanup for unsupported/empty intents.
-
-## 6. Image clipboard and Share files
+## 6. Images and files
 
 ### Image clipboard
 
-- Copy an image from an app exposing a readable clipboard URI.
-- Require immediate app-owned staging while access is valid.
-- Require exactly one correct peer delivery.
-- Repeat hidden, removed from recents and after idle.
-- Repeat/alternate images; feedback suppression must not erase a later legitimate value.
-- An unreadable URI must produce truthful diagnostic failure, not success.
+Copy from an app exposing a readable clipboard URI. Require immediate staging, one correct peer delivery and truthful diagnostics for unreadable URIs. Repeat hidden/idle and repeated/alternating images; feedback suppression must not erase a legitimate next value.
 
 ### Android Share
 
-Test:
+Test one/multiple images, one/multiple generic files, comma/non-ASCII filenames, `CharSequence` plus stream, bounded large/batch inputs and broken/oversized/partial batches. Require immediate FileProvider staging, JSON URI list, exactly one durable delivery, no partial leftovers and expiry cleanup.
 
-- one image and multiple images;
-- one generic file and multiple files;
-- comma and non-ASCII filenames;
-- `CharSequence` plus stream;
-- moderately large file and bounded multi-file batch;
-- broken/oversized/partially readable batches.
-
-Require immediate FileProvider staging, JSON URI list, exactly one durable delivery, no partial leftovers after rejection, expiry cleanup and localized save/staging errors.
-
-## 7. Emulator smoke contract
+## 7. Emulator smoke
 
 API 35 and API 36 must each:
 
-1. verify artifact checksum and install the release APK;
-2. launch light mode and capture screenshot/UI XML;
-3. pass text Share and `ACTION_PROCESS_TEXT` native-event markers;
-4. create a real PNG, insert it into MediaStore, resolve its numeric Content URI and write its bytes;
-5. cold-start Extended with `ACTION_SEND image/png`, matching `Intent.data`/`EXTRA_STREAM` and read grant;
-6. record `Shared payload staged: event=SHARED_IMAGE;count=1` and `Native event accepted: event=SHARED_IMAGE`;
-7. HOME the app, wait and require a live process PID;
-8. launch dark mode and capture screenshot/UI XML;
-9. reject app crash, native crash, ANR, React-host, StatusBar, forbidden foreground-service and AEAD regression markers;
-10. emit `summary.json`, `checkpoint=passed` and exit code `0`.
+1. verify checksum and install release APK;
+2. capture light launch screenshot/UI XML;
+3. pass text Share and process-text native-event markers;
+4. create/write a real PNG in MediaStore and resolve numeric Content URI;
+5. cold-start `ACTION_SEND image/png` with matching data/stream and read grant;
+6. record image staging and native-event markers;
+7. HOME, wait and require live process PID;
+8. capture dark launch screenshot/UI XML;
+9. reject app/native crash, ANR, React-host, StatusBar, forbidden foreground-service and AEAD markers;
+10. emit passed summary/checkpoint and exit code `0`.
 
 ## 8. Automatic diagnostics
 
-Run before setup changes and after every failure. Require active coverage of:
+Require active coverage of native→React probe, listener readiness/pending events, Accessibility/classifier/coordinator/capture, real foreground clipboard read/MIME/URI count, outbound queue, Share staging/cache, service heartbeat/runtime/duplicate/transition/recovery errors, P2P compatibility/errors, P2S incident counters, Shizuku/grants and package/device identity.
 
-- native→React probe and timeout;
-- listener readiness and pending native events;
-- Accessibility/classifier/coordinator/capture state;
-- real foreground clipboard read, MIME types and URI count;
-- outbound queue count/state/failure;
-- Share pending/staging/cache count and bytes;
-- service requested state, heartbeat freshness, runtime instance, duplicate suppression, transition/recovery/loop/detached errors;
-- P2P candidate/compatible/incompatible peers and operation/signaling errors;
-- P2S inbound incident code/count/time/detail;
-- Shizuku Binder/API/UID/authorization and actual READ_LOGS/overlay;
-- package/version/device identity and raw status JSON.
+Copied reports must exclude credentials, username, endpoints, hashes/keys and salt.
 
-The copied report must exclude password, hashes/keys, username, server/WebSocket URL and salt.
+## 9. P2S matrix
 
-## 9. P2S transport matrix
+Outbound cases: multilingual/long text, emoji/combining characters, offline reconnect, disconnect after publish, receipt timeout, early receipt, late receipt after another head, self-echo fallback, runtime replacement immediately before publish, image and file flows.
 
-Use an upstream-compatible server and desktop/client.
+Require exact upstream `{payload, type}` body, standard receipt primary ACK, matching self-echo fallback, queue-head identity for late callbacks, transient timeout/no permanent drop, WAITING+queue retention when stop begins before publish, manual-only clear, typed feedback and coalesced inbound incidents.
 
-Outbound cases:
+Inbound: text/image/files in visible/background/screen-off states where allowed, repeated/alternating values and reconnect. Require correct apply/save, one-shot loop suppression and truthful connection state.
 
-- short/long multilingual text, emoji and combining characters;
-- offline enqueue then reconnect;
-- disconnect after publish but before acknowledgement;
-- receipt timeout and retry;
-- receipt arriving before the local send promise completes;
-- late receipt after another queue item is head;
-- self-echo fallback with and without receipt support;
-- runtime replacement during base64/encryption immediately before publish;
-- image clipboard and Share text/image/files.
+## 10. P2P matrix
 
-Require:
+Test matching Extended peer, legacy upstream peer, encryption-mode mismatch, different key, multiple peers/reconnect/departure, simultaneous long fragmented send/receive, disconnect/retry and overlapping fragmented messages.
 
-- wire payload remains exactly upstream-compatible `{payload, type}`;
-- standard STOMP `receipt` is primary acknowledgement;
-- matching self-echo may acknowledge the same durable head;
-- late receipt/echo never removes a different head;
-- timeout is transient and does not permanently drop valid work;
-- a stop beginning before publish returns WAITING and retains the queue;
-- explicit manual stop clears only when intended;
-- no global previous-content hash or untyped image suppression;
-- repeated AEAD/malformed incidents are coalesced and reset on success.
+Require no proprietary control frame/signaling type, legacy-safe OFFER/ANSWER metadata, explicit success/waiting, individual quarantine, no repeated recreation/send, truthful open-compatible peer count and no repeated AEAD flood.
 
-Inbound cases: text/image/files, visible/background/screen-off where allowed, repeated and alternating values, reconnect after sleep/wake. Require correct apply/save behavior, typed one-shot loop suppression and no false connection state.
+## 11. Foreground runtime/lifecycle
 
-## 10. P2P transport and compatibility
+Exercise normal duplicate starts, pending Share start, stale-heartbeat replacement, successful/failed/timed-out old stop, missing callback lease, HOME/background, screen off, Doze, process kill, boot/update, network transitions, peer sleep/wake and capture timeout/destruction.
 
-Test:
-
-- one matching Extended peer;
-- one legacy upstream peer without compatibility metadata;
-- encryption-mode mismatch;
-- different key causing AEAD failure;
-- several peers, reconnects and departures;
-- long simultaneous bidirectional fragmented text;
-- disconnect during send and retry;
-- overlapping fragmented messages from different peers.
-
-Require:
-
-- no proprietary DataChannel control frame or unsupported signaling type;
-- optional OFFER/ANSWER metadata does not break legacy peers;
-- success/waiting delivery result is explicit;
-- one incompatible peer is quarantined without stopping compatible peers;
-- quarantined peers are not recreated/sent repeatedly;
-- Peer count represents open compatible DataChannels, not signaling sessions or duplicate runtimes;
-- no repeated AEAD flood for an isolated peer.
-
-## 11. Foreground runtime / lifecycle
-
-Exercise:
-
-- normal duplicate start requests;
-- pending Share with stopped runtime;
-- stale-heartbeat forced replacement;
-- old runtime that stops successfully;
-- old runtime whose stop callback fails or exceeds 10 seconds;
-- notification displayed but no callback lease within 8 seconds;
-- HOME/background, screen off, Doze, process kill, force-stop/relaunch;
-- boot and package replacement;
-- Wi-Fi/mobile/airplane changes, server restart and peer sleep/wake;
-- second copy while capture is in flight and capture timeout/destruction.
-
-Require:
-
-- starts are serialized;
-- normal duplicate start joins the active runtime;
-- replacement waits for exact old lease completion before new start;
-- no success before a real callback lease;
-- old terminal state cannot overwrite new runtime state;
-- non-manual replacement preserves durable queue;
-- no coordinator wedge, duplicate overlay, multiple runtime leases or startup Connected lie.
+Require serialized starts, duplicate join, exact old-lease wait, no success before live callback lease, no old-state overwrite, queue preservation on non-manual replacement and no coordinator wedge/duplicate runtime/startup lie.
 
 ## 12. Guided one-time Shizuku
 
-Test states:
+Test not installed, Binder pending, unauthorized, ready to apply and already configured while stopped. Require bounded wait, authorization, successful remote exit codes and local retained-state verification. Stop Shizuku completely, repeat clipboard/Share, reboot without restarting it and retest. Denial/timeout must not leave BUSY or permit late work.
 
-- not installed;
-- installed but Binder still pending;
-- running unauthorized;
-- authorized ready to apply;
-- already configured while Shizuku is stopped.
-
-Require guided open/install, bounded Binder wait, authorization, successful remote exit codes and local retained-grant verification. Stop Shizuku completely, repeat clipboard/Share tests, reboot without restarting Shizuku and retest. Denial/timeout must not leave BUSY or permit late work.
-
-Any routine capture/network dependency on Shizuku Binder is a failure.
+Routine Shizuku Binder dependency fails acceptance.
 
 ## 13. PC ADB fallback
 
@@ -258,36 +137,24 @@ adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS
 adb shell appops set com.clipcascade.extended android:system_alert_window allow
 ```
 
-Apply once, disconnect PC, repeat clipboard/Share/reboot/update tests. Revoke each separately and require truthful degraded state rather than fabricated success.
+Apply once, disconnect PC and repeat clipboard/Share/reboot/update. Revoke separately and require truthful degraded state.
 
-## 14. Stress and endurance
+## 14. Stress/endurance
 
 - 30-minute rapid/repeated/alternating unique-copy sequence;
 - 8-hour idle/reconnect;
-- repeated receipt timeout/reconnect cycles;
-- simultaneous P2P long send/receive;
-- repeated image/share batches within limits;
+- repeated receipt timeout/reconnect;
+- simultaneous long P2P send/receive;
+- repeated bounded image/file batches;
 - repeated runtime death and next-copy recovery;
-- battery, wakeups, typing latency, task/restart loops and ghost notification observation.
+- battery, wakeups, typing latency, task loops and ghost notification observation.
 
-Record a baseline with Accessibility disabled and compare against detector-enabled behavior.
+Compare with Accessibility disabled.
 
 ## 15. Deferred OTP
 
-OTP notification-listener/extractor code is absent. Do not reintroduce it until every generic clipboard and lifecycle acceptance section is green on the target device and live server/desktop.
+OTP notification-listener/extractor code remains absent until generic clipboard and lifecycle acceptance is green on target device and live server/desktop.
 
 ## 16. Failure evidence
 
-Record:
-
-- copied automatic-diagnostics report;
-- device/OEM/Android build;
-- Extended versionCode, signer and APK hash;
-- upgrade or clean install path;
-- server mode/version and encryption configuration;
-- source/target app, payload pattern, timestamp and exact action;
-- Self-Test before/after;
-- actual permission/app-op screenshots where relevant;
-- Shizuku absent/running/stopped state;
-- focused logs/screenshots/UI XML only when automatic diagnostics are insufficient;
-- whether the fault survives process restart, reboot or update.
+Record automatic diagnostics, device/OEM/build, Extended version/signer/hash, upgrade path, server mode/version/encryption, source/target/payload/timestamp/action, Self-Test, actual permission/app-op state, Shizuku state, focused logs/screens/UI XML and persistence across restart/reboot/update.
