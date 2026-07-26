@@ -91,22 +91,39 @@ run_activity() {
 
 create_media_image() {
   local local_png="$out/share-probe.png"
-  local remote_png="/sdcard/Download/ClipCascade_CI_share_API_$api.png"
+  local display_name="ClipCascade_CI_share_API_$api.png"
+  local remote_png="/sdcard/Download/$display_name"
+  local collection='content://media/external/images/media'
   printf '%s' \
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z2WQAAAAASUVORK5CYII=' \
     | base64 --decode > "$local_png"
   adb push "$local_png" "$remote_png" > "$out/share-image-push.txt"
 
-  local inserted
-  inserted="$(adb shell content insert \
-    --uri content://media/external/images/media \
-    --bind _display_name:s:"ClipCascade_CI_share_API_$api.png" \
+  # `content insert` intentionally prints no inserted URI on current Android.
+  # Remove stale rows, insert one row, then query its numeric MediaStore ID.
+  adb shell content delete \
+    --uri "$collection" \
+    --where "_display_name='$display_name'" \
+    > "$out/share-image-delete.txt" 2>&1 || true
+  adb shell content insert \
+    --uri "$collection" \
+    --bind _display_name:s:"$display_name" \
     --bind mime_type:s:image/png \
-    --bind relative_path:s:Pictures | tr -d '\r')"
-  printf '%s\n' "$inserted" > "$out/share-image-insert.txt"
-  local uri="${inserted##* }"
-  [[ "$uri" == content://* ]]
-  adb shell "content write --uri '$uri' < '$remote_png'" > "$out/share-image-write.txt" 2>&1
+    --bind relative_path:s:Pictures \
+    > "$out/share-image-insert.txt" 2>&1
+
+  local query row_id uri
+  query="$(adb shell content query \
+    --uri "$collection" \
+    --projection _id:_display_name \
+    --where "_display_name='$display_name'" \
+    --sort '_id DESC' | tr -d '\r')"
+  printf '%s\n' "$query" > "$out/share-image-query.txt"
+  row_id="$(printf '%s\n' "$query" | sed -n 's/.*_id=\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+  [[ "$row_id" =~ ^[0-9]+$ ]]
+  uri="$collection/$row_id"
+  adb shell "content write --uri '$uri' < '$remote_png'" \
+    > "$out/share-image-write.txt" 2>&1
   printf '%s\n' "$uri"
 }
 
@@ -158,11 +175,12 @@ assert_log_marker process-text 'Native event accepted: event=SHARED_TEXT'
 checkpoint 'share-image'
 image_uri="$(create_media_image)"
 printf '%s\n' "$image_uri" > "$out/share-image-uri.txt"
+[[ "$image_uri" == content://media/* ]]
 run_activity share-image \
+  --grant-read-uri-permission \
   -a android.intent.action.SEND \
   -t image/png \
   --eu android.intent.extra.STREAM "$image_uri" \
-  --grant-read-uri-permission \
   -n "$component"
 assert_log_marker share-image 'Shared payload staged: event=SHARED_IMAGE;count=1'
 assert_log_marker share-image 'Native event accepted: event=SHARED_IMAGE'
