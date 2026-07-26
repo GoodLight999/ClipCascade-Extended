@@ -21,27 +21,34 @@ Last updated: **2026-07-26 JST**
 
 過去の破綻した派生物、archive、trash、別リポジトリを資料として復活させない。一次資料は本リポジトリ、上記本家、Go版参考実装だけとする。
 
-## 2. Current validated implementation
+## 2. Current validated and reproducible artifact
 
 ```text
-Implementation commit: 751b8b4bec93a81ecab00c1df5a885b5c844c550
-Successful CI run: 30191423570
+Application/build implementation commit: 3f7f01d36d19456bd741fb8b2e65b913cc4ddf34
+Final harness head: ac34de11c73d4d565542b482739c2b3e5339b304
+First deterministic build run: 30192487659
+Second byte-identical build + full smoke run: 30192942851
 Application ID: com.clipcascade.extended
 Version: 3.2.0-extended.5 / 320005
-APK size: 93,681,991 bytes
-APK SHA-256: 475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28
+APK size: 93,673,799 bytes
+APK SHA-256: 5911acfcba1e0e7a28b3e5cc13f268d5fbeb9c4c1653c9148d0954f8333e557c
 Signature: APK Signature Scheme v2
 Signer certificate SHA-256:
 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 ```
 
-Run `30191423570` passed exact pinned-upstream materialization, every finalizer/validator, deterministic Extended build-resource source guard, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, APK ZIP/zipalign/v2 signature/Manifest/DEX/Hermes/checksum and the packaged-resource reproducibility gate.
+Runs `30192487659` and `30192942851` were produced on separate hosted runners with unchanged Android build inputs. The signed APKs are identical under SHA-256 and `cmp`, including all 537 ZIP entries, central directory, v2 signer block and deterministic padding.
 
-The packaged gate verified that `resources.arsc` contains the fixed loopback dev-server resource and no RFC1918 build-host address. This removes the prior GitHub-runner-IP-only APK hash drift without changing debug automatic discovery.
+The reproducibility repair removes both non-deterministic inputs previously found by independent APK comparison:
 
-The identical signed APK passed API 35 and API 36 smoke: light/dark launch, text Share, `ACTION_PROCESS_TEXT`, cold-start real-PNG MediaStore Share, app-owned staging/native-event evidence, HOME/background PID survival and crash/ANR/known-regression scans. APK and both evidence archives were independently rechecked.
+1. React Native 0.80.x build-host IP injection is overridden only for the signed `extended` variant with loopback; debug automatic discovery remains intact.
+2. Android Gradle Plugin SDK dependency information is excluded from APK/Bundle signing metadata because its encrypted signing-block payload changes between builds.
 
-This is the first deterministic-resource build. The documentation-only build immediately following this update must reproduce the exact APK SHA-256 above; if it does not, reproducibility is not proven and this authority must be replaced.
+`validate_release_reproducibility.py` verifies the generated Gradle scope and rejects packaged RFC1918 build-host addresses or Signing Block pair `0x504b4453` before artifact upload. Final Signing Block pairs are v2 signature `0x7109871a` and deterministic padding `0x42726577` only.
+
+Run `30192942851` passed exact pinned-upstream materialization, every finalizer/validator, deterministic-source and packaged-binary gates, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, ZIP/zipalign/v2 signature/Manifest/DEX/Hermes/checksum, artifact upload and API 35/API 36 smoke.
+
+Both emulator artifacts were independently checked: `checkpoint=passed`, exit code `0`, all summary fields passed, numeric MediaStore URI, image staging/native-event markers, background PID and no app crash/native crash/ANR/known regression. The earlier API 36 failure in Run `30192487659` was a transient `adb logcat -d` exit 255 during evidence collection; the app PID remained alive with no abnormal-exit record. The harness now records/retries transient logcat reads without suppressing genuine failures.
 
 ## 3. Non-negotiable requirements
 
@@ -67,8 +74,6 @@ This is the first deterministic-resource build. The documentation-only build imm
 - CI: `.github/workflows/android-ci.yml`
 
 Generate final design directly. Keep state machines in pure tested modules. Guard generated source and packaged APK separately. Failure artifacts retain generated runtime/policies/validators. Never weaken a guard merely to turn CI green; move it to the current contract.
-
-The signed Extended build type overrides React Native 0.80.x's host-dependent dev-server resource with loopback. `validate_release_reproducibility.py` verifies both generated Gradle scope and packaged `resources.arsc`; debug builds retain automatic host discovery.
 
 ## 5. Clipboard acquisition
 
@@ -146,13 +151,13 @@ Diagnostics actively cover native→React delivery, listener readiness, capture/
 
 ## 11. Automated verification
 
-Every behavioral head requires generation/validators, deterministic release-resource source and binary checks, dependency audit, ESLint/Jest, Android Lint/Kotlin/assembly, APK ZIP/zipalign/signature/Manifest/DEX/Hermes/checksum, packaged required/forbidden markers and API35/API36 smoke.
+Every behavioral head requires generation/validators, deterministic release-resource source and Signing Block checks, dependency audit, ESLint/Jest, Android Lint/Kotlin/assembly, APK ZIP/zipalign/signature/Manifest/DEX/Hermes/checksum, packaged required/forbidden markers and API35/API36 smoke.
 
-Smoke requires signed artifact install, light/dark screenshot/UI XML, text/process Share, real-PNG MediaStore cold-start Share with URI grant, staging/native-event evidence, HOME/background PID and no app crash/native crash/ANR/known React/StatusBar/foreground/AEAD marker.
+Smoke requires signed artifact install, light/dark screenshot/UI XML, text/process Share, real-PNG MediaStore cold-start Share with URI grant, staging/native-event evidence, HOME/background PID and no app crash/native crash/ANR/known React/StatusBar/foreground/AEAD marker. Transient ADB evidence reads are retried and each failed attempt remains in the artifact.
 
 ## 12. Remaining real-device boundary
 
-CI green is not product acceptance. Still required: HONOR 400 Pro in-place update; full real-device localization/light-dark review; Shizuku absent/pending/unauthorized/applied-stopped/post-reboot matrix; live upstream P2S/desktop and P2P interoperability; foreground/background/screen-off/Doze/network/process/reboot endurance; five-app copy matrix; ordering/duplicate/endurance/battery/wakeup/typing-latency evidence.
+CI green and reproducible APK do not establish product acceptance. Still required: HONOR 400 Pro in-place update; full real-device localization/light-dark review; Shizuku absent/pending/unauthorized/applied-stopped/post-reboot matrix; live upstream P2S/desktop and P2P interoperability; foreground/background/screen-off/Doze/network/process/reboot endurance; five-app copy matrix; ordering/duplicate/endurance/battery/wakeup/typing-latency evidence.
 
 PR #2 stays Draft.
 
@@ -160,12 +165,11 @@ PR #2 stays Draft.
 
 1. Read this file and confirm branch/PR/head.
 2. Inspect latest build/API35/API36 jobs.
-3. Confirm the next documentation-only build reproduces APK SHA-256 `475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28` exactly.
-4. On failure inspect generated source, checkpoint, summary, exit-info, logcat, screenshots/UI XML.
+3. Never distribute an APK whose SHA differs from the current authority after an Android-input change.
+4. On failure inspect generated source, checkpoint, summary, exit-info, logcat attempts, screenshots/UI XML.
 5. Reproduce in a pure test or deterministic emulator step first.
-6. Never distribute an older APK after application-source changes.
-7. After a new all-green behavioral run independently verify bytes/hash/signer/Manifest/markers/evidence.
-8. Synchronize all documents and PR.
+6. After a new all-green behavioral run independently verify bytes/hash/signer/Manifest/markers/evidence and repeated-build identity.
+7. Synchronize all documents and PR.
 
 ## 14. Definition of done
 
