@@ -23,277 +23,373 @@ def require_before(text: str, first: str, second: str, label: str) -> None:
         raise RuntimeError(f"invalid ordering for {label}: {first!r} before {second!r}")
 
 
+def read(root: Path, relative: str) -> str:
+    return (root / relative).read_text(encoding="utf-8")
+
+
+def require_all(text: str, markers: tuple[str, ...], scope: str) -> None:
+    for marker in markers:
+        require(text, marker, f"{scope}: {marker}")
+
+
+def forbid_all(text: str, markers: tuple[str, ...], scope: str) -> None:
+    for marker in markers:
+        forbid(text, marker, f"{scope}: {marker}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
     root = parser.parse_args().root.resolve()
-
     android = root / "android/app/src/main"
-    manifest = (android / "AndroidManifest.xml").read_text(encoding="utf-8")
-    accessibility_xml = (
-        android / "res/xml/clipcascade_accessibility_service.xml"
-    ).read_text(encoding="utf-8")
-    accessibility_service = (
-        android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt"
-    ).read_text(encoding="utf-8")
-    shizuku_setup = (
-        android / "java/com/clipcascade/ShizukuSetup.kt"
-    ).read_text(encoding="utf-8")
-    native_debug = (
-        android / "java/com/clipcascade/ReliabilityAutoDebug.kt"
-    ).read_text(encoding="utf-8")
-    build_gradle = (root / "android/app/build.gradle").read_text(encoding="utf-8")
-    app_js = (root / "App.js").read_text(encoding="utf-8")
-    foreground_js = (root / "StartForegroundService.js").read_text(encoding="utf-8")
-    headless_js = (root / "HeadlessTask.js").read_text(encoding="utf-8")
-    queue_js = (root / "DurableOutboundQueue.js").read_text(encoding="utf-8")
-    fragmenter_js = (root / "Utf8Fragmenter.js").read_text(encoding="utf-8")
-    accumulator_js = (root / "P2PFragmentAccumulator.js").read_text(encoding="utf-8")
-    channel_sender_js = (root / "P2PChannelSender.js").read_text(encoding="utf-8")
-    receipt_js = (root / "P2SReceiptTracker.js").read_text(encoding="utf-8")
-    feedback_guard_js = (root / "OneShotContentGuard.js").read_text(encoding="utf-8")
-    delivery_policy_js = (root / "OutboundDeliveryPolicy.js").read_text(encoding="utf-8")
-    delivery_executor_js = (root / "OutboundDeliveryExecutor.js").read_text(encoding="utf-8")
-    file_uris_js = (root / "OutboundFileUris.js").read_text(encoding="utf-8")
-    i18n_js = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
-    control_panel_js = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
-    auto_debug_js = (root / "AutoDebug.js").read_text(encoding="utf-8")
-    p2p_compat_js = (root / "P2PCompatibility.js").read_text(encoding="utf-8")
-    pending_share_policy_js = (root / "PendingShareStartPolicy.js").read_text(
-        encoding="utf-8"
-    )
-    service_policy_js = (root / "ServiceControlPolicy.js").read_text(
-        encoding="utf-8"
-    )
 
-    require(manifest, ".ClipCascadeAccessibilityService", "Accessibility service")
-    require(manifest, "android.permission.BIND_ACCESSIBILITY_SERVICE", "Accessibility binding")
-    require(manifest, "android.intent.action.MY_PACKAGE_REPLACED", "package update restart")
-    require(accessibility_xml, 'android:canRetrieveWindowContent="false"', "privacy setting")
-    forbid(
-        accessibility_xml,
-        "typeViewTextSelectionChanged",
-        "selection-only Accessibility subscription",
+    manifest = read(android, "AndroidManifest.xml")
+    accessibility_xml = read(android, "res/xml/clipcascade_accessibility_service.xml")
+    accessibility_service = read(
+        android, "java/com/clipcascade/ClipCascadeAccessibilityService.kt"
     )
-    require(accessibility_service, "SYNC_CHECK_CACHE_MS = 250L", "bounded sync-state lookup")
+    shizuku_setup = read(android, "java/com/clipcascade/ShizukuSetup.kt")
+    native_debug = read(android, "java/com/clipcascade/ReliabilityAutoDebug.kt")
+    build_gradle = read(root, "android/app/build.gradle")
+    app_js = read(root, "App.js")
+    foreground_js = read(root, "StartForegroundService.js")
+    headless_js = read(root, "HeadlessTask.js")
+    queue_js = read(root, "DurableOutboundQueue.js")
+    fragmenter_js = read(root, "Utf8Fragmenter.js")
+    accumulator_js = read(root, "P2PFragmentAccumulator.js")
+    channel_sender_js = read(root, "P2PChannelSender.js")
+    receipt_js = read(root, "P2SReceiptTracker.js")
+    feedback_guard_js = read(root, "OneShotContentGuard.js")
+    delivery_policy_js = read(root, "OutboundDeliveryPolicy.js")
+    delivery_executor_js = read(root, "OutboundDeliveryExecutor.js")
+    file_uris_js = read(root, "OutboundFileUris.js")
+    i18n_js = read(root, "ExtendedI18n.js")
+    control_panel_js = read(root, "ExtendedControlPanel.js")
+    auto_debug_js = read(root, "AutoDebug.js")
+    p2p_compat_js = read(root, "P2PCompatibility.js")
+    pending_share_policy_js = read(root, "PendingShareStartPolicy.js")
+    service_policy_js = read(root, "ServiceControlPolicy.js")
+    coordinator_js = read(root, "ForegroundRuntimeCoordinator.js")
+
+    # Product identity, package continuity and privacy boundary.
+    require_all(
+        manifest,
+        (
+            ".ClipCascadeAccessibilityService",
+            "android.permission.BIND_ACCESSIBILITY_SERVICE",
+            "android.intent.action.MY_PACKAGE_REPLACED",
+        ),
+        "manifest",
+    )
+    require(accessibility_xml, 'android:canRetrieveWindowContent="false"', "privacy setting")
+    forbid(accessibility_xml, "typeViewTextSelectionChanged", "selection-only subscription")
+    require(accessibility_service, "SYNC_CHECK_CACHE_MS = 250L", "bounded sync lookup")
     require_before(
         accessibility_service,
         "if (!decision.capture) return",
         "if (!isSyncRequested())",
-        "copy classification before AsyncStorage lookup",
+        "classification before storage lookup",
+    )
+    require_all(
+        build_gradle,
+        (
+            'applicationId "com.clipcascade.extended"',
+            "versionCode 320005",
+            'versionName "3.2.0-extended.5"',
+            "debuggable false",
+        ),
+        "build identity",
     )
 
-    require(build_gradle, 'applicationId "com.clipcascade.extended"', "permanent package")
-    require(build_gradle, "versionCode 320005", "monotonic versionCode")
-    require(build_gradle, 'versionName "3.2.0-extended.5"', "versionName")
-    require(app_js, "const APP_VERSION = '3.2.0-extended.5';", "UI version")
-    require(app_js, "ExtendedControlPanel", "Extended-only control panel")
-    require(app_js, "getExtendedStrings", "complete product localization")
-    require(app_js, "PlatformColor('?android:attr/textColorPrimary')", "adaptive text color")
-    require(app_js, "EXTENDED_TEXT.username", "localized login form")
-    require(app_js, "EXTENDED_TEXT.start", "localized synchronization controls")
-    require(app_js, "APP_VERSION}</Text>", "visible product version")
-    require(app_js, "planPendingShareStart", "pending-share recovery planner")
-    require(app_js, "service-start-requested:", "observable share service start")
-    require(app_js, "pendingSharePlan.forceRestart", "stale runtime restart request")
-    require(app_js, "foreground_service_heartbeat_at", "share heartbeat liveness input")
-    require(app_js, "foreground_service_last_started_at", "share start-grace input")
-    require(app_js, "      'shared_payload_pending',", "formatted pending-share poll key")
+    # Extended-owned UI, complete localization and explicit service control.
+    require_all(
+        app_js,
+        (
+            "const APP_VERSION = '3.2.0-extended.5';",
+            "ExtendedControlPanel",
+            "getExtendedStrings",
+            "EXTENDED_TEXT.username",
+            "EXTENDED_TEXT.start",
+            "APP_VERSION}</Text>",
+            "planPendingShareStart",
+            "pendingSharePlan.forceRestart",
+            "foreground_service_heartbeat_at",
+            "foreground_service_last_started_at",
+            "let controlLockAcquired = false;",
+            "resolveRequestedServiceState(",
+            "restartReason",
+            "work-manager-recovery",
+            "pollUIFlags().catch",
+            "if (controlLockAcquired) {",
+        ),
+        "App service/UI contract",
+    )
     require_before(
         app_js,
         "const [enableWSPage, setEnableWSPage] = useState(false);",
         "sessionReadyRef.current = enableWSPage;",
-        "websocket state declaration before session-ready synchronization",
+        "session state before synchronization effect",
     )
-    require(app_js, "let controlLockAcquired = false;", "foreground control lock ownership")
-    require(
+    forbid_all(
         app_js,
-        "if ((await getDataFromAsyncStorage('enableWSButton')) !== 'true') return;",
-        "foreground control lock rejection",
+        (
+            "New version available!",
+            "GITHUB",
+            "DONATE",
+            "HOMEPAGE",
+            "Automatic Clipboard Monitoring Setup",
+            "raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/version.json",
+            "raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/metadata.json",
+            "adb -d shell am force-stop",
+            "EXTENDED_SETUP_TEXT",
+        ),
+        "inherited UI/network residue",
     )
-    require(app_js, "if (controlLockAcquired) {", "owner-only foreground control unlock")
-    require(app_js, "restartReason", "foreground restart reason propagation")
-    require(app_js, "work-manager-recovery", "explicit WorkManager recovery")
-    require(app_js, "pollUIFlags().catch", "supervised UI polling")
-    require(
+    require_all(
         pending_share_policy_js,
-        "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
-        "bounded heartbeat stale policy",
+        (
+            "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
+            "reason: forceRestart ? 'stale-runtime' : 'runtime-stopped'",
+            "elapsed >= 0 && elapsed <= Number(maxAgeMs)",
+        ),
+        "pending share policy",
     )
-    require(
-        pending_share_policy_js,
-        "reason: forceRestart ? 'stale-runtime' : 'runtime-stopped'",
-        "stale runtime classification",
+    require_all(
+        service_policy_js,
+        (
+            "FOREGROUND_STOP_TIMEOUT_MS = 10_000",
+            "forceRestart = false",
+            "forcedStart",
+            "elapsed < 0 || elapsed >= Number(timeoutMs)",
+        ),
+        "service control policy",
     )
-    require(
-        pending_share_policy_js,
-        "elapsed >= 0 && elapsed <= Number(maxAgeMs)",
-        "rollback-safe liveness timestamp",
-    )
-    require(service_policy_js, "forceRestart = false", "forced service restart input")
-    require(service_policy_js, "forcedStart", "forced service restart result")
-    for inherited in (
-        "New version available!",
-        "GITHUB",
-        "DONATE",
-        "HOMEPAGE",
-        "Automatic Clipboard Monitoring Setup",
-        "raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/version.json",
-        "raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/metadata.json",
-        "adb -d shell am force-stop",
-        "EXTENDED_SETUP_TEXT",
-    ):
-        forbid(app_js, inherited, f"inherited upstream UI residue {inherited}")
 
     for locale in ("ja:", "zh:", "en:"):
         require(i18n_js, locale, f"locale dictionary {locale}")
     for key in ("username", "login", "start", "shizukuSetup", "autoDebug", "copy"):
         require(i18n_js, f"{key}:", f"localized key {key}")
-    require(control_panel_js, "selectable", "selectable diagnostic text")
-    require(control_panel_js, "Clipboard.setString(dialog.copy)", "one-tap report/ADB copy")
-    require(control_panel_js, "runNativeAutoDebug", "automatic diagnostic button")
-    require(auto_debug_js, "event-listener-order", "listener-order verdict")
-    require(auto_debug_js, "foreground-service", "foreground-service verdict")
-    require(native_debug, "clipboardRead", "native foreground clipboard probe")
-    require(native_debug, "uriCount", "clipboard URI probe")
-    require(native_debug, "sharedCacheBytes", "shared-cache diagnostics")
+    require_all(
+        control_panel_js,
+        ("selectable", "Clipboard.setString(dialog.copy)", "runNativeAutoDebug"),
+        "diagnostics UI",
+    )
+    require_all(auto_debug_js, ("event-listener-order", "foreground-service"), "auto debug")
+    require_all(native_debug, ("clipboardRead", "uriCount", "sharedCacheBytes"), "native debug")
 
-    require(headless_js, "android.intent.action.MY_PACKAGE_REPLACED", "update headless restart")
-    require(headless_js, "forceRestart: true", "coordinated Headless recovery")
-
+    # Native capture ordering, Share staging and one-time Shizuku setup.
+    require_all(
+        headless_js,
+        ("android.intent.action.MY_PACKAGE_REPLACED", "forceRestart: true"),
+        "Headless recovery",
+    )
     kotlin_files = list((android / "java/com/clipcascade").glob("*.kt"))
     all_native = "\n".join(path.read_text(encoding="utf-8") for path in kotlin_files)
-    forbid(all_native, "FLAG_ACTIVITY_CLEAR_TASK", "task-destructive launch flag")
-    require(all_native, "selection-without-copy", "selection false-positive guard")
-    require(all_native, "activateAndDrain", "React listener readiness gate")
-    require(all_native, "drainInOrder", "ordered native event drain")
-    require(all_native, "admissionPlan", "queued event admission gate")
-    require(all_native, "QUEUE_AND_DRAIN", "queued event non-overtaking policy")
-    require(all_native, "retry-scheduled", "bounded transient clipboard retry")
-    require(all_native, "capture-timeout", "capture watchdog")
-    require(all_native, "URI_STAGING_TIMEOUT_MS = 120_000L", "bounded URI staging watchdog")
-    require(all_native, "extendForUriStaging", "URI staging watchdog extension")
-    require(all_native, "one-time-setup-only", "one-time Shizuku contract")
-    require(all_native, "ClipCascade-ShareStager", "shared URI staging")
-    require(all_native, "MAX_CACHE_BYTES", "shared cache total bound")
-    require(all_native, "MAX_BATCH_BYTES", "shared batch bound")
-    require(all_native, "JSONArray(staged.map(Uri::toString))", "JSON-safe staged file URIs")
-    require(all_native, "shared_payload_pending", "pending Android Share startup")
-    require(all_native, "fun readOrStage", "clipboard URI staging entry point")
-    require(all_native, "clipboard-uri-staging", "clipboard URI staging status")
-    require(all_native, "clipboard-uri-duplicate-suppressed", "clipboard URI duplicate guard")
-    require(all_native, "capture-delivered:$type", "typed clipboard capture result")
-    forbid(
+    require_all(
         all_native,
-        "nontext-clipboard-use-android-share",
-        "obsolete clipboard URI rejection",
+        (
+            "selection-without-copy",
+            "activateAndDrain",
+            "drainInOrder",
+            "admissionPlan",
+            "QUEUE_AND_DRAIN",
+            "retry-scheduled",
+            "capture-timeout",
+            "URI_STAGING_TIMEOUT_MS = 120_000L",
+            "extendForUriStaging",
+            "one-time-setup-only",
+            "ClipCascade-ShareStager",
+            "MAX_CACHE_BYTES",
+            "MAX_BATCH_BYTES",
+            "JSONArray(staged.map(Uri::toString))",
+            "shared_payload_pending",
+            "fun readOrStage",
+            "clipboard-uri-staging",
+            "clipboard-uri-duplicate-suppressed",
+            "capture-delivered:$type",
+            "acquireWakeLockNow",
+        ),
+        "native reliability",
     )
-    require(all_native, "acquireWakeLockNow", "Headless JS wake lock")
-    require(shizuku_setup, "addBinderReceivedListenerSticky", "asynchronous Shizuku Binder delivery")
-    require(shizuku_setup, "awaitBinder(BINDER_TIMEOUT_MS)", "bounded Shizuku Binder wait")
-    require(shizuku_setup, "addBinderDeadListener", "Shizuku Binder death tracking")
+    forbid_all(
+        all_native,
+        ("FLAG_ACTIVITY_CLEAR_TASK", "nontext-clipboard-use-android-share"),
+        "native regressions",
+    )
+    require_all(
+        shizuku_setup,
+        (
+            "addBinderReceivedListenerSticky",
+            "awaitBinder(BINDER_TIMEOUT_MS)",
+            "addBinderDeadListener",
+        ),
+        "Shizuku lifecycle",
+    )
 
+    # One runtime lease, serialized start, live callback confirmation and stop-safe queue.
     require_before(
         foreground_js,
         "const clipboardOnChange = trackClipboardSubscription(clipboardListener.addListener(",
         "await ClipboardListener.startListening();",
-        "owned JS listener registration before native durable-event drain",
+        "listener registration before native drain",
     )
-    require(foreground_js, "ready-after-registration", "listener-order evidence")
-    require(foreground_js, "foregroundServiceHandlerRegistered", "single foreground handler")
-    require(foreground_js, "foreground_service_error", "persistent foreground-service error")
-    require(foreground_js, "foreground_service_last_started_at", "foreground start evidence")
-    require(foreground_js, "share-image-enqueued", "image share enqueue evidence")
-    require(foreground_js, "share-files-enqueued", "file share enqueue evidence")
-    require(foreground_js, "⏳ Connecting...", "fresh connection status")
-    require(
+    require_all(
+        coordinator_js,
+        (
+            "FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000",
+            "FOREGROUND_RUNTIME_START_TIMEOUT_MS = 8_000",
+            "startTransitionChain = Promise.resolve()",
+            "runStartTransition(task)",
+            "waitForActiveRuntime(",
+            "requestRestart(",
+            "foreground-runtime-stop-timeout",
+        ),
+        "runtime coordinator",
+    )
+    require_all(
         foreground_js,
-        "✅ Signaling connected; waiting for peer",
-        "truthful P2P signaling status",
+        (
+            "foregroundServiceHandlerRegistered",
+            "foregroundRuntimeCoordinator.runStartTransition",
+            "foregroundRuntimeCoordinator.waitForActiveRuntime",
+            "foreground runtime did not acquire a lease",
+            "runtimeLease.finish()",
+            "duplicate-runtime-suppressed",
+            "ready-after-registration",
+            "foreground_service_error",
+            "foreground_service_last_started_at",
+            "share-image-enqueued",
+            "share-files-enqueued",
+            "createDurableOutboundQueue",
+            "enqueueOutboundClipboard",
+            "p2pTransportReady",
+            "scheduleOutboundRetry",
+            "if (shouldPreserveRuntimeQueue())",
+            "preserved-for-${runtimeStopReason}",
+        ),
+        "foreground runtime",
     )
-    require(foreground_js, "✅ P2P peer connected", "truthful P2P peer status")
-    require(foreground_js, "createDurableOutboundQueue", "durable outbound integration")
-    require(foreground_js, "waiting-for-transport", "offline queue state")
-    require(foreground_js, "enqueueOutboundClipboard", "early durable event enqueue")
-    require(foreground_js, "p2pTransportReady", "cross-scope P2P readiness")
-    require(foreground_js, "scheduleOutboundRetry", "bounded retry scheduling")
-    require(foreground_js, "createP2PFragmentAccumulator", "concurrent fragment integration")
-    require(
+    forbid_all(
         foreground_js,
-        "onDataChannelMessage(e.data, remotePeerId)",
-        "peer-scoped fragment identity",
+        ("removeAllListeners(", "let activeForegroundRuntimeId", "new Promise(async"),
+        "runtime ownership regressions",
     )
-    require(foreground_js, "fragmentAccumulator.clearPeer", "peer fragment cleanup")
-    require(foreground_js, "deliveryId || (await generateUuid())", "idempotent P2P retry ID")
-    require(foreground_js, "sendP2PFragment(openChannels, messageJson)", "P2P backpressure send")
-    require(foreground_js, "evaluateP2PCompatibility", "tested P2P compatibility policy")
-    require(foreground_js, "quarantinedPeers", "incompatible peer quarantine")
-    require(foreground_js, "p2p_incompatible_peers", "P2P compatibility diagnostics")
-    forbid(
-        foreground_js,
-        "Encryption must be enabled on all devices if enabled",
-        "room-wide repeated P2P decrypt error",
-    )
-    require(p2p_compat_js, "legacy-peer-no-hello", "legacy peer compatibility state")
-    require(p2p_compat_js, "encryption-key", "encryption key mismatch policy")
 
-    require(foreground_js, "createP2SReceiptTracker", "P2S receipt tracker integration")
-    require(foreground_js, "watchForReceipt(receiptId", "STOMP receipt callback")
-    require(foreground_js, "headers: {receipt: receiptId}", "standard STOMP receipt header")
-    require(foreground_js, "p2s-self-echo-suppressed", "upstream self-echo fallback")
-    require(foreground_js, "p2s-receipt-timeout", "non-destructive receipt timeout")
-    require(
+    # P2P truthfulness, bounded fragmentation and peer isolation.
+    require_all(
         foreground_js,
-        "OUTBOUND_DELIVERY.AWAITING_P2S_RECEIPT",
-        "explicit P2S awaiting-receipt result",
+        (
+            "⏳ Connecting...",
+            "✅ Signaling connected; waiting for peer",
+            "✅ P2P peer connected",
+            "createP2PFragmentAccumulator",
+            "onDataChannelMessage(e.data, remotePeerId)",
+            "fragmentAccumulator.clearPeer",
+            "deliveryId || (await generateUuid())",
+            "sendP2PFragment(openChannels, messageJson)",
+            "evaluateP2PCompatibility",
+            "quarantinedPeers",
+            "p2p_incompatible_peers",
+            "OUTBOUND_DELIVERY.SENT",
+        ),
+        "P2P reliability",
     )
-    require(foreground_js, "applyOutboundDeliveryResult", "explicit queue delivery executor")
-    require(foreground_js, "createOneShotContentGuard", "typed feedback guard integration")
-    require(foreground_js, "feedback-suppressed", "one-shot feedback outcome")
-    for legacy in (
-        "createP2SAckTracker",
-        "extendedDeliveryId",
-        "awaiting-p2s-ack",
-        "p2s-echo-acknowledged",
-        "P2S server echo acknowledgement timed out",
-        "previous_clipboard_content_hash",
-        "block_image_once",
-        "newCB(",
-    ):
-        forbid(foreground_js, legacy, f"legacy P2S/feedback marker {legacy}")
+    forbid(foreground_js, "Encryption must be enabled on all devices if enabled", "room-wide decrypt error")
+    require_all(p2p_compat_js, ("legacy-peer-no-hello", "encryption-key"), "P2P compatibility")
+    require_all(
+        fragmenter_js,
+        ("bytes[end] & 0xc0",),
+        "UTF-8 fragmentation",
+    )
+    require_all(
+        accumulator_js,
+        ("Too many concurrent fragmented", "Conflicting duplicate fragment", "duplicate-complete"),
+        "fragment accumulator",
+    )
+    require_all(channel_sender_js, ("bufferedAmount", "backpressure timeout"), "DataChannel sender")
 
-    require(foreground_js, "parseOutboundFileUris", "JSON-safe outbound file URI parsing")
-    forbid(
+    # P2S remains upstream-payload-compatible while using standard receipt and self-echo ACKs.
+    require_all(
         foreground_js,
-        "const file_paths = clipContent\n                      .split(',')",
-        "comma-split file URI parsing",
+        (
+            "createP2SReceiptTracker",
+            "watchForReceipt(receiptId",
+            "headers: {receipt: receiptId}",
+            "p2s-self-echo-suppressed",
+            "p2s-receipt-timeout",
+            "OUTBOUND_DELIVERY.AWAITING_P2S_RECEIPT",
+            "applyOutboundDeliveryResult",
+            "createOneShotContentGuard",
+            "feedback-suppressed",
+            "OUTBOUND_DELIVERY.WAITING",
+        ),
+        "P2S delivery",
     )
-    forbid(foreground_js, "receivingFragments =", "single global fragment buffer")
-    forbid(foreground_js, "await sendClipBoard(", "pre-initialization event dispatch")
-    forbid(foreground_js, "textEncoder.encode(clipContent)", "unsafe P2P byte sizing")
+    forbid_all(
+        foreground_js,
+        (
+            "createP2SAckTracker",
+            "extendedDeliveryId",
+            "awaiting-p2s-ack",
+            "p2s-echo-acknowledged",
+            "P2S server echo acknowledgement timed out",
+            "previous_clipboard_content_hash",
+            "block_image_once",
+            "newCB(",
+            "result !== false",
+        ),
+        "legacy transport semantics",
+    )
+    require_all(
+        receipt_js,
+        (
+            "P2S receipt delivery ID is required",
+            "active.id !== id",
+            "queuedHeadId",
+            "Promise.resolve(onTimeout(id)).catch",
+        ),
+        "receipt tracker",
+    )
+    require_all(
+        feedback_guard_js,
+        (
+            "LOCAL_FEEDBACK_WINDOW_MS = 5_000",
+            "P2S_ECHO_WINDOW_MS = 30_000",
+            "clearOnMismatch",
+            "clock-rollback",
+        ),
+        "typed feedback guard",
+    )
+    require_all(
+        delivery_policy_js,
+        (
+            "WAITING: 'waiting-for-transport'",
+            "AWAITING_P2S_RECEIPT",
+            "Invalid outbound delivery result",
+            "p2s-receipt-already-acknowledged",
+        ),
+        "delivery policy",
+    )
+    require_all(
+        delivery_executor_js,
+        ("const currentHead = await peek();", "resolveAwaitingReceiptHead"),
+        "delivery executor",
+    )
 
-    require(queue_js, "MAX_FAILURES = 8", "finite permanent failure policy")
-    require(queue_js, "raw.scope === scope", "server-scoped outbound queue")
-    require(fragmenter_js, "bytes[end] & 0xc0", "UTF-8 code-point boundary guard")
-    require(accumulator_js, "Too many concurrent fragmented", "fragment concurrency bound")
-    require(accumulator_js, "Conflicting duplicate fragment", "fragment conflict guard")
-    require(accumulator_js, "duplicate-complete", "completed fragment replay guard")
-    require(channel_sender_js, "bufferedAmount", "DataChannel buffered amount guard")
-    require(channel_sender_js, "backpressure timeout", "DataChannel timeout guard")
-    require(receipt_js, "P2S receipt delivery ID is required", "receipt input guard")
-    require(receipt_js, "active.id !== id", "active receipt identity guard")
-    require(receipt_js, "queuedHeadId", "late receipt queue-head identity guard")
-    require(receipt_js, "Promise.resolve(onTimeout(id)).catch", "supervised timeout callback")
-    require(feedback_guard_js, "LOCAL_FEEDBACK_WINDOW_MS = 5_000", "local feedback bound")
-    require(feedback_guard_js, "clearOnMismatch", "unrelated-copy preservation")
-    require(feedback_guard_js, "clock-rollback", "feedback clock rollback handling")
-    require(delivery_policy_js, "AWAITING_P2S_RECEIPT", "explicit receipt outcome")
-    require(delivery_policy_js, "Invalid outbound delivery result", "invalid truthy result rejection")
-    require(delivery_policy_js, "p2s-receipt-already-acknowledged", "early receipt continuation")
-    require(delivery_executor_js, "const currentHead = await peek();", "post-send queue re-read")
-    require(delivery_executor_js, "resolveAwaitingReceiptHead", "early receipt resolution")
-    require(file_uris_js, "JSON.parse(value)", "JSON file URI decoding")
-    require(file_uris_js, "Backward compatibility", "legacy file URI compatibility")
+    # Queue, file URI and runtime-dependency boundaries.
+    require_all(queue_js, ("MAX_FAILURES = 8", "raw.scope === scope"), "durable queue")
+    require_all(file_uris_js, ("JSON.parse(value)", "Backward compatibility"), "file URI parser")
+    require(foreground_js, "parseOutboundFileUris", "JSON-safe outbound file URIs")
+    forbid_all(
+        foreground_js,
+        (
+            "const file_paths = clipContent\n                      .split(',')",
+            "receivingFragments =",
+            "await sendClipBoard(",
+            "textEncoder.encode(clipContent)",
+        ),
+        "generated transport regressions",
+    )
 
     runtime_files = [
         android / "java/com/clipcascade/ClipCascadeAccessibilityService.kt",
