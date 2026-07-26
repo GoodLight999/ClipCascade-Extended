@@ -24,22 +24,24 @@ Last updated: **2026-07-26 JST**
 ## 2. Current validated implementation
 
 ```text
-Behavioral implementation commit: 349003a994a0f05485a4f86605f9939abd4bcc98
-Successful CI run: 30187796193
+Implementation commit: 751b8b4bec93a81ecab00c1df5a885b5c844c550
+Successful CI run: 30191423570
 Application ID: com.clipcascade.extended
 Version: 3.2.0-extended.5 / 320005
 APK size: 93,681,991 bytes
-APK SHA-256: 19d2fad3ca85b4d0be7a15e3cb0042327c1d018e1ce33eb0c0281adef4aeb818
+APK SHA-256: 475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28
 Signature: APK Signature Scheme v2
 Signer certificate SHA-256:
 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 ```
 
-Run `30187796193` passed exact pinned-upstream materialization, every finalizer/validator, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, ZIP/zipalign, v2 signature, Manifest/DEX/Hermes/checksum and artifact upload.
+Run `30191423570` passed exact pinned-upstream materialization, every finalizer/validator, deterministic Extended build-resource source guard, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, APK ZIP/zipalign/v2 signature/Manifest/DEX/Hermes/checksum and the packaged-resource reproducibility gate.
+
+The packaged gate verified that `resources.arsc` contains the fixed loopback dev-server resource and no RFC1918 build-host address. This removes the prior GitHub-runner-IP-only APK hash drift without changing debug automatic discovery.
 
 The identical signed APK passed API 35 and API 36 smoke: light/dark launch, text Share, `ACTION_PROCESS_TEXT`, cold-start real-PNG MediaStore Share, app-owned staging/native-event evidence, HOME/background PID survival and crash/ANR/known-regression scans. APK and both evidence archives were independently rechecked.
 
-Later documentation and packaged-APK assertion updates do not change behavioral application source. If application source changes, replace this authority with a new fully green build/API35/API36 run.
+This is the first deterministic-resource build. The documentation-only build immediately following this update must reproduce the exact APK SHA-256 above; if it does not, reproducibility is not proven and this authority must be replaced.
 
 ## 3. Non-negotiable requirements
 
@@ -65,6 +67,8 @@ Later documentation and packaged-APK assertion updates do not change behavioral 
 - CI: `.github/workflows/android-ci.yml`
 
 Generate final design directly. Keep state machines in pure tested modules. Guard generated source and packaged APK separately. Failure artifacts retain generated runtime/policies/validators. Never weaken a guard merely to turn CI green; move it to the current contract.
+
+The signed Extended build type overrides React Native 0.80.x's host-dependent dev-server resource with loopback. `validate_release_reproducibility.py` verifies both generated Gradle scope and packaged `resources.arsc`; debug builds retain automatic host discovery.
 
 ## 5. Clipboard acquisition
 
@@ -142,7 +146,7 @@ Diagnostics actively cover native→React delivery, listener readiness, capture/
 
 ## 11. Automated verification
 
-Every behavioral head requires generation/validators, dependency audit, ESLint/Jest, Android Lint/Kotlin/assembly, APK ZIP/zipalign/signature/Manifest/DEX/Hermes/checksum, packaged required/forbidden markers and API35/API36 smoke.
+Every behavioral head requires generation/validators, deterministic release-resource source and binary checks, dependency audit, ESLint/Jest, Android Lint/Kotlin/assembly, APK ZIP/zipalign/signature/Manifest/DEX/Hermes/checksum, packaged required/forbidden markers and API35/API36 smoke.
 
 Smoke requires signed artifact install, light/dark screenshot/UI XML, text/process Share, real-PNG MediaStore cold-start Share with URI grant, staging/native-event evidence, HOME/background PID and no app crash/native crash/ANR/known React/StatusBar/foreground/AEAD marker.
 
@@ -156,12 +160,13 @@ PR #2 stays Draft.
 
 1. Read this file and confirm branch/PR/head.
 2. Inspect latest build/API35/API36 jobs.
-3. On failure inspect generated source, checkpoint, summary, exit-info, logcat, screenshots/UI XML.
-4. Reproduce in a pure test or deterministic emulator step first.
-5. Never distribute an older APK after application-source changes.
-6. After a new all-green behavioral run independently verify bytes/hash/signer/Manifest/markers/evidence.
-7. Synchronize all documents and PR.
+3. Confirm the next documentation-only build reproduces APK SHA-256 `475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28` exactly.
+4. On failure inspect generated source, checkpoint, summary, exit-info, logcat, screenshots/UI XML.
+5. Reproduce in a pure test or deterministic emulator step first.
+6. Never distribute an older APK after application-source changes.
+7. After a new all-green behavioral run independently verify bytes/hash/signer/Manifest/markers/evidence.
+8. Synchronize all documents and PR.
 
 ## 14. Definition of done
 
-Requires latest behavioral generation/tests/APK/API35/API36 green, fixed-signer target-device upgrade, HONOR/live upstream bidirectional text/image/file, Shizuku-stopped/reboot operation, lifecycle endurance, real-device localization, secret-free diagnostics and synchronized documentation.
+Requires latest behavioral generation/tests/APK/API35/API36 green, repeated identical APK generation, fixed-signer target-device upgrade, HONOR/live upstream bidirectional text/image/file, Shizuku-stopped/reboot operation, lifecycle endurance, real-device localization, secret-free diagnostics and synchronized documentation.
