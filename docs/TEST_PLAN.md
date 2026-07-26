@@ -9,33 +9,35 @@ Every behavioral source head must pass:
 - exact pinned-upstream materialization and every guarded finalizer;
 - canonical-source, architecture, ordering and forbidden-residue validators;
 - deterministic signed-variant dev-server resource scoped only to `extended`;
+- Android dependency information excluded from APK/Bundle signing metadata;
 - stable signing-key inspection;
 - dependency/repository audit, ESLint and every Jest suite;
 - Android Lint, every Extended Kotlin unit test and `assembleExtended`;
 - APK ZIP integrity, zipalign, fixed v2 signature and checksum;
 - packaged `resources.arsc` fixed loopback value and absence of RFC1918 build-host IP;
+- APK Signing Block absence of dependency-info pair `0x504b4453`;
 - package/version/non-debuggable/Accessibility/permission/Shizuku Manifest checks;
 - native DEX reliability checks;
 - packaged Hermes checks for listener readiness, serialized runtime/start confirmation, receipt/self-echo delivery, typed feedback, queue preservation and localization;
 - packaged absence of OTP, inherited update URLs/UI and obsolete transport markers;
 - API 35 and API 36 smoke using the uploaded signed release APK.
 
-Current deterministic-resource candidate:
+Current reproducible artifact authority:
 
 ```text
-Implementation commit: 751b8b4bec93a81ecab00c1df5a885b5c844c550
-CI run: 30191423570
+Application/build implementation commit: 3f7f01d36d19456bd741fb8b2e65b913cc4ddf34
+Final harness head: ac34de11c73d4d565542b482739c2b3e5339b304
+First deterministic build run: 30192487659
+Second byte-identical build and complete smoke run: 30192942851
 Version: 3.2.0-extended.5 / 320005
 Application ID: com.clipcascade.extended
-APK size: 93,681,991 bytes
-APK SHA-256: 475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28
+APK size: 93,673,799 bytes
+APK SHA-256: 5911acfcba1e0e7a28b3e5cc13f268d5fbeb9c4c1653c9148d0954f8333e557c
 Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 Signature: APK Signature Scheme v2
 ```
 
-Run `30191423570` passed build and both emulator jobs. API 35/API 36 evidence contains `checkpoint=passed`, exit code `0`, numeric MediaStore URI, image staging/native-event markers, background PID, light/dark screenshots and no app crash/ANR/known-regression marker. APK and evidence were independently rechecked.
-
-The documentation-only build immediately following this update must reproduce the exact APK hash above. A different hash fails reproducibility even if functional tests remain green.
+The two hosted-runner APKs are identical under SHA-256 and `cmp`, with the same 537 ZIP entries, central directory, v2 signer pair and deterministic padding. Run `30192942851` passed build, API 35 and API 36. Both evidence archives contain `checkpoint=passed`, exit code `0`, numeric MediaStore URI, image staging/native-event markers, background PID, light/dark screenshots and no app/native crash, ANR or known-regression marker.
 
 `3.2.0-extended.3` is device-failed and is not an acceptance baseline.
 
@@ -100,16 +102,19 @@ API 35 and API 36 must each:
 9. reject app/native crash, ANR, React-host, StatusBar, forbidden foreground-service and AEAD markers;
 10. emit passed summary/checkpoint and exit code `0`.
 
+Transient `adb logcat -d` failures are retried up to three times. Each failed attempt remains in the evidence artifact. Positive markers may receive a short bounded wait and fresh log capture. This must not bypass crash/ANR/known-regression checks.
+
 ## 8. Reproducible release build
 
-1. Build a fully green `assembleExtended` artifact and record APK bytes/hash.
-2. Change documentation only; do not modify generated mobile inputs, dependencies, signer or workflow build commands.
-3. Run the full build again on a different hosted runner.
-4. Require identical APK size and SHA-256.
-5. Extract both APKs and require all entries, including `resources.arsc` and v2 signature payload, to be byte-identical.
-6. Require packaged-resource validator output `Packaged release resources contain no build-host private IP: OK` in both runs.
+1. Build the complete signed `assembleExtended` artifact on a hosted runner and record bytes/hash.
+2. Change only files outside Android materialization/build inputs, such as the emulator harness or documentation.
+3. Run the same full build on another hosted runner.
+4. Require identical APK size, SHA-256 and `cmp` result.
+5. Require identical ZIP entry names/content, central directory and APK Signing Block pair hashes.
+6. Require Signing Block IDs to contain v2 signature `0x7109871a` and deterministic padding `0x42726577`, and not contain dependency-info `0x504b4453`.
+7. Require packaged-resource validator output confirming no build-host private IP or SDK dependency block.
 
-Any private runner address or repeat-build hash difference fails the gate.
+Any repeat-build byte difference fails this gate.
 
 ## 9. Automatic diagnostics
 
