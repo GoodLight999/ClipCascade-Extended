@@ -81,11 +81,13 @@ def apply(root: Path) -> None:
     text = replace_once(
         text,
         """          stopServicesP2S = async () => {
+            toggle = false;
             // 1) Stop clipboard listening""",
         """          stopServicesP2S = async () => {
+            toggle = false;
             stopAcceptingRuntimeEvents();
             // 1) Stop clipboard listening""",
-        "close P2S event admission before queue handling",
+        "close P2S event admission after in-flight reset and before queue handling",
     )
     text = replace_once(
         text,
