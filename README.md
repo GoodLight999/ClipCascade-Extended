@@ -1,81 +1,67 @@
 # ClipCascade Extended
 
-Reliability-first Android client for servers compatible with
-[`Sathvik-Rao/ClipCascade`](https://github.com/Sathvik-Rao/ClipCascade).
+Reliability-first Android client for servers compatible with [`Sathvik-Rao/ClipCascade`](https://github.com/Sathvik-Rao/ClipCascade).
 
 ## Runtime/setup order
 
 1. **ADB-free primary path:** Accessibility copy signal → serialized visible capture → clipboard read/staging → durable upstream-compatible transport.
 2. **Android Share:** text, process text, image and files are staged immediately where required, then placed in the durable queue.
-3. **Preferred privileged fallback:** open/get Shizuku from Extended, start and authorize it once, apply/verify grants, then stop Shizuku completely.
+3. **Preferred privileged fallback:** use Shizuku once to apply and verify retained grants, then stop it completely.
 4. **Second fallback:** run two PC ADB commands once.
-5. Always-on Shizuku is intentionally not a runtime requirement.
+5. Routine runtime intentionally has no always-on Shizuku dependency.
 6. OTP/SMS/email extraction remains absent until generic clipboard real-device acceptance is complete.
 
-The app includes direct Accessibility/overlay controls, guided one-time Shizuku setup, copyable PC ADB guidance, Reliability Self-Test and active one-tap diagnostics. Product UI, dynamic status, diagnostics and notifications support English, Japanese and Simplified Chinese.
+Extended includes Accessibility/overlay controls, guided Shizuku setup, copyable ADB guidance, Reliability Self-Test and active diagnostics. UI, runtime status, diagnostics and notifications support English, Japanese and Simplified Chinese.
 
 ## Architecture
 
-- Authentication, encryption, P2S/STOMP, P2P/WebRTC, inbound text/image/files and server compatibility remain based on the pinned upstream source.
-- Android capture follows the proven Accessibility→overlay→clipboard concept in `wuxinkami/ClipCascade_go_fork`, but replaces broad clicks, selection false positives, global debounce, dropped binding triggers and concurrent overlays with tested classification, a persistent event queue and a watchdog-protected coordinator.
+- Authentication, encryption, P2S/STOMP, P2P/WebRTC, inbound text/image/files and server compatibility remain based on pinned upstream source.
+- Android capture follows the proven Accessibility→visible overlay→clipboard concept in `wuxinkami/ClipCascade_go_fork`, while replacing broad clicks, selection false positives, global debounce, dropped binding events and concurrent overlays with tested classification, persistent ordering and a watchdog-protected coordinator.
 - Accessibility uses `canRetrieveWindowContent=false`; ignored high-frequency events avoid AsyncStorage/SQLite work.
-- The repository materializes the exact upstream commit from `UPSTREAM.lock`, copies canonical overlay source and applies deterministic finalizers guarded by static checks and tests.
+- `UPSTREAM.lock` + `scripts/materialize_upstream.sh` reproducibly generate the app from canonical `overlay/` source and deterministic finalizers.
 
 ## Reliability design
 
 ### Capture and Share
 
-- JavaScript listeners are registered before the native durable-event queue is activated and drained.
-- One-shot capture launch, retry, destruction and timeout cannot permanently wedge later requests.
-- Text and readable clipboard URIs use a common native reader; transient URI bytes are staged into app-owned cache.
-- Handles MIME-less/Spanned/HTML `ACTION_SEND`, `ACTION_PROCESS_TEXT`, image, single-file and multiple-file Share.
-- Staged URI lists use JSON; legacy queue entries remain readable.
-- File, batch and total-cache limits, expiry and partial-failure cleanup are enforced.
+- JavaScript listeners are registered before native durable-event activation/drain.
+- Capture launch, retry, Activity destruction and timeout cannot permanently wedge later requests.
+- Text and readable clipboard URIs use a common native reader; transient bytes are staged into app-owned cache.
+- Handles MIME-less/Spanned/HTML text, `ACTION_PROCESS_TEXT`, image and single/multiple-file Share.
+- JSON URI lists, legacy queue decoding, file/batch/cache limits, expiry and partial-failure cleanup.
 
 ### Durable delivery
 
-- Outbound items persist across offline periods, reconnects and process death in a queue scoped to server mode, URL and username.
-- Non-manual runtime replacement/failure preserves queued work; explicit manual stop clears it.
-- Transport adapters return explicit delivery outcomes. Ambiguous truthy values cannot delete a queue head.
+- Server-scoped queue survives offline periods, reconnects and process death.
+- Recovery/replacement/failure preserves queued work; explicit manual stop clears it.
+- Delivery adapters return explicit outcomes; ambiguous truthy values cannot delete a queue head.
 
-P2S:
+P2S keeps the upstream payload exactly `{payload, type}`. Standard STOMP `receipt` is primary acknowledgement, with upstream self-echo as an identity-checked fallback. Late callbacks may acknowledge only the matching durable head. Receipt timeout is transient. Runtime ownership is rechecked immediately before `publish()`. Typed expiring feedback guards replace the old global hash/image flag.
 
-- Keeps the upstream payload exactly `{payload, type}`.
-- Uses standard STOMP `receipt` acknowledgement, with upstream self-echo as an identity-checked compatibility fallback.
-- A late receipt/echo can acknowledge only the matching durable head.
-- Receipt timeout is transient and retried rather than permanently discarding valid data.
-- Runtime ownership is checked again immediately before `publish()`.
-- Typed, expiring one-shot guards replace the old global hash/image flag and cannot suppress an unrelated next copy.
-
-P2P:
-
-- Stable retry IDs, UTF-8-safe fragments, bounded concurrent reassembly, replay/conflict/TTL controls and DataChannel backpressure.
-- Signaling-connected and open-compatible-DataChannel states remain distinct.
-- Incompatible/decrypt-failing peers are quarantined individually.
-- Optional compatibility metadata travels only in OFFER/ANSWER; no proprietary clipboard control frame is sent to legacy clients.
+P2P uses stable retry IDs, UTF-8-safe fragments, bounded concurrent reassembly, replay/conflict/TTL controls and DataChannel backpressure. Signaling and an open compatible DataChannel are distinct states. Incompatible peers are quarantined individually. Optional compatibility metadata travels only in OFFER/ANSWER; no proprietary clipboard control frame is sent.
 
 ### Foreground runtime
 
 - One Notifee handler and one JavaScript network-runtime lease.
-- Every start is serialized; forced replacement waits up to 10 seconds for the exact old lease to finish.
-- Notification display alone is not success: startup waits up to 8 seconds for a live runtime lease.
-- Five-second heartbeat, 15-second stale threshold, supervised loops/callbacks and coordinated pending-Share recovery.
+- All starts are serialized; forced replacement waits up to 10 seconds for the exact old lease.
+- Notification display alone is not success; startup waits up to 8 seconds for a live callback lease.
+- Five-second heartbeat, 15-second stale threshold and supervised loops/callbacks.
 - WorkManager, boot/update and visible-copy recovery use explicit start intent, not stale-state toggling.
 
 ### Shizuku boundary
 
 - Transient non-daemon AIDL UserService for setup only.
-- Sticky Binder delivery, Binder death, authorization, bounded startup and command exit codes are handled.
-- Success requires actual retained READ_LOGS and overlay state.
-- `binder-pending` represents the Shizuku startup race without falsely declaring it absent.
-- Routine capture/network source is statically forbidden from using Shizuku.
+- Sticky Binder delivery, Binder death, authorization, bounded startup and command exit codes.
+- Success requires real retained READ_LOGS and overlay state.
+- `binder-pending` represents the startup race truthfully.
+- CI statically forbids Shizuku use in routine capture/network source.
 
 ### Product integrity
 
 - Extended-owned screens, deterministic light/dark palettes and complete EN/JA/zh-CN localization.
-- ADB commands and diagnostic reports are selectable and one-tap copyable.
-- Upstream footer, external-link/funding UI, update prompts and update/metadata requests are absent.
-- OTP notification-listener/extractor classes are absent from source and APK; CI rejects reintroduction.
+- Selectable/copyable ADB and diagnostic reports.
+- No inherited footer, funding/link UI, update prompt or update/metadata request.
+- OTP notification-listener/extractor code is absent and CI rejects reintroduction.
 
 ## Build
 
@@ -90,7 +76,7 @@ cd android
 ./gradlew lintExtended testExtendedUnitTest assembleExtended
 ```
 
-APK output:
+Output:
 
 ```text
 build/mobile/android/app/build/outputs/apk/extended/app-extended.apk
@@ -100,18 +86,14 @@ Identity:
 
 ```text
 Application ID: com.clipcascade.extended
-Version: 3.2.0-extended.5 / versionCode 320005
+Version: 3.2.0-extended.5 / 320005
 Signer certificate SHA-256:
 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 ```
 
 ## One-time fallback
 
-Preferred:
-
-1. Press **Open / get Shizuku** in Extended.
-2. Start Shizuku, return to Extended and run one-time setup.
-3. Verify Self-Test, then stop Shizuku completely.
+Preferred: open/get Shizuku from Extended, authorize and apply setup, verify Self-Test, then stop Shizuku completely.
 
 Second choice:
 
@@ -120,7 +102,7 @@ adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS
 adb shell appops set com.clipcascade.extended android:system_alert_window allow
 ```
 
-Same-package/same-signer in-place updates normally retain settings and grants, but Extended verifies actual state. Uninstalling resets them.
+Same-package/same-signer updates normally retain settings and grants, but Extended verifies actual state. Uninstall resets them.
 
 ## Validated implementation artifact
 
@@ -135,12 +117,12 @@ Signer certificate SHA-256:
 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 ```
 
-Run `30187796193` passed exact materialization, all architecture/forbidden-residue validators, signing-key inspection, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, APK assembly, ZIP/zipalign, v2 signature, Manifest/DEX/Hermes checks, checksum and artifact upload.
+Run `30187796193` passed exact materialization, every validator, signing-key inspection, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Kotlin test, APK assembly, ZIP/zipalign, v2 signature, Manifest/DEX/Hermes/checksum and artifact upload.
 
-The same signed APK then passed API 35 and API 36 emulator smoke: light/dark launch, text Share, `ACTION_PROCESS_TEXT`, cold-start MediaStore real-PNG Share with app-owned staging/native-event evidence, HOME/background process survival, and crash/ANR/known-regression scans. Downloaded APK and evidence archives were independently rechecked.
+The same signed APK passed API 35 and API 36 smoke: light/dark launch, text Share, `ACTION_PROCESS_TEXT`, cold-start real-PNG MediaStore Share with app-owned staging/native-event evidence, HOME/background PID survival and crash/ANR/known-regression scans. APK and evidence archives were independently rechecked.
 
-Documentation and packaged-APK CI assertions were synchronized afterward without changing application behavior. The artifact authority remains the implementation/run/hash above unless application source changes and a new build/API35/API36 authority replaces it.
+Later documentation and packaged-APK assertion updates do not alter the behavioral artifact authority above. Application-source changes require a new fully green build/API35/API36 authority.
 
-This is a **strong automated device-test candidate**, not final product acceptance. HONOR 400 Pro upgrade/OEM background behavior, live upstream P2S/P2P/desktop interoperability, Shizuku retention after stop/reboot, screen-off/Doze/process/reboot endurance, battery and typing-latency evidence remain required. PR #2 stays Draft.
+This is a **strong automated device-test candidate**, not final product acceptance. HONOR 400 Pro upgrade/OEM behavior, live upstream P2S/P2P/desktop interoperability, Shizuku retention after stop/reboot, screen-off/Doze/process/reboot endurance, battery and typing latency remain required. PR #2 stays Draft.
 
-See `HANDOFF.md`, `WORKLOG.md` and `docs/TEST_PLAN.md` for the canonical continuation and acceptance matrix. `3.2.0-extended.3` remains device-failed and must not be reused as a baseline.
+See `HANDOFF.md`, `WORKLOG.md` and `docs/TEST_PLAN.md`. `3.2.0-extended.3` remains device-failed and must not be reused as a baseline.
