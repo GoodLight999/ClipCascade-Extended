@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require one runtime lease around clipboard and transport side effects."""
+"""Require one live runtime lease around clipboard and transport side effects."""
 from __future__ import annotations
 
 import argparse
@@ -29,7 +29,7 @@ def main() -> None:
         "runtime callback admission check",
     )
 
-    literal_scopes = (
+    for scope in (
         "shared-text",
         "shared-image",
         "shared-files",
@@ -41,26 +41,18 @@ def main() -> None:
         "p2s-websocket-error",
         "p2s-websocket-close",
         "p2s-subscription-message",
-        "p2s-ack-timeout",
+        "p2s-receipt-timeout",
+        "p2s-receipt",
         "signaling-reconnect",
         "signaling-open",
         "signaling-message",
         "signaling-error",
         "signaling-close",
-    )
-    for scope in literal_scopes:
-        require(
-            service,
-            f"runRuntimeDetached('{scope}'",
-            f"runtime-scoped callback {scope}",
-        )
-        forbid(
-            service,
-            f"runDetached('{scope}'",
-            f"unscoped callback {scope}",
-        )
+    ):
+        require(service, f"runRuntimeDetached('{scope}'", f"runtime-scoped callback {scope}")
+        forbid(service, f"runDetached('{scope}'", f"unscoped callback {scope}")
 
-    template_scopes = (
+    for scope in (
         "ice-candidate",
         "datachannel-received",
         "peer-recovery",
@@ -68,8 +60,7 @@ def main() -> None:
         "datachannel-message",
         "datachannel-close",
         "datachannel-error",
-    )
-    for scope in template_scopes:
+    ):
         require(
             service,
             f"runRuntimeDetached(`{scope}:${{remotePeerId}}`",
@@ -85,22 +76,18 @@ def main() -> None:
         ("if (!runtimeCanAcceptEvents()) {\n            cancelOutboundRetry();", "flush entry guard"),
         ("while (runtimeCanAcceptEvents())", "flush loop guard"),
         ("if (!runtimeCanAcceptEvents()) break;", "transport dispatch guard"),
-        ("if (!runtimeCanAcceptEvents()) return false;\n          if (server_mode", "transport dispatcher guard"),
-        ("if (!runtimeCanAcceptEvents()) return false;\n                      // send", "P2S publish guard"),
-        ("if (!runtimeCanAcceptEvents()) return false;\n              await clearFiles();", "P2P send guard"),
-        ("if (!runtimeCanAcceptEvents()) return false;\n                      if (sendingFragmentId", "P2P fragment guard"),
-        ("const signalingSend = async obj => {\n            if (!runtimeCanAcceptEvents()) return false;", "signaling send guard"),
+        ("if (!runtimeCanAcceptEvents()) return OUTBOUND_DELIVERY.WAITING;", "explicit transport guard"),
+        ("const signalingSend = async obj => {\n            if (!runtimeCanAcceptEvents()) return false;", "signaling guard"),
         ("const onDataChannelMessage = async (messageJson, remotePeerId) => {\n            if (!runtimeCanAcceptEvents()) return;", "P2P inbound guard"),
-        ("if (!runtimeCanAcceptEvents()) return;\n                            // set clipboard content", "P2S inbound apply guard"),
-        ("if (!runtimeCanAcceptEvents()) return;\n                  // set clipboard content", "P2P inbound apply guard"),
-        ("throw new Error('Invalid P2P peer list')", "peer-list type boundary"),
+        ("throw new Error('Invalid P2P peer list')", "peer-list boundary"),
         ("if (!runtimeCanAcceptEvents()) break;\n              if (pid === myPeerId)", "peer reconciliation guard"),
-        ("if (!runtimeCanAcceptEvents() || p2pShuttingDown)", "OFFER runtime guard"),
-        ("const handleAnswer = async (fromPeerId, answer) => {\n            if (!runtimeCanAcceptEvents()) return;", "ANSWER runtime guard"),
-        ("const handleIceCandidate = async (fromPeerId, candidateData) => {\n            if (!runtimeCanAcceptEvents()) return;", "ICE runtime guard"),
+        ("if (!runtimeCanAcceptEvents() || p2pShuttingDown)", "OFFER guard"),
+        ("const handleAnswer = async (fromPeerId, answer) => {\n            if (!runtimeCanAcceptEvents()) return;", "ANSWER guard"),
+        ("const handleIceCandidate = async (fromPeerId, candidateData) => {\n            if (!runtimeCanAcceptEvents()) return;", "ICE guard"),
         ("const setupDataChannel = async (remotePeerId, channel) => {\n            if (!runtimeCanAcceptEvents())", "DataChannel setup guard"),
-        ("await cleanupPeerConnections();\n                  if (!runtimeCanAcceptEvents()) return;", "signaling-open post-cleanup guard"),
-        ("toggle = false;\n                if (!runtimeCanAcceptEvents()) return;\n                // Subscribe", "P2S subscription guard"),
+        ("await cleanupPeerConnections();\n                  if (!runtimeCanAcceptEvents()) return;", "signaling-open guard"),
+        ("stopServicesP2S = async () => {\n            stopAcceptingRuntimeEvents();", "P2S stop admission guard"),
+        ("stopServicesP2P = async () => {\n            stopAcceptingRuntimeEvents();", "P2P stop admission guard"),
     ):
         require(service, marker, label)
 
@@ -109,9 +96,15 @@ def main() -> None:
         "!runtimeCanAcceptEvents() ||\n              p2pShuttingDown ||",
         "peer recovery runtime guard",
     )
-    require(service, "return true;\n              }\n              return false;", "truthful signaling result")
+    require(service, "return OUTBOUND_DELIVERY.SENT;", "explicit P2P success")
+    require(service, "return OUTBOUND_DELIVERY.AWAITING_P2S_RECEIPT;", "explicit P2S pending result")
+    require(service, "headers: {receipt: receiptId}", "standard STOMP receipt")
+    require(service, "p2sReceiptTracker.cancel();\n                p2sEchoGuard.clear();\n                return OUTBOUND_DELIVERY.WAITING;", "publish-time stop guard")
 
-    print("clipboard and transport side effects are scoped to one live runtime: OK")
+    forbid(service, "result !== false", "ambiguous truthy transport ACK")
+    forbid(service, "return result !== false", "ambiguous transport result")
+
+    print("clipboard and explicit transport side effects are scoped to one live runtime: OK")
 
 
 if __name__ == "__main__":
