@@ -80,6 +80,21 @@ def patch_app_gradle(destination: Path) -> None:
         f'versionName "{VERSION_NAME}"',
         "version name",
     )
+    text = replace_once(
+        text,
+        "    compileSdk rootProject.ext.compileSdkVersion\n",
+        """    compileSdk rootProject.ext.compileSdkVersion
+
+    // The AGP SDK dependency block is encrypted with per-build randomness.
+    // It is not required for direct Extended APK distribution and would make
+    // otherwise identical signed APKs differ between CI runners.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+""",
+        "dependency information policy",
+    )
 
     signing = """
         // Repository-pinned sideload key. It exists solely to keep update
