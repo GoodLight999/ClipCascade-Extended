@@ -36,6 +36,8 @@ Signature: APK Signature Scheme v2
 
 Run `30187796193` passed build and API 35/API 36 smoke. Both emulator evidence archives contain `checkpoint=passed`, exit code `0`, numeric MediaStore URI, image staging/native-event markers, a live background PID, light/dark screenshots and no app crash/ANR/known-regression marker. The APK and evidence were independently rechecked.
 
+Documentation and packaged-APK assertion updates performed after this evidence do not alter application behavior. A new behavioral-source change requires a new fully green build/API35/API36 authority and replacement of the block above.
+
 `3.2.0-extended.3` is device-failed and must not be used as an acceptance baseline.
 
 ## 2. Upgrade-first install
