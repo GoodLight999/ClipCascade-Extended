@@ -123,10 +123,10 @@ import {
         """        setWsPageMessage('');
         setWsPageP2PMessage('');
         await clearFiles();
-        const wsIsRunning = await getDataFromAsyncStorage('wsIsRunning');""",
+        const wsIsRunning_s =""",
         """        setWsPageMessage('');
         setWsPageP2PMessage('');
-        const wsIsRunning = await getDataFromAsyncStorage('wsIsRunning');""",
+        const wsIsRunning_s =""",
         "delay clearFiles until requested state is known",
     )
 
