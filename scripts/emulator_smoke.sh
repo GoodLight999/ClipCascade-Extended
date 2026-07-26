@@ -13,11 +13,28 @@ checkpoint() {
   printf '%s\n' "$1" | tee "$out/checkpoint.txt"
 }
 
+dump_logcat() {
+  local output="$1"
+  local attempt attempt_output
+  for attempt in 1 2 3; do
+    attempt_output="${output%.txt}-attempt-$attempt.txt"
+    if adb logcat -d -v threadtime > "$attempt_output" 2>&1; then
+      mv "$attempt_output" "$output"
+      return 0
+    fi
+    adb wait-for-device >/dev/null 2>&1 || true
+    sleep 2
+  done
+  cp "$attempt_output" "$output" 2>/dev/null || true
+  echo "Unable to collect stable logcat evidence after three attempts: $output" >&2
+  return 1
+}
+
 collect_evidence() {
   set +e
   adb shell dumpsys package "$package" > "$out/package.txt" 2>&1
   adb shell dumpsys activity exit-info "$package" > "$out/exit-info.txt" 2>&1
-  adb logcat -d -v threadtime > "$out/logcat.txt" 2>&1
+  dump_logcat "$out/logcat.txt" || true
   adb exec-out screencap -p > "$out/final-screen.png" 2>/dev/null
   adb shell pidof "$package" | tr -d '\r' > "$out/final-pid.txt" 2>&1
   set -e
@@ -37,7 +54,7 @@ assert_no_abnormal_exit() {
   local exit_info="$out/$label-exit-info.txt"
   local logcat="$out/$label-logcat.txt"
   adb shell dumpsys activity exit-info "$package" > "$exit_info" 2>&1 || true
-  adb logcat -d -v threadtime > "$logcat" 2>&1
+  dump_logcat "$logcat"
   if grep -Eq 'reason=REASON_(CRASH|CRASH_NATIVE|ANR)' "$exit_info"; then
     echo "ClipCascade abnormal exit detected after $label" >&2
     return 1
@@ -68,10 +85,17 @@ capture_ui() {
 assert_log_marker() {
   local label="$1"
   local marker="$2"
-  grep -Fq "$marker" "$out/$label-logcat.txt" || {
-    echo "Expected runtime evidence missing after $label: $marker" >&2
-    return 1
-  }
+  local logcat="$out/$label-logcat.txt"
+  local attempt
+  for attempt in 1 2 3 4; do
+    if grep -Fq "$marker" "$logcat" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+    dump_logcat "$logcat" || true
+  done
+  echo "Expected runtime evidence missing after $label: $marker" >&2
+  return 1
 }
 
 run_activity() {
