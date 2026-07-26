@@ -8,32 +8,34 @@ Every behavioral source head must pass:
 
 - exact pinned-upstream materialization and every guarded finalizer;
 - canonical-source, architecture, ordering and forbidden-residue validators;
+- deterministic signed-variant dev-server resource scoped only to `extended`;
 - stable signing-key inspection;
 - dependency/repository audit, ESLint and every Jest suite;
 - Android Lint, every Extended Kotlin unit test and `assembleExtended`;
 - APK ZIP integrity, zipalign, fixed v2 signature and checksum;
+- packaged `resources.arsc` fixed loopback value and absence of RFC1918 build-host IP;
 - package/version/non-debuggable/Accessibility/permission/Shizuku Manifest checks;
 - native DEX reliability checks;
 - packaged Hermes checks for listener readiness, serialized runtime/start confirmation, receipt/self-echo delivery, typed feedback, queue preservation and localization;
 - packaged absence of OTP, inherited update URLs/UI and obsolete transport markers;
 - API 35 and API 36 smoke using the uploaded signed release APK.
 
-Current behavioral implementation authority:
+Current deterministic-resource candidate:
 
 ```text
-Implementation commit: 349003a994a0f05485a4f86605f9939abd4bcc98
-CI run: 30187796193
+Implementation commit: 751b8b4bec93a81ecab00c1df5a885b5c844c550
+CI run: 30191423570
 Version: 3.2.0-extended.5 / 320005
 Application ID: com.clipcascade.extended
 APK size: 93,681,991 bytes
-APK SHA-256: 19d2fad3ca85b4d0be7a15e3cb0042327c1d018e1ce33eb0c0281adef4aeb818
+APK SHA-256: 475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28
 Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 Signature: APK Signature Scheme v2
 ```
 
-Run `30187796193` passed build and both emulator jobs. API 35/API 36 evidence contains `checkpoint=passed`, exit code `0`, numeric MediaStore URI, image staging/native-event markers, background PID, light/dark screenshots and no app crash/ANR/known-regression marker. APK and evidence were independently rechecked.
+Run `30191423570` passed build and both emulator jobs. API 35/API 36 evidence contains `checkpoint=passed`, exit code `0`, numeric MediaStore URI, image staging/native-event markers, background PID, light/dark screenshots and no app crash/ANR/known-regression marker. APK and evidence were independently rechecked.
 
-Later documentation and packaged-APK assertion updates do not alter application behavior. Any application-source change requires a new fully green build/API35/API36 authority.
+The documentation-only build immediately following this update must reproduce the exact APK hash above. A different hash fails reproducibility even if functional tests remain green.
 
 `3.2.0-extended.3` is device-failed and is not an acceptance baseline.
 
@@ -98,13 +100,24 @@ API 35 and API 36 must each:
 9. reject app/native crash, ANR, React-host, StatusBar, forbidden foreground-service and AEAD markers;
 10. emit passed summary/checkpoint and exit code `0`.
 
-## 8. Automatic diagnostics
+## 8. Reproducible release build
+
+1. Build a fully green `assembleExtended` artifact and record APK bytes/hash.
+2. Change documentation only; do not modify generated mobile inputs, dependencies, signer or workflow build commands.
+3. Run the full build again on a different hosted runner.
+4. Require identical APK size and SHA-256.
+5. Extract both APKs and require all entries, including `resources.arsc` and v2 signature payload, to be byte-identical.
+6. Require packaged-resource validator output `Packaged release resources contain no build-host private IP: OK` in both runs.
+
+Any private runner address or repeat-build hash difference fails the gate.
+
+## 9. Automatic diagnostics
 
 Require active coverage of native→React probe, listener readiness/pending events, Accessibility/classifier/coordinator/capture, real foreground clipboard read/MIME/URI count, outbound queue, Share staging/cache, service heartbeat/runtime/duplicate/transition/recovery errors, P2P compatibility/errors, P2S incident counters, Shizuku/grants and package/device identity.
 
 Copied reports must exclude credentials, username, endpoints, hashes/keys and salt.
 
-## 9. P2S matrix
+## 10. P2S matrix
 
 Outbound cases: multilingual/long text, emoji/combining characters, offline reconnect, disconnect after publish, receipt timeout, early receipt, late receipt after another head, self-echo fallback, runtime replacement immediately before publish, image and file flows.
 
@@ -112,25 +125,25 @@ Require exact upstream `{payload, type}` body, standard receipt primary ACK, mat
 
 Inbound: text/image/files in visible/background/screen-off states where allowed, repeated/alternating values and reconnect. Require correct apply/save, one-shot loop suppression and truthful connection state.
 
-## 10. P2P matrix
+## 11. P2P matrix
 
 Test matching Extended peer, legacy upstream peer, encryption-mode mismatch, different key, multiple peers/reconnect/departure, simultaneous long fragmented send/receive, disconnect/retry and overlapping fragmented messages.
 
 Require no proprietary control frame/signaling type, legacy-safe OFFER/ANSWER metadata, explicit success/waiting, individual quarantine, no repeated recreation/send, truthful open-compatible peer count and no repeated AEAD flood.
 
-## 11. Foreground runtime/lifecycle
+## 12. Foreground runtime/lifecycle
 
 Exercise normal duplicate starts, pending Share start, stale-heartbeat replacement, successful/failed/timed-out old stop, missing callback lease, HOME/background, screen off, Doze, process kill, boot/update, network transitions, peer sleep/wake and capture timeout/destruction.
 
 Require serialized starts, duplicate join, exact old-lease wait, no success before live callback lease, no old-state overwrite, queue preservation on non-manual replacement and no coordinator wedge/duplicate runtime/startup lie.
 
-## 12. Guided one-time Shizuku
+## 13. Guided one-time Shizuku
 
 Test not installed, Binder pending, unauthorized, ready to apply and already configured while stopped. Require bounded wait, authorization, successful remote exit codes and local retained-state verification. Stop Shizuku completely, repeat clipboard/Share, reboot without restarting it and retest. Denial/timeout must not leave BUSY or permit late work.
 
 Routine Shizuku Binder dependency fails acceptance.
 
-## 13. PC ADB fallback
+## 14. PC ADB fallback
 
 ```bash
 adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS
@@ -139,7 +152,7 @@ adb shell appops set com.clipcascade.extended android:system_alert_window allow
 
 Apply once, disconnect PC and repeat clipboard/Share/reboot/update. Revoke separately and require truthful degraded state.
 
-## 14. Stress/endurance
+## 15. Stress/endurance
 
 - 30-minute rapid/repeated/alternating unique-copy sequence;
 - 8-hour idle/reconnect;
@@ -151,10 +164,10 @@ Apply once, disconnect PC and repeat clipboard/Share/reboot/update. Revoke separ
 
 Compare with Accessibility disabled.
 
-## 15. Deferred OTP
+## 16. Deferred OTP
 
 OTP notification-listener/extractor code remains absent until generic clipboard and lifecycle acceptance is green on target device and live server/desktop.
 
-## 16. Failure evidence
+## 17. Failure evidence
 
 Record automatic diagnostics, device/OEM/build, Extended version/signer/hash, upgrade path, server mode/version/encryption, source/target/payload/timestamp/action, Self-Test, actual permission/app-op state, Shizuku state, focused logs/screens/UI XML and persistence across restart/reboot/update.
