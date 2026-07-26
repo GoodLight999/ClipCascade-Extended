@@ -157,9 +157,20 @@ jobs:
           for marker in \
             ready-after-registration duplicate-runtime-suppressed \
             foreground_service_loop_failed_at service-start-requested: stale-runtime \
-            FOREGROUND_HEARTBEAT_STALE_MS notificationConnectionRestored \
-            diagnosticsOverall diagnosticRecovery notificationDownloadFiles checkingService; do
+            FOREGROUND_HEARTBEAT_STALE_MS FOREGROUND_RUNTIME_START_TIMEOUT_MS \
+            runStartTransition waitForActiveRuntime handler-confirmed: \
+            createP2SReceiptTracker watchForReceipt awaiting-p2s-receipt \
+            p2s-self-echo-suppressed p2s-receipt-timeout createOneShotContentGuard \
+            feedback-suppressed p2s-receipt-already-acknowledged preserved-for- \
+            binder-pending notificationConnectionRestored diagnosticsOverall \
+            diagnosticRecovery notificationDownloadFiles checkingService; do
             grep -Fq "$marker" apk-js-bundle.txt
+          done
+          grep -Fq 'Invalid outbound delivery result' apk-js-bundle.txt
+          for forbidden in \
+            extendedDeliveryId previous_clipboard_content_hash block_image_once \
+            awaiting-p2s-ack p2s-ack-timeout-dropped; do
+            ! grep -Fq "$forbidden" apk-js-bundle.txt
           done
           ! grep -Fq 'New version available!' apk-js-bundle.txt
           ! grep -Fq 'raw.githubusercontent.com/Sathvik-Rao/ClipCascade/main/version.json' apk-js-bundle.txt
@@ -196,6 +207,11 @@ jobs:
             materialize.log
             build/mobile/App.js
             build/mobile/StartForegroundService.js
+            build/mobile/ForegroundRuntimeCoordinator.js
+            build/mobile/P2SReceiptTracker.js
+            build/mobile/OneShotContentGuard.js
+            build/mobile/OutboundDeliveryPolicy.js
+            build/mobile/OutboundDeliveryExecutor.js
             build/mobile/PendingShareStartPolicy.js
             build/mobile/ServiceControlPolicy.js
             build/mobile/lint.log
@@ -205,10 +221,17 @@ jobs:
             build/mobile/android/app/build/reports/**
             build/mobile/android/build/reports/**
             scripts/finalize_foreground_service_reliability.py
+            scripts/finalize_single_foreground_runtime.py
             scripts/finalize_service_button_state.py
+            scripts/finalize_transport_delivery_semantics.py
+            scripts/guard_final_transport_delivery.py
             scripts/validate_canonical_source.py
             scripts/validate_materialized_android.py
+            scripts/validate_active_diagnostics.py
             scripts/validate_service_and_p2p_controls.py
+            scripts/validate_runtime_queue_admission.py
+            scripts/validate_runtime_transport_activity.py
+            scripts/validate_transport_delivery_semantics.py
             scripts/validate_final_scope.py
             apk-signature.txt
             apk-manifest.xml
