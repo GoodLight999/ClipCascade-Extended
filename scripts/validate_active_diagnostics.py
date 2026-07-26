@@ -32,24 +32,34 @@ def main() -> None:
     analyzer = (root / "AutoDebug.js").read_text(encoding="utf-8")
     i18n = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
 
-    require(native_bridge, "fun runEventBridgeProbe", "native event bridge probe")
-    require(native_bridge, "onExtendedDiagnosticProbe", "diagnostic event name")
-    require(native_bridge, "DeviceEventManagerModule.RCTDeviceEventEmitter", "React event emitter")
-    require(panel, "runEventBridgeProbe", "one-tap active event test")
-    require(panel, "new NativeEventEmitter(NativeBridgeModule)", "active event listener")
-    require(panel, "probe.eventBridge = eventBridge", "active event result in report")
-    require(panel, "formatDiagnosticsReport(report, text)", "localized report dictionary")
-    require(panel, "foregroundServiceRecoveryStatus", "recovery state in self-test")
-    require(panel, "p2sLastInboundErrorCode", "P2S incident in self-test")
-    require(analyzer, "native-react-event-bridge", "active event verdict")
-    require(analyzer, "heartbeatAgeMs", "heartbeat freshness verdict")
-    require(analyzer, "foregroundServiceDetachedError", "detached callback verdict")
-    require(analyzer, "foreground-runtime-singleton", "foreground runtime singleton verdict")
-    require(analyzer, "foreground-recovery", "visible recovery verdict")
-    require(analyzer, "p2sInboundCount", "coalesced P2S incident verdict")
-    require(analyzer, "CHECK_LABEL_KEYS", "localized diagnostic check mapping")
-    require(analyzer, "diagnosticsRawStatus", "localized raw-status heading")
-    require(analyzer, "diagnosticsNativeProbe", "localized native-probe heading")
+    for marker, label in (
+        ("fun runEventBridgeProbe", "native event bridge probe"),
+        ("onExtendedDiagnosticProbe", "diagnostic event name"),
+        ("DeviceEventManagerModule.RCTDeviceEventEmitter", "React event emitter"),
+    ):
+        require(native_bridge, marker, label)
+    for marker, label in (
+        ("runEventBridgeProbe", "one-tap active event test"),
+        ("new NativeEventEmitter(NativeBridgeModule)", "active event listener"),
+        ("probe.eventBridge = eventBridge", "active event result"),
+        ("formatDiagnosticsReport(report, text)", "localized report dictionary"),
+        ("foregroundServiceRecoveryStatus", "recovery state"),
+        ("p2sLastInboundErrorCode", "P2S incident"),
+        ("Clipboard.setString(dialog.copy)", "one-tap report copy"),
+    ):
+        require(panel, marker, label)
+    for marker, label in (
+        ("native-react-event-bridge", "event verdict"),
+        ("heartbeatAgeMs", "heartbeat verdict"),
+        ("foregroundServiceDetachedError", "detached callback verdict"),
+        ("foreground-runtime-singleton", "runtime singleton verdict"),
+        ("foreground-recovery", "recovery verdict"),
+        ("p2sInboundCount", "P2S incident verdict"),
+        ("CHECK_LABEL_KEYS", "localized check mapping"),
+        ("diagnosticsRawStatus", "raw status heading"),
+        ("diagnosticsNativeProbe", "native probe heading"),
+    ):
+        require(analyzer, marker, label)
     for key in (
         "diagnosticsOverall",
         "diagnosticsGenerated",
@@ -63,37 +73,53 @@ def main() -> None:
     ):
         require(i18n, f"{key}:", f"localized diagnostic key {key}")
 
-    require(foreground, "foreground_service_heartbeat_at", "foreground loop heartbeat")
-    require(foreground, "foreground_service_detached_error", "detached callback failure evidence")
-    require(foreground, "foregroundRuntimeCoordinator.acquire", "single coordinated runtime lease")
-    require(foreground, "foregroundRuntimeCoordinator.requestRestart", "runtime restart wait")
-    require(foreground, "restart-waiting-for-old-runtime", "restart waiting evidence")
-    require(foreground, "restart-stop-requested:", "old runtime stop evidence")
-    require(foreground, "restart-old-runtime-stopped", "old runtime completion evidence")
-    require(foreground, "duplicate-runtime-suppressed", "duplicate runtime suppression")
-    require(foreground, "finishForegroundRuntime", "runtime lease release")
-    require(foreground, "p2s_last_inbound_error_count", "P2S incident occurrence count")
-    require(coordinator, "FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS", "restart wait bound")
-    require(coordinator, "foreground-runtime-stop-timeout", "restart timeout evidence")
-    require(coordinator, "activeRuntimeId()", "runtime coordinator introspection")
-    require(native_bridge, "foregroundServiceHeartbeatAt", "heartbeat status bridge")
-    require(native_bridge, "foregroundServiceDetachedError", "detached error status bridge")
-    require(native_bridge, "foregroundServiceDetachedErrorAt", "detached error time bridge")
-    require(native_bridge, "foregroundServiceInstanceId", "runtime instance status bridge")
-    require(native_bridge, "foregroundServiceDuplicateSuppressedAt", "duplicate status bridge")
-    require(native_bridge, "foregroundServiceRecoveryStatus", "recovery status bridge")
-    require(native_bridge, "p2sLastInboundErrorCode", "P2S status bridge")
-    require(native_debug, '"foreground_service_heartbeat_at"', "heartbeat raw snapshot")
-    require(native_debug, '"foreground_service_instance_id"', "runtime lease raw snapshot")
-    require(native_debug, '"foreground_service_recovery_status"', "recovery raw snapshot")
-    require(native_debug, '"p2s_last_inbound_error_code"', "P2S incident raw snapshot")
-    require(native_debug, 'put("uriCount", uriCount)', "clipboard URI visibility")
-    require(native_debug, 'put("packageName", app.packageName)', "diagnostic package identity")
-    require(native_debug, 'put("versionName", BuildConfig.VERSION_NAME)', "diagnostic version identity")
-    require(panel, "Clipboard.setString(dialog.copy)", "one-tap full report copy")
+    for marker, label in (
+        ("foreground_service_heartbeat_at", "foreground heartbeat"),
+        ("foreground_service_detached_error", "detached failure evidence"),
+        ("foregroundRuntimeCoordinator.acquire", "coordinated lease"),
+        ("foregroundRuntimeCoordinator.runStartTransition", "serialized start"),
+        ("foregroundRuntimeCoordinator.requestRestart", "restart wait"),
+        ("foregroundRuntimeCoordinator.waitForActiveRuntime", "live callback confirmation"),
+        ("`restart-waiting:${restartReason}`", "restart waiting evidence"),
+        ("restart-stop-requested:", "old runtime stop evidence"),
+        ("restart-old-runtime-stopped:", "old runtime completion evidence"),
+        ("handler-confirmed:", "new runtime confirmation evidence"),
+        ("duplicate-runtime-suppressed", "duplicate suppression"),
+        ("finishForegroundRuntime", "lease release"),
+        ("p2s_last_inbound_error_count", "P2S incident count"),
+    ):
+        require(foreground, marker, label)
+    for marker, label in (
+        ("FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS", "restart bound"),
+        ("FOREGROUND_RUNTIME_START_TIMEOUT_MS", "start bound"),
+        ("foreground-runtime-stop-timeout", "restart timeout"),
+        ("runStartTransition(task)", "serialized transition API"),
+        ("waitForActiveRuntime(", "runtime acquisition API"),
+        ("activeRuntimeId()", "runtime introspection"),
+    ):
+        require(coordinator, marker, label)
 
-    # One-tap reports are intended for issue sharing. Credentials and server
-    # endpoints must never be copied into them.
+    for marker in (
+        "foregroundServiceHeartbeatAt",
+        "foregroundServiceDetachedError",
+        "foregroundServiceDetachedErrorAt",
+        "foregroundServiceInstanceId",
+        "foregroundServiceDuplicateSuppressedAt",
+        "foregroundServiceRecoveryStatus",
+        "p2sLastInboundErrorCode",
+    ):
+        require(native_bridge, marker, f"status bridge {marker}")
+    for marker in (
+        '"foreground_service_heartbeat_at"',
+        '"foreground_service_instance_id"',
+        '"foreground_service_recovery_status"',
+        '"p2s_last_inbound_error_code"',
+        'put("uriCount", uriCount)',
+        'put("packageName", app.packageName)',
+        'put("versionName", BuildConfig.VERSION_NAME)',
+    ):
+        require(native_debug, marker, f"raw diagnostic marker {marker}")
+
     for secret in (
         '"password"',
         '"hashed_password"',
@@ -104,16 +130,19 @@ def main() -> None:
     ):
         forbid(native_debug, secret, f"diagnostic secret key {secret}")
 
-    require(recovery, 'EVENT = "com.clipcascade.CAPTURE_RECOVERY"', "capture recovery event")
-    require(recovery, 'bridge.getValue("wsIsRunning") != "true"', "requested-runtime guard")
-    require(recovery, "HEARTBEAT_STALE_MS = 15_000L", "stale heartbeat guard")
-    require(recovery, "MIN_RETRY_INTERVAL_MS = 10_000L", "recovery throttle")
-    require(recovery, "HeadlessJsTaskService.acquireWakeLockNow", "recovery WakeLock")
-    require(floating_activity, "ForegroundRuntimeRecovery.startIfRequested", "visible Activity recovery")
+    for marker, label in (
+        ('EVENT = "com.clipcascade.CAPTURE_RECOVERY"', "capture recovery event"),
+        ('bridge.getValue("wsIsRunning") != "true"', "requested runtime guard"),
+        ("HEARTBEAT_STALE_MS = 15_000L", "stale heartbeat guard"),
+        ("MIN_RETRY_INTERVAL_MS = 10_000L", "recovery throttle"),
+        ("HeadlessJsTaskService.acquireWakeLockNow", "recovery WakeLock"),
+    ):
+        require(recovery, marker, label)
+    require(floating_activity, "ForegroundRuntimeRecovery.startIfRequested", "visible recovery")
     require(headless, "restartFromVisibleCapture", "Headless capture recovery")
     require(headless, "foreground-start-requested", "Headless recovery evidence")
 
-    print("active localized non-secret diagnostics and coordinated recovery: OK")
+    print("active localized non-secret diagnostics and serialized recovery: OK")
 
 
 if __name__ == "__main__":
