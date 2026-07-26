@@ -43,9 +43,11 @@ def matching_brace(text: str, marker: str) -> tuple[int, int]:
 def validate_source(root: Path) -> None:
     path = root / "android/app/build.gradle"
     text = path.read_text(encoding="utf-8")
-    opening, closing = matching_brace(text, "        extended {")
-    block = text[opening : closing + 1]
-    if block.count(RESOURCE_MARKER) != 1:
+    build_opening, build_closing = matching_brace(text, "    buildTypes {")
+    build_types = text[build_opening : build_closing + 1]
+    extended_opening, extended_closing = matching_brace(build_types, "        extended {")
+    extended = build_types[extended_opening : extended_closing + 1]
+    if extended.count(RESOURCE_MARKER) != 1:
         raise RuntimeError(
             "Extended build type must contain exactly one deterministic "
             f"dev-server resource: {RESOURCE_MARKER!r}"
