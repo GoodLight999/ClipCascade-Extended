@@ -108,6 +108,8 @@ jobs:
           apk='build/mobile/android/app/build/outputs/apk/extended/app-extended.apk'
           test -s "$apk"
           unzip -t "$apk" | tee apk-zip-test.txt
+          python3 scripts/validate_release_reproducibility.py "$apk" --apk \
+            | tee apk-reproducibility.txt
 
           zipalign="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -n 1)"
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
@@ -191,6 +193,7 @@ jobs:
             apk-manifest.xml
             apk-zip-test.txt
             apk-zipalign.txt
+            apk-reproducibility.txt
             apk-dex-strings.txt
             apk-js-bundle.txt
             build/mobile/gradle-repository-audit.txt
@@ -232,11 +235,13 @@ jobs:
             scripts/validate_runtime_queue_admission.py
             scripts/validate_runtime_transport_activity.py
             scripts/validate_transport_delivery_semantics.py
+            scripts/validate_release_reproducibility.py
             scripts/validate_final_scope.py
             apk-signature.txt
             apk-manifest.xml
             apk-zip-test.txt
             apk-zipalign.txt
+            apk-reproducibility.txt
             apk-dex-strings.txt
             apk-js-bundle.txt
           if-no-files-found: ignore
