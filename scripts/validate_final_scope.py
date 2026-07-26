@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate final generated scope after all reliability finalizers."""
+"""Validate final generated scope after all reliability phases."""
 from __future__ import annotations
 
 import argparse
@@ -41,6 +41,7 @@ def main() -> None:
     pending_share_policy = (root / "PendingShareStartPolicy.js").read_text(encoding="utf-8")
     service_policy = (root / "ServiceControlPolicy.js").read_text(encoding="utf-8")
     inbound_policy = (root / "InboundErrorPolicy.js").read_text(encoding="utf-8")
+    receipt_policy = (root / "P2SReceiptTracker.js").read_text(encoding="utf-8")
     sync_cache = (java_root / "SyncRequestCache.kt").read_text(encoding="utf-8")
     shizuku = (java_root / "ShizukuSetup.kt").read_text(encoding="utf-8")
 
@@ -63,84 +64,91 @@ def main() -> None:
     require(sync_cache, "lastCheckAt = null", "cache invalidation")
     require(shizuku, "activeConnection !== connection", "stale Shizuku connection guard")
     require(shizuku, "waitForVerification(app, connection)", "cancel-aware Shizuku verification")
-    require(shizuku, "addBinderReceivedListenerSticky", "sticky Shizuku Binder listener")
-    require(shizuku, "awaitBinder(BINDER_TIMEOUT_MS)", "bounded Shizuku Binder wait")
+    require(shizuku, "addBinderReceivedListenerSticky", "sticky Shizuku listener")
+    require(shizuku, "awaitBinder(BINDER_TIMEOUT_MS)", "bounded Shizuku wait")
     require(native_bridge, "fun openOrGetShizuku", "Shizuku open/install action")
-    require(native_bridge, "thedjchi/Shizuku/releases", "recommended Shizuku fork fallback")
+    require(native_bridge, "thedjchi/Shizuku/releases", "recommended fork fallback")
     require(native_bridge, "fun runNativeAutoDebug", "native one-tap diagnostics")
     require(control_panel, "text.shizukuOpen", "localized Shizuku open button")
     require(control_panel, "text.shizukuGuide", "localized Shizuku guidance")
-    require(control_panel, "Clipboard.setString(dialog.copy)", "copyable reports and ADB commands")
-    require(control_panel, "createStyles(useColorScheme() === 'dark')", "readable diagnostic theme")
-    require(shizuku_policy, "state: 'already-configured'", "Shizuku-free retained-grant state")
-    require(shizuku_policy, "state: 'binder-pending'", "bounded Shizuku startup state")
-    require(shizuku_policy, "state: 'permission-required'", "Shizuku permission state")
-    require(i18n, "ja:", "Japanese product dictionary")
-    require(i18n, "zh:", "Chinese product dictionary")
-    require(i18n, "en:", "English product dictionary")
+    require(control_panel, "Clipboard.setString(dialog.copy)", "copyable reports and commands")
+    require(control_panel, "createStyles(useColorScheme() === 'dark')", "readable theme")
+    require(shizuku_policy, "state: 'already-configured'", "retained-grant state")
+    require(shizuku_policy, "state: 'binder-pending'", "bounded startup state")
+    require(shizuku_policy, "state: 'permission-required'", "permission state")
+    for locale in ("ja:", "zh:", "en:"):
+        require(i18n, locale, f"product dictionary {locale}")
 
-    # One watcher owns restored-session, after-login, active-screen and stale
-    # foreground-runtime share recovery. Requested state alone is not liveness.
     require(app, "import { planPendingShareStart }", "pending-share policy import")
-    require(
-        app,
-        "sessionReadyRef.current = enableWSPage;",
-        "websocket-screen-derived share readiness",
-    )
+    require(app, "sessionReadyRef.current = enableWSPage;", "session-derived readiness")
     require_before(
         app,
         "const [enableWSPage, setEnableWSPage] = useState(false);",
         "sessionReadyRef.current = enableWSPage;",
-        "state declaration before session-ready synchronization",
+        "state declaration before synchronization",
     )
-    require(app, "shared_payload_pending", "persisted pending-share polling")
-    require(app, "foreground_service_heartbeat_at", "heartbeat liveness polling")
-    require(app, "pendingShareStartInFlightRef", "share-start concurrency guard")
-    require(app, "pendingShareLastAttemptAtRef", "share-start retry throttle")
-    require(app, "service-start-requested:", "observable share-triggered service start")
-    require(app, "pendingSharePlan.forceRestart", "stale runtime restart propagation")
-    require(
-        pending_share_policy,
-        "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
-        "bounded heartbeat freshness",
-    )
-    require(
-        pending_share_policy,
-        "elapsed >= 0 && elapsed <= Number(maxAgeMs)",
-        "rollback-safe runtime freshness",
-    )
-    require(
-        pending_share_policy,
-        "forceRestart ? 'stale-runtime' : 'runtime-stopped'",
-        "stale runtime classification",
-    )
-    require(service_policy, "forceRestart = false", "forced restart policy input")
-    require(service_policy, "forcedStart", "forced restart policy result")
+    for marker, label in (
+        ("shared_payload_pending", "pending-share polling"),
+        ("foreground_service_heartbeat_at", "heartbeat polling"),
+        ("pendingShareStartInFlightRef", "share-start concurrency guard"),
+        ("pendingShareLastAttemptAtRef", "share-start throttle"),
+        ("service-start-requested:", "share-triggered start evidence"),
+        ("pendingSharePlan.forceRestart", "stale restart propagation"),
+        ("work-manager-recovery", "explicit WorkManager recovery"),
+    ):
+        require(app, marker, label)
+    for marker, label in (
+        ("FOREGROUND_HEARTBEAT_STALE_MS = 15_000", "heartbeat freshness"),
+        ("elapsed >= 0 && elapsed <= Number(maxAgeMs)", "rollback-safe freshness"),
+        ("forceRestart ? 'stale-runtime' : 'runtime-stopped'", "stale classification"),
+    ):
+        require(pending_share_policy, marker, label)
+    require(service_policy, "forceRestart = false", "forced restart input")
+    require(service_policy, "forcedStart", "forced restart result")
 
-    # The detailed listener-ownership invariants live in
-    # validate_service_and_p2p_controls.py. This final-scope check preserves only
-    # the cross-phase ordering contract using the same canonical marker.
     require_before(
         foreground,
         "const clipboardOnChange = trackClipboardSubscription(clipboardListener.addListener(",
         "await ClipboardListener.startListening();",
-        "owned native drain after JS callback registration",
+        "owned callback registration before native drain",
     )
-    require(foreground, "p2s-late-echo-acknowledged", "late P2S ACK recovery")
-    require(foreground, "queuedForAck?.id === echoedDeliveryId", "late P2S queue identity guard")
-    require(foreground, "createInboundErrorCoalescer", "P2S inbound error coalescing")
-    require(foreground, "p2s_last_inbound_error_count", "P2S incident counter")
-    require(inbound_policy, "code: 'encryption-mismatch'", "authenticated-decrypt classification")
-    require(inbound_policy, "shouldReport: false", "duplicate inbound suppression")
-    require(foreground, "quarantinedPeers", "P2P incompatible peer isolation")
-    require(foreground, "foreground_service_error", "foreground-service error persistence")
-    require(foreground, "shared_payload_pending", "share event completion state")
 
-    forbid(
-        foreground,
-        "Encryption must be enabled on all devices if enabled",
-        "room-wide inherited encryption failure wording",
-    )
+    # Final P2S contract: standard receipt plus identity-checked loopback fallback.
+    for marker, label in (
+        ("createP2SReceiptTracker", "receipt tracker integration"),
+        ("headers: {receipt: receiptId}", "standard STOMP receipt"),
+        ("stompClient.watchForReceipt(receiptId", "receipt callback"),
+        ("p2sEchoGuard.consume(type_, hcb", "loopback fallback"),
+        ("shouldAcknowledgeP2SDelivery", "late callback identity guard"),
+        ("p2s-late-${source}-acknowledged", "late receipt/echo evidence"),
+        ("queued?.id || null", "queue-head identity input"),
+        ("p2s-receipt-timeout", "non-destructive timeout evidence"),
+        ("p2sReceiptTracker.cancel();\n                p2sEchoGuard.clear();\n                return OUTBOUND_DELIVERY.WAITING;", "publish-time stop guard"),
+        ("createInboundErrorCoalescer", "inbound error coalescing"),
+        ("p2s_last_inbound_error_count", "P2S incident counter"),
+    ):
+        require(foreground, marker, label)
+    require(receipt_policy, "String(queuedHeadId || '') === id", "late ACK queue-head guard")
+    require(inbound_policy, "code: 'encryption-mismatch'", "decrypt classification")
+    require(inbound_policy, "shouldReport: false", "duplicate inbound suppression")
+
+    for marker, label in (
+        ("quarantinedPeers", "P2P incompatible peer isolation"),
+        ("foreground_service_error", "foreground error persistence"),
+        ("shared_payload_pending", "share completion state"),
+        ("foregroundRuntimeCoordinator.runStartTransition", "serialized service starts"),
+        ("foregroundRuntimeCoordinator.waitForActiveRuntime", "live runtime confirmation"),
+        ("handler-confirmed:", "runtime confirmation evidence"),
+    ):
+        require(foreground, marker, label)
+
+    for forbidden, label in (
+        ("Encryption must be enabled on all devices if enabled", "room-wide encryption wording"),
+        ("extendedDeliveryId", "proprietary P2S payload metadata"),
+        ("previous_clipboard_content_hash", "global feedback suppression"),
+        ("block_image_once", "untyped feedback flag"),
+    ):
+        forbid(foreground, forbidden, label)
 
     for inherited in (
         "New version available!",
@@ -151,7 +159,7 @@ def main() -> None:
     ):
         forbid(app, inherited, f"inherited upstream UI {inherited}")
 
-    print("final generated scope and deferred-feature boundaries: OK")
+    print("final generated scope, receipt identity and deferred-feature boundaries: OK")
 
 
 if __name__ == "__main__":
