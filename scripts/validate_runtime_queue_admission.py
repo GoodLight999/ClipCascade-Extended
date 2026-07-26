@@ -31,67 +31,60 @@ def main() -> None:
     queue = (root / "DurableOutboundQueue.js").read_text(encoding="utf-8")
     coordinator = (root / "ForegroundRuntimeCoordinator.js").read_text(encoding="utf-8")
 
-    require(queue, "SCHEMA_VERSION = 2", "queue schema version")
-    require(queue, "enqueue(content, type, shouldEnqueue = null)", "queue admission parameter")
-    require(queue, "typeof shouldEnqueue !== 'function'", "admission guard type check")
-    require(queue, "if (shouldEnqueue && shouldEnqueue() !== true)", "serialized admission decision")
-    require(queue, "cancelled: true", "cancelled enqueue result")
+    for marker, label in (
+        ("SCHEMA_VERSION = 2", "queue schema"),
+        ("enqueue(content, type, shouldEnqueue = null)", "admission parameter"),
+        ("typeof shouldEnqueue !== 'function'", "admission type check"),
+        ("if (shouldEnqueue && shouldEnqueue() !== true)", "serialized admission decision"),
+        ("cancelled: true", "cancelled enqueue result"),
+        ("const scopeMatches = Boolean(", "scope ownership"),
+        ("const migrateByteLengths", "legacy migration"),
+        ("let removedCount = 0", "removal accounting"),
+        ("while (active.length > MAX_ITEMS || totalBytes > MAX_TOTAL_BYTES)", "queue bounds"),
+        ("if (scopeMatches && (removedCount > 0 || normalized))", "same-scope normalization"),
+        ("raw.scope !== scope", "mismatched-scope clear guard"),
+        ("skipped: true", "non-destructive stale clear"),
+    ):
+        require(queue, marker, label)
     require_before(
         queue,
         "const state = await load(scope);",
         "if (shouldEnqueue && shouldEnqueue() !== true)",
-        "admission decision after serialized state load",
+        "admission after serialized load",
     )
     require_before(
         queue,
         "if (shouldEnqueue && shouldEnqueue() !== true)",
         "state.items.push(item);",
-        "admission decision before append",
+        "admission before append",
     )
+    forbid(queue, "expired > 0 || state !== raw || normalized", "scope-mismatch overwrite")
 
-    require(queue, "const scopeMatches = Boolean(", "persisted scope ownership check")
-    require(queue, "const migrateByteLengths", "legacy queue migration")
-    require(queue, "let removedCount = 0", "load-time removal accounting")
-    require(
-        queue,
-        "while (active.length > MAX_ITEMS || totalBytes > MAX_TOTAL_BYTES)",
-        "load-time queue bounds",
-    )
-    require(
-        queue,
-        "if (scopeMatches && (removedCount > 0 || normalized))",
-        "same-scope-only normalization write",
-    )
-    require(queue, "raw.scope !== scope", "mismatched-scope clear guard")
-    require(queue, "skipped: true", "non-destructive stale clear result")
-    forbid(queue, "expired > 0 || state !== raw || normalized", "scope-mismatch read overwrite")
+    for marker, label in (
+        ("shouldPreserveOutboundQueue", "stop-reason policy"),
+        ("MANUAL_FOREGROUND_STOP_REASON = 'manual'", "manual stop identity"),
+        ("!== MANUAL_FOREGROUND_STOP_REASON", "non-manual preservation"),
+    ):
+        require(coordinator, marker, label)
 
-    require(coordinator, "shouldPreserveOutboundQueue", "stop-reason queue policy")
-    require(coordinator, "MANUAL_FOREGROUND_STOP_REASON = 'manual'", "manual stop identity")
-    require(
-        coordinator,
-        "!== MANUAL_FOREGROUND_STOP_REASON",
-        "non-manual queue preservation",
-    )
+    for marker, label in (
+        ("let runtimeAcceptingEvents = true", "runtime admission state"),
+        ("let runtimeStopReason = 'manual'", "default manual stop"),
+        ("runtimeStopReason = String(reason || 'replacement-start')", "replacement reason propagation"),
+        ("const shouldPreserveRuntimeQueue = () =>", "queue policy binding"),
+        ("const runtimeCanAcceptEvents = () =>", "runtime predicate"),
+        ("const stopAcceptingRuntimeEvents = () =>", "admission close"),
+        ("runtimeAcceptingEvents && runtimeLease?.isActive() === true", "active lease guard"),
+        ("foregroundRuntimeCoordinator.acquire(", "coordinated identity"),
+        ("runtimeCanAcceptEvents,", "queue admission wiring"),
+        ("if (enqueueResult.cancelled)", "cancelled enqueue handling"),
+        ("ignored-after-runtime-stop", "post-stop evidence"),
+        ("queued-before-runtime-stop", "stop-during-enqueue evidence"),
+        ("if (shouldPreserveRuntimeQueue())", "recovery preservation branch"),
+        ("`preserved-for-${runtimeStopReason}`", "preservation evidence"),
+    ):
+        require(service, marker, label)
 
-    require(service, "let runtimeAcceptingEvents = true", "runtime event-admission state")
-    require(service, "let runtimeStopReason = 'manual'", "default manual stop reason")
-    require(service, "runtimeStopReason = String(reason || 'restart')", "restart reason propagation")
-    require(service, "const shouldPreserveRuntimeQueue = () =>", "runtime queue policy binding")
-    require(service, "const runtimeCanAcceptEvents = () =>", "runtime admission predicate")
-    require(service, "const stopAcceptingRuntimeEvents = () =>", "runtime admission close operation")
-    require(
-        service,
-        "runtimeAcceptingEvents && runtimeLease?.isActive() === true",
-        "null-safe coordinated lease admission guard",
-    )
-    require(service, "foregroundRuntimeCoordinator.acquire(", "coordinated runtime identity")
-    require(service, "runtimeCanAcceptEvents,", "queue admission predicate wiring")
-    require(service, "if (enqueueResult.cancelled)", "cancelled enqueue handling")
-    require(service, "ignored-after-runtime-stop", "post-stop event evidence")
-    require(service, "queued-before-runtime-stop", "stop-during-enqueue evidence")
-    require(service, "if (shouldPreserveRuntimeQueue())", "recovery queue branch")
-    require(service, "`preserved-for-${runtimeStopReason}`", "queue preservation evidence")
     if service.count("await outboundQueue.clear();") != 2:
         raise RuntimeError("manual-only P2S/P2P queue clear count changed")
     if service.count("if (shouldPreserveRuntimeQueue())") != 2:
@@ -99,7 +92,7 @@ def main() -> None:
 
     for mode in ("P2S", "P2P"):
         marker = f"stopServices{mode} = async () => {{\n            stopAcceptingRuntimeEvents();"
-        require(service, marker, f"{mode} admission closure before stop")
+        require(service, marker, f"{mode} admission closure")
         preserve = service.find("if (shouldPreserveRuntimeQueue())", service.find(marker))
         clear = service.find("await outboundQueue.clear();", preserve)
         if preserve < 0 or clear < 0 or preserve >= clear:
@@ -112,7 +105,7 @@ def main() -> None:
     )
 
     print(
-        "coordinated runtime lease closes queue admission, recovery preserves durable work, "
+        "coordinated lease closes queue admission, replacement preserves durable work, "
         "manual stop clears explicitly, and stale scopes cannot erase active data: OK"
     )
 
