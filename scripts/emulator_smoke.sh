@@ -91,7 +91,7 @@ run_activity() {
 
 create_media_image() {
   local local_png="$out/share-probe.png"
-  local display_name="ClipCascade_CI_share_API_$api.png"
+  local display_name="ClipCascade_CI_share_API_${api}_${RANDOM}_${RANDOM}.png"
   local remote_png="/sdcard/Download/$display_name"
   local collection='content://media/external/images/media'
   printf '%s' \
@@ -99,12 +99,9 @@ create_media_image() {
     | base64 --decode > "$local_png"
   adb push "$local_png" "$remote_png" > "$out/share-image-push.txt"
 
-  # `content insert` intentionally prints no inserted URI on current Android.
-  # Remove stale rows, insert one row, then query its numeric MediaStore ID.
-  adb shell content delete \
-    --uri "$collection" \
-    --where "_display_name='$display_name'" \
-    > "$out/share-image-delete.txt" 2>&1 || true
+  # `content insert` prints no URI. Avoid SQL where/sort arguments because adb
+  # shell flattens their quoting differently across API images. A unique display
+  # name lets us query all projected rows and select the exact inserted row.
   adb shell content insert \
     --uri "$collection" \
     --bind _display_name:s:"$display_name" \
@@ -112,14 +109,17 @@ create_media_image() {
     --bind relative_path:s:Pictures \
     > "$out/share-image-insert.txt" 2>&1
 
-  local query row_id uri
+  local query matching_row row_id uri
   query="$(adb shell content query \
     --uri "$collection" \
-    --projection _id:_display_name \
-    --where "_display_name='$display_name'" \
-    --sort '_id DESC' | tr -d '\r')"
+    --projection _id:_display_name | tr -d '\r')"
   printf '%s\n' "$query" > "$out/share-image-query.txt"
-  row_id="$(printf '%s\n' "$query" | sed -n 's/.*_id=\([0-9][0-9]*\).*/\1/p' | head -n 1)"
+  matching_row="$(printf '%s\n' "$query" \
+    | grep -F "_display_name=$display_name" \
+    | tail -n 1)"
+  printf '%s\n' "$matching_row" > "$out/share-image-matching-row.txt"
+  row_id="$(printf '%s\n' "$matching_row" \
+    | sed -n 's/.*_id=\([0-9][0-9]*\).*/\1/p')"
   [[ "$row_id" =~ ^[0-9]+$ ]]
   uri="$collection/$row_id"
   adb shell "content write --uri '$uri' < '$remote_png'" \
@@ -175,7 +175,7 @@ assert_log_marker process-text 'Native event accepted: event=SHARED_TEXT'
 checkpoint 'share-image'
 image_uri="$(create_media_image)"
 printf '%s\n' "$image_uri" > "$out/share-image-uri.txt"
-[[ "$image_uri" == content://media/* ]]
+[[ "$image_uri" == content://media/*/[0-9]* ]]
 run_activity share-image \
   --grant-read-uri-permission \
   -a android.intent.action.SEND \
