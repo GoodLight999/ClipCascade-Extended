@@ -88,34 +88,51 @@ The earlier proprietary delivery-metadata approach was removed. Final wire body 
 - Expanded failure artifacts.
 - Expanded packaged Hermes checks to require coordinator/receipt/feedback/queue markers and reject obsolete transport markers.
 
-## 2026-07-26 — Release reproducibility repair
+## 2026-07-26 — Reproducible signed APK repair
 
-Independent comparison of two fully green APKs found byte-identical DEX, Hermes bundle, Manifest, native libraries and assets, but a different `resources.arsc`. The sole semantic difference was React Native 0.80.x's automatically injected GitHub-runner private IP in `react_native_dev_server_ip`.
+Independent comparison of fully green APKs found two non-runtime causes of hash drift.
 
-The signed `extended` build type now overrides only that resource with loopback, while debug keeps automatic host discovery. `validate_release_reproducibility.py` enforces exact Extended scope before Gradle and scans packaged `resources.arsc` for the fixed value and absence of RFC1918 build-host addresses before artifact upload.
+### Build-host resource
 
-Early CI failures during this repair were guard integration defects, not application runtime defects: one copied Manifest marker had an off-by-one indentation and the first validator searched the signing `extended` block rather than the build type. Both were corrected without changing the transport/runtime design.
+All DEX/Hermes/Manifest/native/assets were equal, but `resources.arsc` contained a GitHub-runner private address injected by React Native 0.80.x. The signed `extended` build type now overrides only `react_native_dev_server_ip` with loopback; debug keeps automatic discovery. Source and binary validators require correct scope and reject RFC1918 addresses.
 
-## 2026-07-26 — First deterministic-resource candidate
+### SDK dependency Signing Block
+
+After the resource fix, all 537 ZIP entries and central directory were equal, but Signing Block pair `0x504b4453` differed. This was Android Gradle Plugin SDK dependency information, whose encrypted payload varies per build. The Android DSL now sets:
+
+```groovy
+dependenciesInfo {
+    includeInApk = false
+    includeInBundle = false
+}
+```
+
+The structural APK parser rejects `0x504b4453`. Final Signing Block pairs are v2 signature `0x7109871a` and deterministic padding `0x42726577` only.
+
+### Evidence-collector hardening
+
+The first fully deterministic APK passed API 35, while API 36 stopped because `adb logcat -d` transiently returned exit 255 during evidence capture. The app PID was alive and exit-info contained no abnormal exit. Logcat collection now retries up to three times, preserves failed attempts and waits briefly for delayed positive markers without masking genuine crash/ANR checks.
+
+## 2026-07-26 — Byte-identical final candidate
 
 ```text
-Implementation commit: 751b8b4bec93a81ecab00c1df5a885b5c844c550
-Successful CI run: 30191423570
+Application/build implementation commit: 3f7f01d36d19456bd741fb8b2e65b913cc4ddf34
+Final harness head: ac34de11c73d4d565542b482739c2b3e5339b304
+First deterministic build run: 30192487659
+Second byte-identical build + complete smoke run: 30192942851
 Version: 3.2.0-extended.5 / 320005
 Application ID: com.clipcascade.extended
-APK size: 93,681,991 bytes
-APK SHA-256: 475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28
+APK size: 93,673,799 bytes
+APK SHA-256: 5911acfcba1e0e7a28b3e5cc13f268d5fbeb9c4c1653c9148d0954f8333e557c
 Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 Signature: APK Signature Scheme v2
 ```
 
-Run `30191423570` passed exact materialization, all validators including deterministic release-resource scope, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, ZIP/zipalign, v2 signature, Manifest/DEX/Hermes/checksum, packaged private-IP rejection and artifact upload.
+The two APKs were compared independently: same size and SHA-256, `cmp` identical, same 537 entry names/content, and identical v2 signer/padding pair hashes.
 
-The signed APK passed API 35 and API 36 smoke: light/dark launch, text Share, process text, real-PNG MediaStore cold-start Share with URI grant, app-owned staging/native-event evidence, HOME/background process survival and crash/ANR/known-regression scans. Both emitted `checkpoint=passed` and exit code `0`.
+Run `30192942851` passed exact materialization, all source/binary validators, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, ZIP/zipalign, v2 signature, Manifest/DEX/Hermes/checksum, artifact upload and API 35/API 36 smoke.
 
-The downloaded APK and both evidence archives were independently checked. Hash, size, signer, Manifest identity, required markers, forbidden obsolete/OTP/update markers and private-IP absence matched.
-
-A documentation-only follow-up build must reproduce the exact APK hash before reproducibility is considered proven.
+Both emulator evidence archives contained `checkpoint=passed`, exit code `0`, all summary fields passed, numeric MediaStore URI, image staging/native-event evidence, background PID and no app/native crash, ANR or known regression marker. API 36 completed without requiring a retry in the final run.
 
 ## Remaining acceptance boundary
 
