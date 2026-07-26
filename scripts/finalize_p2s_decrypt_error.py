@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Classify and coalesce P2S inbound failures instead of flooding the UI."""
+"""Classify P2S inbound failures and normalize lifecycle reset points."""
 from __future__ import annotations
 
 import argparse
@@ -52,7 +52,7 @@ import { createInboundErrorCoalescer } from './InboundErrorPolicy';""",
         """                  await clearFiles();
 
                   if (message && message.body) {""",
-        "do not unlock P2S receipt flight or hide inbound failures before validation",
+        "do not unlock P2S delivery or hide inbound failures before validation",
     )
 
     replace_once(
@@ -111,6 +111,37 @@ import { createInboundErrorCoalescer } from './InboundErrorPolicy';""",
                   }
                 }""",
         "P2S inbound error coalescing and success reset",
+    )
+
+    # Establish one lifecycle shape before callback supervision and the final
+    # receipt/echo delivery pass. Disconnect, socket loss and explicit stop all
+    # release the old in-flight gate; durable queue ownership remains separate.
+    replace_once(
+        path,
+        """            onDisconnect: async () => {
+              block_image_once = false;""",
+        """            onDisconnect: async () => {
+              toggle = false;
+              block_image_once = false;""",
+        "P2S disconnect in-flight reset",
+    )
+    replace_once(
+        path,
+        """            onWebSocketClose: async event => {
+              block_image_once = false;""",
+        """            onWebSocketClose: async event => {
+              toggle = false;
+              block_image_once = false;""",
+        "P2S WebSocket close in-flight reset",
+    )
+    replace_once(
+        path,
+        """          stopServicesP2S = async () => {
+            // 1) Stop clipboard listening""",
+        """          stopServicesP2S = async () => {
+            toggle = false;
+            // 1) Stop clipboard listening""",
+        "P2S explicit stop in-flight reset",
     )
 
 
