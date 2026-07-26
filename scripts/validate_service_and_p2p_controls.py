@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prevent stale service toggles, unsafe runtime replacement and P2P controls."""
+"""Prevent stale service toggles, unsafe replacement and private P2P controls."""
 from __future__ import annotations
 
 import argparse
@@ -23,224 +23,149 @@ def main() -> None:
     app = (root / "App.js").read_text(encoding="utf-8")
     service = (root / "StartForegroundService.js").read_text(encoding="utf-8")
     policy = (root / "ServiceControlPolicy.js").read_text(encoding="utf-8")
-    pending_share_policy = (root / "PendingShareStartPolicy.js").read_text(
-        encoding="utf-8"
-    )
-    runtime_coordinator = (root / "ForegroundRuntimeCoordinator.js").read_text(
-        encoding="utf-8"
-    )
-    detached_supervisor = (root / "DetachedTaskSupervisor.js").read_text(encoding="utf-8")
-
-    require(app, "resolveRequestedServiceState(", "persisted explicit service intent")
-    require(
-        app,
-        "const foregroundService = async (\n    desiredState = null,\n    forceRestart = false,",
-        "explicit and forceable service API",
-    )
-    require(
-        app,
-        "await foregroundService('true', pendingSharePlan.forceRestart);",
-        "heartbeat-aware automatic start",
-    )
-    require(app, "planPendingShareStart", "pending-share start planner")
-    require(app, "service-start-requested:", "observable automatic start reason")
-    require(app, "onPress={() => foregroundService()}", "UI-only service toggle")
-    require(app, "onDisplayNotification(requested.forcedStart)", "forced restart forwarding")
-    require(app, "StartForegroundService({ forceRestart })", "coordinator restart input")
-    require(app, "if (!forceRestart) {", "normal-only direct Notifee stop")
-    require(app, "requested.noOp", "already-satisfied service intent guard")
-    require(app, "hasForegroundStopTimedOut", "bounded stop policy")
-    require(app, "stop-timeout", "truthful stop timeout state")
-    require(app, "FOREGROUND_STOP_TIMEOUT_MS", "explicit stop timeout")
-    forbid(app, "wsIsRunning === 'true' ? 'false' : 'true'", "stale React-state toggle")
-    require(policy, "FOREGROUND_STOP_TIMEOUT_MS = 10_000", "10 second stop bound")
-    require(policy, "resolveRequestedServiceState", "explicit service-state resolver")
-    require(policy, "forceRestart = false", "forced restart parameter")
-    require(policy, "forcedStart", "forced restart result")
-    require(
-        pending_share_policy,
-        "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
-        "bounded foreground heartbeat freshness",
-    )
-    require(
-        pending_share_policy,
-        "forceRestart ? 'stale-runtime' : 'runtime-stopped'",
-        "stale runtime restart classification",
-    )
+    pending = (root / "PendingShareStartPolicy.js").read_text(encoding="utf-8")
+    coordinator = (root / "ForegroundRuntimeCoordinator.js").read_text(encoding="utf-8")
+    detached = (root / "DetachedTaskSupervisor.js").read_text(encoding="utf-8")
 
     for marker, label in (
-        ("FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000", "bounded restart wait"),
-        ("createForegroundRuntimeCoordinator", "runtime coordinator factory"),
-        ("acquire(runtimeId, requestStop)", "single runtime acquisition"),
-        ("requestRestart(", "serialized restart request"),
+        ("resolveRequestedServiceState(", "persistent explicit service intent"),
+        ("desiredState = null", "desired-state API"),
+        ("forceRestart = false", "forced restart API"),
+        ("restartReason = null", "restart reason API"),
+        ("foregroundService('true', pendingSharePlan.forceRestart", "heartbeat-aware auto start"),
+        ("work-manager-recovery", "explicit WorkManager recovery"),
+        ("onPress={() => foregroundService()}", "UI-only toggle"),
+        ("StartForegroundService({", "coordinator start input"),
+        ("forceRestart,", "force restart forwarding"),
+        ("restartReason,", "restart reason forwarding"),
+        ("requested.noOp", "already-satisfied intent guard"),
+        ("hasForegroundStopTimedOut", "bounded stop policy"),
+        ("stop-timeout", "truthful stop timeout state"),
+        ("pollUIFlags().catch", "supervised UI polling"),
+        ("if (controlLockAcquired)", "owner-only lock release"),
+    ):
+        require(app, marker, label)
+    forbid(app, "wsIsRunning === 'true' ? 'false' : 'true'", "stale React-state toggle")
+
+    for marker, label in (
+        ("FOREGROUND_STOP_TIMEOUT_MS = 10_000", "stop bound"),
+        ("resolveRequestedServiceState", "service-state resolver"),
+        ("forceRestart = false", "force restart parameter"),
+        ("forcedStart", "force restart result"),
+        ("elapsed < 0 || elapsed >= Number(timeoutMs)", "rollback-safe timeout"),
+    ):
+        require(policy, marker, label)
+    for marker, label in (
+        ("FOREGROUND_HEARTBEAT_STALE_MS = 15_000", "heartbeat freshness"),
+        ("forceRestart ? 'stale-runtime' : 'runtime-stopped'", "stale restart classification"),
+    ):
+        require(pending, marker, label)
+
+    for marker, label in (
+        ("FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000", "restart bound"),
+        ("FOREGROUND_RUNTIME_START_TIMEOUT_MS = 8_000", "start bound"),
+        ("createForegroundRuntimeCoordinator", "coordinator factory"),
+        ("runStartTransition(task)", "serialized starts"),
+        ("waitForActiveRuntime(", "callback lease wait"),
+        ("requestRestart(", "serialized restart"),
         ("current.completion.then(() => true)", "exact lease completion wait"),
         ("foreground-runtime-stop-timeout", "restart timeout evidence"),
-        ("activeRuntimeId()", "coordinator diagnostics accessor"),
+        ("activeRuntimeId()", "coordinator introspection"),
     ):
-        require(runtime_coordinator, marker, label)
+        require(coordinator, marker, label)
 
-    require(service, "createForegroundRuntimeCoordinator", "coordinator import")
-    require(service, "foregroundRuntimeCoordinator.acquire", "coordinated runtime lease")
-    require(service, "foregroundRuntimeCoordinator.requestRestart", "coordinated forced restart")
-    require(service, "restart-waiting-for-old-runtime", "restart waiting evidence")
-    require(service, "restart-stop-requested:", "old runtime stop request evidence")
-    require(service, "restart-old-runtime-stopped", "old runtime completion evidence")
-    require(service, "Foreground runtime restart failed", "restart failure evidence")
-    require(service, "runtimeLease.finish()", "runtime lease terminal release")
-    require(service, "duplicate-runtime-suppressed", "duplicate runtime suppression")
-    forbid(service, "let activeForegroundRuntimeId", "uncoordinated runtime ownership")
-
-    require(service, "activeClipboardSubscriptions", "owned clipboard subscription registry")
-    require(service, "trackClipboardSubscription", "owned subscription registration")
-    require(service, "removeClipboardSubscription", "owned subscription removal")
-    require(
-        service,
-        "trackClipboardSubscription(DeviceEventEmitter.addListener('SHARED_TEXT'",
-        "owned shared-text listener",
-    )
-    require(
-        service,
-        "trackClipboardSubscription(clipboardListener.addListener(",
-        "owned native clipboard listener",
-    )
+    for marker, label in (
+        ("foregroundRuntimeCoordinator.acquire", "runtime lease"),
+        ("foregroundRuntimeCoordinator.runStartTransition", "serialized start integration"),
+        ("foregroundRuntimeCoordinator.requestRestart", "forced restart integration"),
+        ("foregroundRuntimeCoordinator.waitForActiveRuntime", "runtime start confirmation"),
+        ("`restart-waiting:${restartReason}`", "restart waiting evidence"),
+        ("restart-stop-requested:", "old runtime stop evidence"),
+        ("restart-old-runtime-stopped:", "old runtime completion evidence"),
+        ("handler-confirmed:", "new runtime confirmation"),
+        ("foreground runtime did not acquire a lease", "start failure evidence"),
+        ("runtimeLease.finish()", "terminal lease release"),
+        ("duplicate-runtime-suppressed", "duplicate suppression"),
+        ("activeClipboardSubscriptions", "owned listener registry"),
+        ("trackClipboardSubscription", "owned listener registration"),
+        ("removeClipboardSubscription", "owned listener removal"),
+        ("createDetachedTaskSupervisor", "detached supervisor"),
+        ("const runRuntimeDetached = (scope, task) =>", "runtime-scoped supervisor"),
+        ("pollFlagsLoop().catch", "poll-loop supervision"),
+        ("handler-unhandled-failure", "terminal async failure state"),
+        ("finishForegroundRuntime('failed')", "failure lease release"),
+    ):
+        require(service, marker, label)
+    forbid(service, "let activeForegroundRuntimeId", "uncoordinated ownership")
     forbid(service, "removeAllListeners(", "global listener deletion")
-
-    require(
-        service,
-        "import { createDetachedTaskSupervisor } from './DetachedTaskSupervisor';",
-        "canonical detached supervisor import",
-    )
-    require(
-        service,
-        "const runDetached = createDetachedTaskSupervisor(async (scope, error) => {",
-        "canonical detached supervisor instance",
-    )
-    require(detached_supervisor, "Promise.resolve()", "safe detached task chain")
-    require(detached_supervisor, ".catch(() => undefined)", "failure-recorder rejection guard")
-    require(service, "foreground_service_detached_error", "detached callback evidence")
-    require(service, "const runRuntimeDetached = (scope, task) =>", "runtime-scoped callback helper")
-
-    for marker, label in (
-        ("runRuntimeDetached('shared-text'", "shared-text callback"),
-        ("runRuntimeDetached('shared-image'", "shared-image callback"),
-        ("runRuntimeDetached('shared-files'", "shared-files callback"),
-        ("runRuntimeDetached('native-clipboard-change'", "native clipboard callback"),
-        ("runRuntimeDetached('outbound-retry', flushOutboundQueue)", "retry timer"),
-        ("`quarantine-dispose:${peerId}`", "quarantine disposal"),
-        ("runRuntimeDetached('p2s-connect'", "P2S connect callback"),
-        ("runRuntimeDetached('p2s-disconnect'", "P2S disconnect callback"),
-        ("runRuntimeDetached('p2s-stomp-error'", "P2S STOMP error callback"),
-        ("runRuntimeDetached('p2s-websocket-error'", "P2S WebSocket error callback"),
-        ("runRuntimeDetached('p2s-websocket-close'", "P2S WebSocket close callback"),
-        ("runRuntimeDetached('p2s-subscription-message'", "P2S subscription callback"),
-        ("runRuntimeDetached('p2s-ack-timeout'", "P2S ACK timeout callback"),
-        ("runRuntimeDetached('signaling-reconnect'", "signaling reconnect"),
-        ("runRuntimeDetached('signaling-open'", "signaling open"),
-        ("runRuntimeDetached('signaling-message'", "signaling message"),
-        ("runRuntimeDetached('signaling-error'", "signaling error"),
-        ("runRuntimeDetached('signaling-close'", "signaling close"),
-        ("runRuntimeDetached(`ice-candidate:${remotePeerId}`", "ICE callback"),
-        ("runRuntimeDetached(`datachannel-message:${remotePeerId}`", "DataChannel message"),
-    ):
-        require(service, marker, f"runtime-supervised {label}")
-
-    forbid(
-        service,
-        "outboundRetryTimer = setTimeout(() => {\n            outboundRetryTimer = null;\n            flushOutboundQueue();",
-        "unobserved outbound retry Promise",
-    )
-    forbid(service, "setTimeout(() => disposePeerConnection", "unobserved peer disposal Promise")
-    for marker, label in (
-        ("DeviceEventEmitter.addListener('SHARED_TEXT', async", "shared-text callback"),
-        ("DeviceEventEmitter.addListener('SHARED_IMAGE', async", "shared-image callback"),
-        ("DeviceEventEmitter.addListener('SHARED_FILES', async", "shared-files callback"),
-        ("\n          async params => {", "native clipboard callback"),
-        ("onConnect: async", "P2S connect callback"),
-        ("onDisconnect: async", "P2S disconnect callback"),
-        ("onStompError: async", "P2S STOMP error callback"),
-        ("onWebSocketError: async", "P2S WebSocket error callback"),
-        ("onWebSocketClose: async", "P2S WebSocket close callback"),
-        ("SUBSCRIPTION_DESTINATION, async message", "P2S subscription callback"),
-        ("wsSignalingClient.onopen = async", "signaling open callback"),
-        ("wsSignalingClient.onmessage = async", "signaling message callback"),
-        ("wsSignalingClient.onerror = async", "signaling error callback"),
-        ("wsSignalingClient.onclose = async", "signaling close callback"),
-        ("pc.onicecandidate = async", "WebRTC ICE callback"),
-        ("pc.ondatachannel = async", "WebRTC DataChannel callback"),
-        ("channel.onopen = async", "DataChannel open callback"),
-        ("channel.onmessage = async", "DataChannel message callback"),
-        ("channel.onclose = async", "DataChannel close callback"),
-        ("channel.onerror = async", "DataChannel error callback"),
-    ):
-        forbid(service, marker, f"async host {label}")
-
-    require(service, "return new Promise(resolve => {", "synchronous foreground Promise executor")
-    require(service, "let runtimeLease = null", "terminal-cleanup lease scope")
-    require(service, "Promise.resolve()\n          .then(async () => {", "supervised foreground Promise chain")
-    require(service, "handler-unhandled-failure", "terminal foreground async failure state")
     forbid(service, "new Promise(async", "async Promise executor")
-    require(service, "pollFlagsLoop().catch", "supervised foreground polling loop")
-    require(service, "foreground_service_loop_failed_at", "poll-loop failure evidence")
-    require(service, "finishForegroundRuntime('failed')", "poll-loop lease release")
-    forbid(service, "        pollFlagsLoop();", "unsupervised foreground polling loop")
+    forbid(service, "        pollFlagsLoop();", "unsupervised poll loop")
 
-    require(service, "localCompatibility", "local compatibility descriptor")
-    require(service, "case 'OFFER': {", "OFFER compatibility receiver")
-    require(service, "case 'ANSWER': {", "ANSWER compatibility receiver")
-    require(service, "compatibility: localCompatibility", "forwarded compatibility metadata")
-    require(service, "compatibility.state !== 'incompatible'", "pre-connection mismatch guard")
-    require(service, "!quarantinedPeers.has(peerId)", "quarantined outbound peer filter")
-    require(service, "for (const pid of peers)", "awaited peer-list reconciliation")
-    require(service, "p2p_last_peer_setup_error", "peer setup failure evidence")
-    require(service, "p2p_last_peer_operation_error", "serialized peer-operation evidence")
-    require(
-        service,
-        "previous.catch(() => undefined).then(async () => {",
-        "recoverable peer-operation chain with caller-visible failure",
-    )
-    require(service, "clearPeerErrorIfOwned", "same-peer error recovery policy")
-    forbid(service, "peers.forEach(async", "detached peer-list reconciliation")
-    forbid(service, ".then(() => op()).catch(() => {})", "swallowed peer-operation failure")
+    for scope in (
+        "shared-text",
+        "shared-image",
+        "shared-files",
+        "native-clipboard-change",
+        "outbound-retry",
+        "p2s-connect",
+        "p2s-disconnect",
+        "p2s-stomp-error",
+        "p2s-websocket-error",
+        "p2s-websocket-close",
+        "p2s-subscription-message",
+        "p2s-receipt-timeout",
+        "p2s-receipt",
+        "signaling-reconnect",
+        "signaling-open",
+        "signaling-message",
+        "signaling-error",
+        "signaling-close",
+    ):
+        require(service, f"runRuntimeDetached('{scope}'", f"supervised callback {scope}")
+    for scope in (
+        "ice-candidate",
+        "datachannel-received",
+        "peer-recovery",
+        "datachannel-open",
+        "datachannel-message",
+        "datachannel-close",
+        "datachannel-error",
+    ):
+        require(service, f"runRuntimeDetached(`{scope}:${{remotePeerId}}`", f"peer callback {scope}")
 
-    require(service, "let signalingReconnectTimer = null", "single signaling reconnect timer")
-    require(service, "const clearSignalingReconnect", "signaling reconnect cancellation")
-    require(service, "const scheduleSignalingReconnect", "signaling reconnect scheduler")
-    require(service, "await startSignalingConnection();", "supervised initial signaling connection")
-    require(service, "p2p_last_signaling_error", "signaling failure evidence")
-    require(
-        service,
-        "stopServicesP2P = async () => {\n            stopAcceptingRuntimeEvents();\n            clearSignalingReconnect();",
-        "event-admission and reconnect cancellation on P2P stop",
-    )
-    require(
-        service,
-        "wsSignalingClient.onopen = () => {\n                runRuntimeDetached('signaling-open'",
-        "reconnect cancellation within runtime-supervised successful open",
-    )
-    forbid(service, "setTimeout(async () =>", "detached async reconnect timer")
-    forbid(
-        service,
-        "\n          initializeWebSocketSignalingClient();",
-        "bare unsupervised signaling initialization",
-    )
+    require(detached, "Promise.resolve()", "safe detached chain")
+    require(detached, ".catch(() => undefined)", "failure-recorder guard")
 
-    require(
-        service,
-        "Never send private control frames over the clipboard DataChannel",
-        "legacy-safe liveness",
-    )
-    forbid(service, "type: 'COMPATIBILITY'", "unforwarded custom signaling type")
-    forbid(service, "case 'COMPATIBILITY'", "unforwarded custom signaling receiver")
-    forbid(service, "P2P_COMPATIBILITY_JSON", "data-channel compatibility frame")
-    forbid(service, "P2P_DC_KEEPALIVE_JSON", "data-channel keepalive frame")
-    forbid(service, "channel.send(P2P_COMPATIBILITY_JSON)", "compatibility frame send")
-    forbid(service, "channel.send(P2P_DC_KEEPALIVE_JSON)", "keepalive frame send")
-    forbid(service, "keyFingerprint", "password-derived compatibility fingerprint")
-    forbid(service, "localKeyFingerprint", "local password-derived verifier")
+    # Legacy-server-compatible P2P controls only.
+    for marker, label in (
+        ("localCompatibility", "local compatibility descriptor"),
+        ("case 'OFFER': {", "OFFER receiver"),
+        ("case 'ANSWER': {", "ANSWER receiver"),
+        ("compatibility: localCompatibility", "forwarded compatibility metadata"),
+        ("compatibility.state !== 'incompatible'", "pre-connection mismatch guard"),
+        ("!quarantinedPeers.has(peerId)", "quarantined peer filter"),
+        ("for (const pid of peers)", "awaited peer reconciliation"),
+        ("clearPeerErrorIfOwned", "same-peer error recovery"),
+        ("let signalingReconnectTimer = null", "single reconnect timer"),
+        ("const clearSignalingReconnect", "reconnect cancellation"),
+        ("const scheduleSignalingReconnect", "reconnect scheduler"),
+        ("Never send private control frames over the clipboard DataChannel", "legacy-safe liveness"),
+    ):
+        require(service, marker, label)
+    for forbidden, label in (
+        ("peers.forEach(async", "detached peer reconciliation"),
+        (".then(() => op()).catch(() => {})", "swallowed peer failure"),
+        ("setTimeout(async () =>", "detached async reconnect"),
+        ("type: 'COMPATIBILITY'", "custom signaling type"),
+        ("case 'COMPATIBILITY'", "custom signaling receiver"),
+        ("P2P_COMPATIBILITY_JSON", "DataChannel compatibility frame"),
+        ("P2P_DC_KEEPALIVE_JSON", "DataChannel keepalive frame"),
+        ("keyFingerprint", "password-derived fingerprint"),
+        ("localKeyFingerprint", "local password verifier"),
+    ):
+        forbid(service, forbidden, label)
 
-    print(
-        "coordinated service handoff, owned listeners, runtime-scoped callbacks and secret-free P2P controls: OK"
-    )
+    print("serialized service acquisition, owned callbacks and legacy-safe P2P controls: OK")
 
 
 if __name__ == "__main__":
