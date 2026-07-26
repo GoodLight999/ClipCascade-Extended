@@ -139,6 +139,8 @@ Run `30187796193` passed exact materialization, all architecture/forbidden-resid
 
 The same signed APK then passed API 35 and API 36 emulator smoke: light/dark launch, text Share, `ACTION_PROCESS_TEXT`, cold-start MediaStore real-PNG Share with app-owned staging/native-event evidence, HOME/background process survival, and crash/ANR/known-regression scans. Downloaded APK and evidence archives were independently rechecked.
 
+Documentation and packaged-APK CI assertions were synchronized afterward without changing application behavior. The artifact authority remains the implementation/run/hash above unless application source changes and a new build/API35/API36 authority replaces it.
+
 This is a **strong automated device-test candidate**, not final product acceptance. HONOR 400 Pro upgrade/OEM background behavior, live upstream P2S/P2P/desktop interoperability, Shizuku retention after stop/reboot, screen-off/Doze/process/reboot endurance, battery and typing-latency evidence remain required. PR #2 stays Draft.
 
 See `HANDOFF.md`, `WORKLOG.md` and `docs/TEST_PLAN.md` for the canonical continuation and acceptance matrix. `3.2.0-extended.3` remains device-failed and must not be reused as a baseline.
