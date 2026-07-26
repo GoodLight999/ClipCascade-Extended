@@ -49,7 +49,7 @@ Run `30187796193` passed:
 
 Both emulator jobs installed the same signed APK and passed light launch, text Share, `ACTION_PROCESS_TEXT`, cold-start real-PNG MediaStore Share, app-owned staging/native-event evidence, HOME/background PID survival, dark launch, crash/ANR and known-regression scans. The downloaded APK and both evidence archives were independently rechecked.
 
-Subsequent documentation and CI-assertion-only commits do not change the behavioral APK authority above. If application source changes, this section must be replaced with a new fully green build/API35/API36 authority.
+Subsequent documentation and packaged-APK CI-assertion-only commits do not change the behavioral APK authority above. If application source changes, this section must be replaced with a new fully green build/API35/API36 authority.
 
 ## 3. Non-negotiable requirements
 
