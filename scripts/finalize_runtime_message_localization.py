@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Connect inherited App error paths to the canonical locale dictionary."""
+"""Connect inherited error paths to canonical localized/runtime wording."""
 from __future__ import annotations
 
 import argparse
@@ -28,6 +28,13 @@ def main() -> None:
           `${EXTENDED_TEXT.unknownError}: ${JSON.stringify(e)}`,
         );""",
         "localized file-download error dialog",
+    )
+
+    replace_once(
+        root / "StartForegroundService.js",
+        "Foreground runtime callback did not acquire its lease",
+        "foreground runtime did not acquire a lease",
+        "canonical foreground lease failure wording",
     )
 
 
