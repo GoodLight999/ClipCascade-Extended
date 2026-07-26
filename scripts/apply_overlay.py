@@ -100,6 +100,9 @@ def patch_app_gradle(destination: Path) -> None:
             signingConfig signingConfigs.extended
             debuggable false
             minifyEnabled false
+            // React Native 0.80.x injects the build host IP into defaultConfig.
+            // Override only the signed artifact; debug keeps automatic discovery.
+            resValue "string", "react_native_dev_server_ip", "127.0.0.1"
         }
 """
     text = insert_before_block_close(text, "    buildTypes {", build_type, "build types")
@@ -116,14 +119,14 @@ def patch_manifest(destination: Path) -> None:
     path = destination / "android/app/src/main/AndroidManifest.xml"
     text = path.read_text(encoding="utf-8")
     old_activity = """      <activity
-        android:name=".ClipboardFloatingActivity"
-        android:theme="@style/Theme.TransparentActivity" />"""
+         android:name=".ClipboardFloatingActivity"
+         android:theme="@style/Theme.TransparentActivity" />"""
     new_activity = """      <activity
-        android:name=".ClipboardFloatingActivity"
-        android:excludeFromRecents="true"
-        android:exported="false"
-        android:noHistory="true"
-        android:theme="@style/Theme.TransparentActivity" />"""
+         android:name=".ClipboardFloatingActivity"
+         android:excludeFromRecents="true"
+         android:exported="false"
+         android:noHistory="true"
+         android:theme="@style/Theme.TransparentActivity" />"""
     path.write_text(
         replace_once(text, old_activity, new_activity, "floating activity manifest"),
         encoding="utf-8",
