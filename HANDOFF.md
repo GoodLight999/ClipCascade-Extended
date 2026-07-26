@@ -23,10 +23,8 @@ Last updated: **2026-07-26 JST**
 
 ## 2. Current validated implementation
 
-Behavioral implementation authority:
-
 ```text
-Implementation commit: 349003a994a0f05485a4f86605f9939abd4bcc98
+Behavioral implementation commit: 349003a994a0f05485a4f86605f9939abd4bcc98
 Successful CI run: 30187796193
 Application ID: com.clipcascade.extended
 Version: 3.2.0-extended.5 / 320005
@@ -37,212 +35,133 @@ Signer certificate SHA-256:
 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 ```
 
-Run `30187796193` passed:
+Run `30187796193` passed exact pinned-upstream materialization, every finalizer/validator, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, ZIP/zipalign, v2 signature, Manifest/DEX/Hermes/checksum and artifact upload.
 
-- exact pinned-upstream materialization and every finalizer/validator;
-- `npm ci`, repository audit, ESLint and every Jest suite;
-- Android Lint, every Extended Kotlin unit test and `assembleExtended`;
-- ZIP integrity, zipalign, v2 signature, Manifest, DEX and Hermes assertions;
-- packaged runtime coordinator, receipt, typed-feedback and queue-preservation markers;
-- absence of OTP code, inherited update URLs/UI and obsolete transport markers;
-- API 35 and API 36 release-APK emulator smoke.
+The identical signed APK passed API 35 and API 36 smoke: light/dark launch, text Share, `ACTION_PROCESS_TEXT`, cold-start real-PNG MediaStore Share, app-owned staging/native-event evidence, HOME/background PID survival and crash/ANR/known-regression scans. APK and both evidence archives were independently rechecked.
 
-Both emulator jobs installed the same signed APK and passed light launch, text Share, `ACTION_PROCESS_TEXT`, cold-start real-PNG MediaStore Share, app-owned staging/native-event evidence, HOME/background PID survival, dark launch, crash/ANR and known-regression scans. The downloaded APK and both evidence archives were independently rechecked.
-
-Subsequent documentation and packaged-APK CI-assertion-only commits do not change the behavioral APK authority above. If application source changes, this section must be replaced with a new fully green build/API35/API36 authority.
+Later documentation and packaged-APK assertion updates do not change behavioral application source. If application source changes, replace this authority with a new fully green build/API35/API36 run.
 
 ## 3. Non-negotiable requirements
 
 1. Generic Android clipboard synchronization is the core product.
-2. Normal operation must be ADB-free: Accessibility copy signal → serialized visible capture → clipboard read/staging → durable transport.
-3. Shizuku is a one-time permission/setup assistant. Routine capture and networking must work after Shizuku is fully stopped.
-4. One-time PC ADB is the second fallback and exposes only two selectable/copyable commands.
-5. Text copy, Share text/process text, image clipboard, image Share and single/multiple-file Share remain supported targets.
+2. Normal operation is ADB-free: Accessibility copy signal → serialized visible capture → clipboard read/staging → durable transport.
+3. Shizuku is one-time setup only; routine capture/networking must work after it is stopped.
+4. PC ADB is the second fallback and exposes only two selectable/copyable commands.
+5. Text copy, Share/process text, image clipboard, image Share and single/multiple-file Share remain supported targets.
 6. Upstream authentication, encryption, P2S/STOMP, P2P/WebRTC, server and desktop compatibility remain authoritative.
-7. Japanese, English and Simplified Chinese must cover complete screens, runtime status, diagnostics and notifications.
-8. Light/dark mode must remain readable; inherited update/funding/footer UI and update network calls stay absent.
-9. Fixed signing identity and monotonically increasing versionCode preserve in-place updates.
-10. OTP/SMS/email extraction stays absent until generic clipboard real-device acceptance is complete.
-11. Automatic diagnostics must exercise active paths, not merely repeat stored flags.
-12. Behavioral changes and evidence changes require synchronized updates to this file, `WORKLOG.md`, `README.md`, `docs/TEST_PLAN.md` and PR #2.
+7. EN/JA/zh-CN cover complete UI, runtime state, diagnostics and notifications.
+8. Light/dark mode remains readable; inherited footer/link/funding/update UI and update requests remain absent.
+9. Fixed signer and monotonic versionCode preserve in-place updates.
+10. OTP/SMS/email extraction remains absent until generic clipboard real-device acceptance.
+11. Diagnostics exercise active paths rather than echoing flags.
+12. Behavioral/evidence changes synchronize this file, `WORKLOG.md`, `README.md`, `docs/TEST_PLAN.md` and PR #2.
 
-## 4. Source architecture and cleanliness
-
-The repository reproducibly materializes a pinned upstream mobile tree, copies canonical overlay files and applies deterministic finalizers.
+## 4. Source architecture / cleanliness
 
 - Pin: `UPSTREAM.lock`
-- Entry point: `scripts/materialize_upstream.sh`
+- Entry: `scripts/materialize_upstream.sh`
 - Canonical overlay: `overlay/`
 - Validators: `scripts/validate_*.py`
-- Android CI: `.github/workflows/android-ci.yml`
+- CI: `.github/workflows/android-ci.yml`
 
-Rules:
+Generate final design directly. Keep state machines in pure tested modules. Guard generated source and packaged APK separately. Failure artifacts retain generated runtime/policies/validators. Never weaken a guard merely to turn CI green; move it to the current contract.
 
-- Generate the final design directly; do not add a later phase solely to undo a knowingly obsolete phase.
-- Keep state machines in pure modules with Jest/Kotlin tests.
-- Guard generated source and packaged APK markers separately.
-- Failure artifacts must retain generated `App.js`, `StartForegroundService.js`, policies, validators and build reports.
-- Never weaken a guard merely to make CI green; move it to the correct current contract.
+## 5. Clipboard acquisition
 
-## 5. Android clipboard acquisition
+1. `ClipCascadeAccessibilityService` classifies explicit copy signals with `canRetrieveWindowContent=false`.
+2. `ClipboardCaptureCoordinator` serializes requests.
+3. `ClipboardFloatingActivity` supplies a short visible foreground-access window.
+4. Temporarily empty/denied reads receive one bounded retry.
+5. Text/readable URIs are read and staged while access is valid.
+6. `PendingReactEventStore` persists until listener readiness and drains in order.
+7. A stale requested runtime can recover from the next explicit visible copy.
 
-Primary path:
+READ_LOGS is optional fallback only. Ignored high-frequency events do not query AsyncStorage/SQLite.
 
-1. `ClipCascadeAccessibilityService` classifies localized explicit-copy signals without retrieving window content.
-2. `ClipboardCaptureCoordinator` serializes requests and preserves newer work.
-3. `ClipboardFloatingActivity` provides a short visible foreground-access window.
-4. Empty/temporarily denied reads receive one bounded retry.
-5. Text or readable clipboard URIs are read; URI bytes are staged while access is valid.
-6. `PendingReactEventStore` persists native events until JavaScript listener readiness and drains them in order.
-7. If synchronization remains requested but runtime heartbeat is stale, the next explicit visible copy can launch Headless recovery.
+## 6. Shizuku / ADB boundary
 
-READ_LOGS is an optional signal fallback only. Ignored high-frequency Accessibility events must not query AsyncStorage/SQLite.
+States:
 
-## 6. Shizuku / ADB setup boundary
+- `already-configured`: retained grants verified; Shizuku may be stopped;
+- `not-installed`: guided distribution action;
+- `binder-pending`: startup Binder may still be arriving;
+- `permission-required`: live Binder, Extended unauthorized;
+- `ready-to-apply`: authorization present, one-time setup available.
 
-`ShizukuSetupPolicy.js` separates:
-
-- `already-configured`: retained READ_LOGS and overlay are already verified; Shizuku may be stopped;
-- `not-installed`: open the guided distribution;
-- `binder-pending`: installed/startup may still be delivering the Binder; native bounded waiting handles the race;
-- `permission-required`: Binder is live but Extended is not authorized;
-- `ready-to-apply`: authorization is present and one-time setup may run.
-
-Native setup verifies sticky Binder receipt, Binder death, authorization, bounded UserService lifecycle, remote command exit codes and actual retained Android permission/app-op state. Routine runtime files are statically forbidden from referencing Shizuku.
-
-PC fallback:
+Native setup handles sticky Binder, death, bounded wait, UserService lifecycle, exit codes and actual retained permission/app-op verification. Routine runtime source is statically forbidden from using Shizuku.
 
 ```text
 adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS
 adb shell appops set com.clipcascade.extended android:system_alert_window allow
 ```
 
-## 7. Android Share and staged files
+## 7. Share / staged files
 
-- Handles `ACTION_SEND`, `ACTION_SEND_MULTIPLE` and `ACTION_PROCESS_TEXT`.
-- Accepts `CharSequence`, Spanned/HTML and MIME-less text where Android supplies text.
-- Copies readable image/file Content URIs immediately into bounded app-owned FileProvider cache.
-- Uses JSON URI lists while retaining legacy queue decoding.
-- Enforces per-file, batch and total-cache bounds, expiry, partial-failure cleanup and duplicate control.
-- Unsupported/empty intents clear pending state and cannot trigger a later phantom service start.
-- Logs only event type/count/pending metadata, never payload content.
+Handles `ACTION_SEND`, `ACTION_SEND_MULTIPLE`, `ACTION_PROCESS_TEXT`, `CharSequence`, Spanned/HTML and MIME-less text. Readable Content URIs are copied immediately to bounded app-owned FileProvider cache. JSON URI lists retain legacy decoding. Per-file/batch/cache limits, expiry, partial-failure cleanup and duplicate control are enforced. Logs contain event metadata, not payload content.
 
 ## 8. Durable transport
 
-### Queue contract
-
-- Queue scope is server mode + URL + username.
-- Enqueue is serialized and admission-checked against the live runtime lease.
-- Queue survives offline periods, reconnects, process death and non-manual runtime replacement.
-- Explicit manual stop clears the queue; recovery/replacement/failure stops preserve it.
-- Delivery adapters return explicit outcomes; ambiguous truthy values are rejected.
+Queue is scoped by server mode + URL + username, serialized and lease-admission-checked. It survives offline/reconnect/process death and non-manual replacement. Explicit manual stop clears it. Delivery outcomes are explicit; ambiguous truthy ACK is rejected.
 
 ### P2S
 
-- Keeps the upstream payload exactly `{payload, type}`; no proprietary delivery metadata is inserted.
-- Uses standard STOMP `receipt` headers and `watchForReceipt` as the primary server-processing acknowledgement.
-- Retains upstream self-echo as a compatibility fallback, matched by typed content fingerprint and queue-head identity.
-- Late receipt/echo can acknowledge only the same durable head.
-- Receipt timeout is transient and schedules retry; it never permanently drops an otherwise valid payload merely for lacking acknowledgement.
-- Runtime ownership is rechecked immediately before irreversible `publish()`; a concurrent stop cancels receipt/echo state and returns WAITING.
-- Inbound decrypt/malformed failures are classified and coalesced for 30 seconds, with counters and success reset.
+- Wire body remains exactly `{payload, type}`.
+- Standard STOMP `receipt`/`watchForReceipt` is primary ACK.
+- Upstream self-echo is typed, identity-checked fallback.
+- Late callbacks acknowledge only matching durable head.
+- Receipt timeout is transient and retried, never permanent drop solely for missing ACK.
+- Runtime ownership is rechecked immediately before `publish()`.
+- Concurrent stop cancels receipt/echo state and returns WAITING.
+- Inbound decrypt/malformed incidents are classified/coalesced and reset on success.
 
-### Feedback suppression
+### Feedback
 
-- Global previous-content hash and one-shot image boolean are absent.
-- Typed one-shot guards include content fingerprint, expiry and clock-rollback handling.
-- A mismatched next copy is not accidentally suppressed.
+Global previous-content hash and untyped image boolean are absent. Typed expiring one-shot guards include mismatch and clock-rollback handling.
 
 ### P2P
 
-- Retry ID is stable across attempts.
-- UTF-8 fragmentation, concurrent peer/message accumulation, duplicate/conflict/TTL/size limits and DataChannel backpressure are bounded.
-- Success and waiting results are explicit.
-- Optional compatibility metadata appears only in upstream-forwarded OFFER/ANSWER fields.
-- No proprietary DataChannel control frame or unsupported signaling type is sent.
-- Incompatible/decrypt-failing peers are quarantined individually and excluded from outbound/recovery work.
+Stable retry ID, UTF-8 fragmentation, bounded concurrent reassembly/conflict/replay/TTL/size/backpressure and explicit outcomes. Compatibility metadata appears only in OFFER/ANSWER. No proprietary DataChannel control frame/signaling type. Incompatible peers are quarantined individually.
 
-## 9. Foreground runtime and recovery
+## 9. Foreground runtime
 
-- Exactly one Notifee handler and one JavaScript network-runtime lease are allowed.
-- All starts are serialized through `runStartTransition`.
-- Forced replacement requests the old runtime to stop and waits up to 10 seconds for that exact lease to finish.
-- A start is not considered successful merely because a notification was displayed; it waits up to 8 seconds for an actual runtime lease.
-- Duplicate normal starts join the existing runtime rather than stopping it.
-- Instance ID, heartbeat, duplicate suppression, transition state and failures are persisted for diagnostics.
-- Five-second heartbeat is stale after 15 seconds; pending Share recovery can force a coordinated replacement.
-- WorkManager, boot/update and visible-copy recovery use explicit start intent, never stale-state toggling.
-- Poll loops, timers, host callbacks, signaling and peer operations are supervised.
-- Terminal state is written before lease release so an old runtime cannot overwrite the new runtime's state.
+- One Notifee handler and one network-runtime lease.
+- All starts serialized by `runStartTransition`.
+- Forced replacement waits up to 10 seconds for exact old lease.
+- Start waits up to 8 seconds for an actual callback lease.
+- Normal duplicate start joins active runtime.
+- Five-second heartbeat, 15-second stale threshold and coordinated pending-Share recovery.
+- WorkManager/boot/update/visible-copy recovery use explicit start intent.
+- Poll/timer/host/signaling/peer work is supervised.
+- Terminal state is written before lease release.
 
-## 10. Product UI and diagnostics
+## 10. Product UI / diagnostics
 
-- Extended-owned login, advanced settings, synchronization, setup, Self-Test and automatic diagnostics screens.
-- Complete EN/JA/zh-CN dictionaries and localized notification resources.
-- Deterministic light/dark palettes; contrast is covered by Jest and emulator screenshots.
-- ADB commands and reports are selectable and one-tap copyable.
-- No inherited GitHub/help/donate/homepage/footer/update prompt or update metadata request.
+Extended-owned login/settings/sync/setup/Self-Test/diagnostics, complete EN/JA/zh-CN, deterministic light/dark palettes, selectable one-tap-copy reports/ADB and no inherited update/link/funding UI.
 
-Automatic diagnostics actively covers native→React delivery, listener readiness, capture state, real foreground clipboard read/MIME/URI count, outbound queue, Share staging/cache, heartbeat/runtime/duplicate/recovery state, P2P peer compatibility/errors, P2S inbound incidents and Shizuku/grant state. Copied reports exclude credentials, user/server endpoints and key material.
+Diagnostics actively cover native→React delivery, listener readiness, capture/clipboard MIME/URI, queue, Share staging/cache, runtime/heartbeat/recovery/errors, P2P compatibility/errors, P2S incidents and Shizuku/grants. Copied reports exclude secrets and endpoints.
 
 ## 11. Automated verification
 
-Every behavioral head must pass:
+Every behavioral head requires generation/validators, dependency audit, ESLint/Jest, Android Lint/Kotlin/assembly, APK ZIP/zipalign/signature/Manifest/DEX/Hermes/checksum, packaged required/forbidden markers and API35/API36 smoke.
 
-1. canonical-source validation and exact pinned-upstream materialization;
-2. all finalizers and architecture/forbidden-residue validators;
-3. `npm ci`, repository audit, ESLint and Jest;
-4. Android Lint, Kotlin tests and `assembleExtended`;
-5. APK ZIP/zipalign/v2 signature/Manifest/DEX/Hermes/checksum checks;
-6. packaged markers for runtime serialization, receipt/self-echo ACK, typed feedback, queue preservation and localization;
-7. packaged absence of obsolete transport, OTP and inherited update markers;
-8. API 35 and API 36 emulator smoke using the uploaded signed APK.
+Smoke requires signed artifact install, light/dark screenshot/UI XML, text/process Share, real-PNG MediaStore cold-start Share with URI grant, staging/native-event evidence, HOME/background PID and no app crash/native crash/ANR/known React/StatusBar/foreground/AEAD marker.
 
-Emulator smoke requires:
+## 12. Remaining real-device boundary
 
-- install with checksum verification;
-- light/dark launch, screenshots and UI XML;
-- text Share and `ACTION_PROCESS_TEXT` native-event evidence;
-- a real PNG inserted into MediaStore and cold-start `ACTION_SEND image/png` with URI grant;
-- app-owned staging and native-event evidence;
-- HOME/background process survival;
-- no app crash, native crash, ANR, known React/StatusBar/Foreground-Service regression or AEAD flood marker.
+CI green is not product acceptance. Still required: HONOR 400 Pro in-place update; full real-device localization/light-dark review; Shizuku absent/pending/unauthorized/applied-stopped/post-reboot matrix; live upstream P2S/desktop and P2P interoperability; foreground/background/screen-off/Doze/network/process/reboot endurance; five-app copy matrix; ordering/duplicate/endurance/battery/wakeup/typing-latency evidence.
 
-## 12. Real-device acceptance boundary
+PR #2 stays Draft.
 
-CI/emulator green is not product acceptance. Remaining evidence:
-
-- in-place update on HONOR 400 Pro with configuration/grant retention;
-- complete Japanese/English/Simplified-Chinese and light/dark visual acceptance;
-- Shizuku absent, starting, unauthorized, authorized, applied-and-stopped and post-reboot states;
-- live upstream P2S server and upstream desktop bidirectional text/image/file interoperability;
-- live P2P with matching and mismatching encryption/key, peer departure and reconnect;
-- foreground, HOME, screen off, Doze, network loss/recovery, process death and reboot;
-- five-app Accessibility copy matrix, rapid/repeated/alternating copies and exact ordering;
-- endurance, battery, wakeups and typing-latency comparison.
-
-PR #2 stays Draft until these are recorded.
-
-## 13. Immediate continuation procedure
+## 13. Continuation
 
 1. Read this file and confirm branch/PR/head.
-2. Inspect the latest CI build, API 35 and API 36 jobs.
-3. For a failure, download its artifact and inspect checkpoint, summary, generated source, exit-info, logcat, screenshots and UI XML.
-4. Reproduce the cause in a pure policy test or deterministic emulator step before changing implementation.
-5. Never redistribute an older APK after application source changes.
-6. After a new all-green behavioral run, independently verify bytes, SHA-256, signer, Manifest, packaged markers and both emulator evidence archives.
-7. Synchronize all four documents and PR #2.
+2. Inspect latest build/API35/API36 jobs.
+3. On failure inspect generated source, checkpoint, summary, exit-info, logcat, screenshots/UI XML.
+4. Reproduce in a pure test or deterministic emulator step first.
+5. Never distribute an older APK after application-source changes.
+6. After a new all-green behavioral run independently verify bytes/hash/signer/Manifest/markers/evidence.
+7. Synchronize all documents and PR.
 
 ## 14. Definition of done
 
-Completion requires all of the following:
-
-- latest behavioral source passes generation, lint, Jest, Android tests and packaged-APK validation;
-- API 35 and API 36 real-PNG smoke pass;
-- fixed-signature upgrade succeeds on the target device;
-- HONOR 400 Pro and live upstream server/desktop pass bidirectional text/image/file tests;
-- one-time Shizuku setup works after Shizuku is completely stopped and after reboot;
-- foreground/background/screen-off/reconnect/process-death/reboot endurance passes;
-- localization and light/dark visual acceptance passes on real hardware;
-- diagnostics correctly expose induced failures without secrets;
-- this file, `WORKLOG.md`, `README.md`, `docs/TEST_PLAN.md` and PR #2 cite one coherent evidence state.
+Requires latest behavioral generation/tests/APK/API35/API36 green, fixed-signer target-device upgrade, HONOR/live upstream bidirectional text/image/file, Shizuku-stopped/reboot operation, lifecycle endurance, real-device localization, secret-free diagnostics and synchronized documentation.
