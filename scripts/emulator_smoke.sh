@@ -176,9 +176,14 @@ checkpoint 'share-image'
 image_uri="$(create_media_image)"
 printf '%s\n' "$image_uri" > "$out/share-image-uri.txt"
 [[ "$image_uri" == content://media/*/[0-9]* ]]
+# Direct `am start` does not synthesize Sharesheet ClipData. Put the same URI in
+# Intent.data so FLAG_GRANT_READ_URI_PERMISSION has an explicit grant target,
+# and exercise the real cold-start Share path instead of reusing a top Activity.
+adb shell am force-stop "$package"
 run_activity share-image \
   --grant-read-uri-permission \
   -a android.intent.action.SEND \
+  -d "$image_uri" \
   -t image/png \
   --eu android.intent.extra.STREAM "$image_uri" \
   -n "$component"
