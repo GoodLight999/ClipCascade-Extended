@@ -18,8 +18,7 @@ Extended includes Accessibility/overlay controls, guided Shizuku setup, copyable
 - Pinned upstream remains authoritative for authentication, encryption, P2S/STOMP, P2P/WebRTC, inbound text/image/files and server compatibility.
 - Android capture follows the proven Accessibility→visible overlay→clipboard concept in `wuxinkami/ClipCascade_go_fork`, replacing broad clicks, selection false positives, global debounce, dropped binding events and concurrent overlays with tested classification, persistent ordering and watchdog coordination.
 - Accessibility uses `canRetrieveWindowContent=false`; ignored high-frequency events avoid storage work.
-- `UPSTREAM.lock` + `scripts/materialize_upstream.sh` reproducibly generate the app from canonical `overlay/` source and deterministic finalizers.
-- The signed Extended variant overrides React Native 0.80.x's build-host dev-server resource with loopback. Source and packaged-APK guards reject missing scope or any RFC1918 runner address while leaving debug automatic discovery unchanged.
+- `UPSTREAM.lock` + `scripts/materialize_upstream.sh` generate the app from canonical `overlay/` source and deterministic finalizers.
 
 Capture/Share:
 
@@ -62,6 +61,34 @@ Product integrity:
 - no inherited footer/link/funding/update UI or update requests;
 - no OTP notification-listener/extractor code.
 
+## Reproducible signed APK
+
+The signed `extended` variant removes two build-only sources of APK drift:
+
+- React Native 0.80.x build-host IP injection is overridden with loopback only for the signed variant; debug automatic discovery remains unchanged.
+- Android Gradle Plugin SDK dependency information is excluded from the APK/Bundle signing metadata.
+
+CI validates both the generated Gradle scope and the packaged APK. It rejects RFC1918 build-host addresses and SDK dependency Signing Block pair `0x504b4453` before artifact upload.
+
+Two separate hosted-runner builds produced byte-identical signed APKs, including all ZIP entries, central directory, v2 signer block and padding:
+
+```text
+Application/build implementation commit: 3f7f01d36d19456bd741fb8b2e65b913cc4ddf34
+Final harness head: ac34de11c73d4d565542b482739c2b3e5339b304
+First deterministic build run: 30192487659
+Second identical build and full smoke run: 30192942851
+Application ID: com.clipcascade.extended
+Version: 3.2.0-extended.5 / 320005
+APK size: 93,673,799 bytes
+APK SHA-256: 5911acfcba1e0e7a28b3e5cc13f268d5fbeb9c4c1653c9148d0954f8333e557c
+Signature: APK Signature Scheme v2
+Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
+```
+
+Run `30192942851` passed exact materialization, every validator, dependency/repository audit, ESLint/Jest, Android Lint/Kotlin tests, release assembly, ZIP/zipalign/signature/Manifest/DEX/Hermes/checksum, reproducibility gates, artifact upload, API 35 smoke and API 36 smoke.
+
+Both emulator evidence archives independently showed `checkpoint=passed`, exit code `0`, all summary fields passed, numeric MediaStore URI, image staging/native-event evidence, background PID and no app crash/native crash/ANR/known regression.
+
 ## Build
 
 ```bash
@@ -92,25 +119,6 @@ adb shell pm grant com.clipcascade.extended android.permission.READ_LOGS
 adb shell appops set com.clipcascade.extended android:system_alert_window allow
 ```
 
-## Validated deterministic candidate
-
-```text
-Implementation commit: 751b8b4bec93a81ecab00c1df5a885b5c844c550
-Successful CI run: 30191423570
-Application ID: com.clipcascade.extended
-Version: 3.2.0-extended.5 / 320005
-APK size: 93,681,991 bytes
-APK SHA-256: 475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28
-Signature: APK Signature Scheme v2
-Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
-```
-
-Run `30191423570` passed exact materialization, all validators including deterministic resource scope, dependency/repository audit, ESLint/Jest, Android Lint/Kotlin tests, release assembly, ZIP/zipalign/signature/Manifest/DEX/Hermes/checksum, private-build-host-IP rejection and artifact upload.
-
-The identical signed APK passed API 35 and API 36 smoke: light/dark launch, text Share, process text, cold-start real-PNG MediaStore Share with staging/native-event evidence, HOME/background PID survival and crash/ANR/known-regression scans. APK and evidence were independently rechecked.
-
-This is the first deterministic-resource build. The documentation-only build following this update must reproduce the exact hash above before reproducibility is considered proven.
-
-This remains a strong automated device-test candidate, not final product acceptance. HONOR 400 Pro upgrade/OEM behavior, live upstream P2S/P2P/desktop interoperability, Shizuku stop/reboot retention, lifecycle endurance, battery and typing latency remain required. PR #2 stays Draft.
+This remains an automated device-test candidate, not final product acceptance. HONOR 400 Pro upgrade/OEM behavior, live upstream P2S/P2P/desktop interoperability, Shizuku stop/reboot retention, lifecycle endurance, battery and typing latency remain required. PR #2 stays Draft.
 
 See `HANDOFF.md`, `WORKLOG.md` and `docs/TEST_PLAN.md`. `.3` remains device-failed and is not a baseline.
