@@ -50,7 +50,10 @@ def main() -> None:
     fragmenter_js = (root / "Utf8Fragmenter.js").read_text(encoding="utf-8")
     accumulator_js = (root / "P2PFragmentAccumulator.js").read_text(encoding="utf-8")
     channel_sender_js = (root / "P2PChannelSender.js").read_text(encoding="utf-8")
-    p2s_ack_js = (root / "P2SAckTracker.js").read_text(encoding="utf-8")
+    receipt_js = (root / "P2SReceiptTracker.js").read_text(encoding="utf-8")
+    feedback_guard_js = (root / "OneShotContentGuard.js").read_text(encoding="utf-8")
+    delivery_policy_js = (root / "OutboundDeliveryPolicy.js").read_text(encoding="utf-8")
+    delivery_executor_js = (root / "OutboundDeliveryExecutor.js").read_text(encoding="utf-8")
     file_uris_js = (root / "OutboundFileUris.js").read_text(encoding="utf-8")
     i18n_js = (root / "ExtendedI18n.js").read_text(encoding="utf-8")
     control_panel_js = (root / "ExtendedControlPanel.js").read_text(encoding="utf-8")
@@ -109,6 +112,9 @@ def main() -> None:
         "foreground control lock rejection",
     )
     require(app_js, "if (controlLockAcquired) {", "owner-only foreground control unlock")
+    require(app_js, "restartReason", "foreground restart reason propagation")
+    require(app_js, "work-manager-recovery", "explicit WorkManager recovery")
+    require(app_js, "pollUIFlags().catch", "supervised UI polling")
     require(
         pending_share_policy_js,
         "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
@@ -153,6 +159,7 @@ def main() -> None:
     require(native_debug, "sharedCacheBytes", "shared-cache diagnostics")
 
     require(headless_js, "android.intent.action.MY_PACKAGE_REPLACED", "update headless restart")
+    require(headless_js, "forceRestart: true", "coordinated Headless recovery")
 
     kotlin_files = list((android / "java/com/clipcascade").glob("*.kt"))
     all_native = "\n".join(path.read_text(encoding="utf-8") for path in kotlin_files)
@@ -229,15 +236,32 @@ def main() -> None:
     )
     require(p2p_compat_js, "legacy-peer-no-hello", "legacy peer compatibility state")
     require(p2p_compat_js, "encryption-key", "encryption key mismatch policy")
-    require(foreground_js, "createP2SAckTracker", "P2S server-echo acknowledgement")
-    require(foreground_js, "extendedDeliveryId", "P2S delivery metadata")
-    require(foreground_js, "awaiting-p2s-ack", "P2S durable acknowledgement state")
+
+    require(foreground_js, "createP2SReceiptTracker", "P2S receipt tracker integration")
+    require(foreground_js, "watchForReceipt(receiptId", "STOMP receipt callback")
+    require(foreground_js, "headers: {receipt: receiptId}", "standard STOMP receipt header")
+    require(foreground_js, "p2s-self-echo-suppressed", "upstream self-echo fallback")
+    require(foreground_js, "p2s-receipt-timeout", "non-destructive receipt timeout")
     require(
         foreground_js,
-        "p2s-echo-acknowledged",
-        "P2S queue release only after server echo",
+        "OUTBOUND_DELIVERY.AWAITING_P2S_RECEIPT",
+        "explicit P2S awaiting-receipt result",
     )
-    require(foreground_js, "P2S server echo acknowledgement timed out", "P2S ACK timeout")
+    require(foreground_js, "applyOutboundDeliveryResult", "explicit queue delivery executor")
+    require(foreground_js, "createOneShotContentGuard", "typed feedback guard integration")
+    require(foreground_js, "feedback-suppressed", "one-shot feedback outcome")
+    for legacy in (
+        "createP2SAckTracker",
+        "extendedDeliveryId",
+        "awaiting-p2s-ack",
+        "p2s-echo-acknowledged",
+        "P2S server echo acknowledgement timed out",
+        "previous_clipboard_content_hash",
+        "block_image_once",
+        "newCB(",
+    ):
+        forbid(foreground_js, legacy, f"legacy P2S/feedback marker {legacy}")
+
     require(foreground_js, "parseOutboundFileUris", "JSON-safe outbound file URI parsing")
     forbid(
         foreground_js,
@@ -247,6 +271,7 @@ def main() -> None:
     forbid(foreground_js, "receivingFragments =", "single global fragment buffer")
     forbid(foreground_js, "await sendClipBoard(", "pre-initialization event dispatch")
     forbid(foreground_js, "textEncoder.encode(clipContent)", "unsafe P2P byte sizing")
+
     require(queue_js, "MAX_FAILURES = 8", "finite permanent failure policy")
     require(queue_js, "raw.scope === scope", "server-scoped outbound queue")
     require(fragmenter_js, "bytes[end] & 0xc0", "UTF-8 code-point boundary guard")
@@ -255,8 +280,18 @@ def main() -> None:
     require(accumulator_js, "duplicate-complete", "completed fragment replay guard")
     require(channel_sender_js, "bufferedAmount", "DataChannel buffered amount guard")
     require(channel_sender_js, "backpressure timeout", "DataChannel timeout guard")
-    require(p2s_ack_js, "P2S acknowledgement ID is required", "P2S ACK input guard")
-    require(p2s_ack_js, "active?.id !== id", "P2S ACK identity guard")
+    require(receipt_js, "P2S receipt delivery ID is required", "receipt input guard")
+    require(receipt_js, "active.id !== id", "active receipt identity guard")
+    require(receipt_js, "queuedHeadId", "late receipt queue-head identity guard")
+    require(receipt_js, "Promise.resolve(onTimeout(id)).catch", "supervised timeout callback")
+    require(feedback_guard_js, "LOCAL_FEEDBACK_WINDOW_MS = 5_000", "local feedback bound")
+    require(feedback_guard_js, "clearOnMismatch", "unrelated-copy preservation")
+    require(feedback_guard_js, "clock-rollback", "feedback clock rollback handling")
+    require(delivery_policy_js, "AWAITING_P2S_RECEIPT", "explicit receipt outcome")
+    require(delivery_policy_js, "Invalid outbound delivery result", "invalid truthy result rejection")
+    require(delivery_policy_js, "p2s-receipt-already-acknowledged", "early receipt continuation")
+    require(delivery_executor_js, "const currentHead = await peek();", "post-send queue re-read")
+    require(delivery_executor_js, "resolveAwaitingReceiptHead", "early receipt resolution")
     require(file_uris_js, "JSON.parse(value)", "JSON file URI decoding")
     require(file_uris_js, "Backward compatibility", "legacy file URI compatibility")
 
@@ -270,7 +305,10 @@ def main() -> None:
         root / "DurableOutboundQueue.js",
         root / "P2PFragmentAccumulator.js",
         root / "P2PChannelSender.js",
-        root / "P2SAckTracker.js",
+        root / "P2SReceiptTracker.js",
+        root / "OneShotContentGuard.js",
+        root / "OutboundDeliveryPolicy.js",
+        root / "OutboundDeliveryExecutor.js",
         root / "OutboundFileUris.js",
     ]
     for runtime_path in runtime_files:
