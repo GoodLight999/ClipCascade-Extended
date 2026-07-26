@@ -88,26 +88,34 @@ The earlier proprietary delivery-metadata approach was removed. Final wire body 
 - Expanded failure artifacts.
 - Expanded packaged Hermes checks to require coordinator/receipt/feedback/queue markers and reject obsolete transport markers.
 
-## 2026-07-26 — Automated release-candidate evidence
+## 2026-07-26 — Release reproducibility repair
+
+Independent comparison of two fully green APKs found byte-identical DEX, Hermes bundle, Manifest, native libraries and assets, but a different `resources.arsc`. The sole semantic difference was React Native 0.80.x's automatically injected GitHub-runner private IP in `react_native_dev_server_ip`.
+
+The signed `extended` build type now overrides only that resource with loopback, while debug keeps automatic host discovery. `validate_release_reproducibility.py` enforces exact Extended scope before Gradle and scans packaged `resources.arsc` for the fixed value and absence of RFC1918 build-host addresses before artifact upload.
+
+Early CI failures during this repair were guard integration defects, not application runtime defects: one copied Manifest marker had an off-by-one indentation and the first validator searched the signing `extended` block rather than the build type. Both were corrected without changing the transport/runtime design.
+
+## 2026-07-26 — First deterministic-resource candidate
 
 ```text
-Implementation commit: 349003a994a0f05485a4f86605f9939abd4bcc98
-Successful CI run: 30187796193
+Implementation commit: 751b8b4bec93a81ecab00c1df5a885b5c844c550
+Successful CI run: 30191423570
 Version: 3.2.0-extended.5 / 320005
 Application ID: com.clipcascade.extended
 APK size: 93,681,991 bytes
-APK SHA-256: 19d2fad3ca85b4d0be7a15e3cb0042327c1d018e1ce33eb0c0281adef4aeb818
+APK SHA-256: 475d3c3f511852267710da5880c61955c247538701ada534aba2999d172c8b28
 Signer SHA-256: 2536d65c0e977341d767fd045b3c3f9c40b57bf4bc51959a98232e9f20030bbd
 Signature: APK Signature Scheme v2
 ```
 
-Run `30187796193` passed exact materialization, all validators, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, ZIP/zipalign, v2 signature, Manifest/DEX/Hermes/checksum and artifact upload.
+Run `30191423570` passed exact materialization, all validators including deterministic release-resource scope, dependency/repository audit, ESLint, every Jest suite, Android Lint, every Extended Kotlin test, release assembly, ZIP/zipalign, v2 signature, Manifest/DEX/Hermes/checksum, packaged private-IP rejection and artifact upload.
 
-The same signed APK passed API 35 and API 36 smoke: light/dark launch, text Share, process text, real-PNG MediaStore cold-start Share with URI grant, app-owned staging/native-event evidence, HOME/background process survival and crash/ANR/known-regression scans. Both emitted `checkpoint=passed` and exit code `0`.
+The signed APK passed API 35 and API 36 smoke: light/dark launch, text Share, process text, real-PNG MediaStore cold-start Share with URI grant, app-owned staging/native-event evidence, HOME/background process survival and crash/ANR/known-regression scans. Both emitted `checkpoint=passed` and exit code `0`.
 
-The downloaded APK and both evidence archives were independently checked. Hash, size, signer, Manifest identity, required markers and forbidden obsolete/OTP/update markers matched.
+The downloaded APK and both evidence archives were independently checked. Hash, size, signer, Manifest identity, required markers, forbidden obsolete/OTP/update markers and private-IP absence matched.
 
-Documentation and packaged-APK assertions were synchronized afterward without changing application behavior. The artifact authority remains the implementation/run/hash above until a behavioral-source change requires a replacement.
+A documentation-only follow-up build must reproduce the exact APK hash before reproducibility is considered proven.
 
 ## Remaining acceptance boundary
 
