@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""Validate the checked-in canonical source before upstream materialization."""
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+MAX_FINALIZERS = 29
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise RuntimeError(message)
+
+
+def read(relative: str) -> str:
+    return (ROOT / relative).read_text(encoding="utf-8")
+
+
+def main() -> None:
+    lock = read("UPSTREAM.lock")
+    require("UPSTREAM_REPOSITORY=Sathvik-Rao/ClipCascade" in lock, "canonical upstream missing")
+    require("UPSTREAM_COMMIT=" in lock, "pinned upstream commit missing")
+    require("UPSTREAM_MOBILE_PATH=ClipCascade_Mobile/src" in lock, "mobile path missing")
+
+    apply_overlay = read("scripts/apply_overlay.py")
+    require("NotificationCaptureService" not in apply_overlay, "OTP service reintroduced")
+    require("OtpExtractor" not in apply_overlay, "OTP extractor reintroduced")
+    require('VERSION_CODE = "320005"' in apply_overlay, "canonical versionCode is not extended.5")
+    require(
+        'VERSION_NAME = "3.2.0-extended.5"' in apply_overlay,
+        "canonical versionName is not extended.5",
+    )
+
+    i18n = read("overlay/ExtendedI18n.js")
+    for locale in ("ja:", "zh:", "en:"):
+        require(locale in i18n, f"canonical locale missing: {locale}")
+    for marker in (
+        "diagnosticsOverall:",
+        "diagnosticNativeReact:",
+        "diagnosticForeground:",
+        "notificationMonitorChannel:",
+    ):
+        require(marker in i18n, f"canonical localization marker missing: {marker}")
+
+    panel = read("overlay/ExtendedControlPanel.js")
+    for marker in (
+        "runEventBridgeProbe",
+        "runNativeAutoDebug",
+        "Clipboard.setString(dialog.copy)",
+        "planShizukuSetup(status)",
+        "createStyles(useColorScheme() === 'dark')",
+    ):
+        require(marker in panel, f"canonical control-panel marker missing: {marker}")
+
+    shizuku_policy = read("overlay/ShizukuSetupPolicy.js")
+    for marker in (
+        "already-configured",
+        "not-installed",
+        "binder-pending",
+        "permission-required",
+        "ready-to-apply",
+    ):
+        require(marker in shizuku_policy, f"canonical Shizuku state missing: {marker}")
+
+    pending_share_policy = read("overlay/PendingShareStartPolicy.js")
+    for marker in (
+        "PENDING_SHARE_START_RETRY_MS = 5_000",
+        "FOREGROUND_HEARTBEAT_STALE_MS = 15_000",
+        "FOREGROUND_START_GRACE_MS = 20_000",
+        "isForegroundRuntimeFresh",
+        "planPendingShareStart",
+        "shouldStartPendingShare",
+        "serviceRequested === true && runtimeFresh",
+        "forceRestart ? 'stale-runtime' : 'runtime-stopped'",
+        "elapsed >= 0 && elapsed <= Number(maxAgeMs)",
+    ):
+        require(
+            marker in pending_share_policy,
+            f"canonical pending-share start marker missing: {marker}",
+        )
+
+    service_policy = read("overlay/ServiceControlPolicy.js")
+    for marker in (
+        "FOREGROUND_STOP_TIMEOUT_MS = 10_000",
+        "resolveRequestedServiceState",
+        "forceRestart = false",
+        "forcedStart",
+        "elapsed < 0 || elapsed >= Number(timeoutMs)",
+    ):
+        require(marker in service_policy, f"canonical service-control marker missing: {marker}")
+
+    runtime_coordinator = read("overlay/ForegroundRuntimeCoordinator.js")
+    for marker in (
+        "FOREGROUND_RUNTIME_RESTART_TIMEOUT_MS = 10_000",
+        "FOREGROUND_RUNTIME_START_TIMEOUT_MS = 8_000",
+        "MANUAL_FOREGROUND_STOP_REASON = 'manual'",
+        "shouldPreserveOutboundQueue",
+        "createForegroundRuntimeCoordinator",
+        "acquire(runtimeId, requestStop)",
+        "runStartTransition(task)",
+        "waitForActiveRuntime(",
+        "requestRestart(",
+        "current.completion.then(() => true)",
+        "foreground-runtime-stop-timeout",
+        "activeRuntimeId()",
+    ):
+        require(
+            marker in runtime_coordinator,
+            f"canonical foreground-runtime coordinator marker missing: {marker}",
+        )
+
+    one_shot = read("overlay/OneShotContentGuard.js")
+    for marker in (
+        "LOCAL_FEEDBACK_WINDOW_MS = 5_000",
+        "P2S_ECHO_WINDOW_MS = 30_000",
+        "createOneShotContentGuard",
+        "mismatch-cleared",
+        "mismatch-kept",
+        "clock-rollback",
+    ):
+        require(marker in one_shot, f"canonical one-shot guard marker missing: {marker}")
+
+    delivery_policy = read("overlay/OutboundDeliveryPolicy.js")
+    for marker in (
+        "AWAITING_P2S_RECEIPT",
+        "FEEDBACK_SUPPRESSED",
+        "POLICY_DISCARDED",
+        "classifyOutboundDeliveryResult",
+        "resolveAwaitingReceiptHead",
+        "Invalid outbound delivery result",
+    ):
+        require(marker in delivery_policy, f"canonical delivery policy marker missing: {marker}")
+
+    delivery_executor = read("overlay/OutboundDeliveryExecutor.js")
+    for marker in (
+        "applyOutboundDeliveryResult",
+        "currentHead?.id || null",
+        "await acknowledge(deliveryId)",
+    ):
+        require(marker in delivery_executor, f"canonical delivery executor marker missing: {marker}")
+
+    receipt_tracker = read("overlay/P2SReceiptTracker.js")
+    for marker in (
+        "P2S_RECEIPT_TIMEOUT_MS = 10_000",
+        "createP2SReceiptTracker",
+        "shouldAcknowledgeP2SDelivery",
+        "queuedHeadId",
+        "onCallbackError",
+    ):
+        require(marker in receipt_tracker, f"canonical P2S receipt marker missing: {marker}")
+
+    inbound_policy = read("overlay/InboundErrorPolicy.js")
+    for marker in (
+        "encryption-mismatch",
+        "createInboundErrorCoalescer",
+        "shouldReport: false",
+    ):
+        require(marker in inbound_policy, f"canonical inbound-error marker missing: {marker}")
+
+    queue = read("overlay/DurableOutboundQueue.js")
+    for marker in (
+        "createDurableOutboundQueue",
+        "enqueue(content, type, shouldEnqueue = null)",
+        "acknowledge(id)",
+        "recordFailure(id, error)",
+        "snapshot()",
+        "clear()",
+        "scopeFingerprint",
+    ):
+        require(marker in queue, f"canonical outbound queue marker missing: {marker}")
+    require(
+        "expired > 0 || state !== raw || normalized" not in queue,
+        "cross-scope queue read overwrite returned",
+    )
+
+    detached = read("overlay/DetachedTaskSupervisor.js")
+    for marker in (
+        "createDetachedTaskSupervisor",
+        "Promise.resolve()",
+        ".catch(() => undefined)",
+    ):
+        require(marker in detached, f"canonical detached-task supervisor marker missing: {marker}")
+
+    signaling = read("overlay/P2PSignalingValidation.js")
+    for marker in (
+        "MAX_SIGNALING_MESSAGE_CHARS = 1024 * 1024",
+        "MAX_PEERS = 4096",
+        "normalizeP2PPeerId",
+        "normalizeP2PPeerList",
+        "parseP2PSignalingMessage",
+    ):
+        require(marker in signaling, f"canonical P2P signaling marker missing: {marker}")
+
+    materialize = read("scripts/materialize_upstream.sh")
+    require(
+        "finalize_transport_delivery_semantics.py" in materialize,
+        "canonical transport delivery finalizer missing",
+    )
+    require(
+        "finalize_p2s_echo_ack.py" not in materialize,
+        "obsolete P2S payload-ACK finalizer returned",
+    )
+    require(
+        not (ROOT / "overlay/P2SAckTracker.js").exists(),
+        "obsolete P2S payload-ACK tracker returned",
+    )
+    finalizer_count = materialize.count('python3 "$ROOT_DIR/scripts/finalize_')
+    require(
+        finalizer_count <= MAX_FINALIZERS,
+        f"finalizer count grew to {finalizer_count}; maximum is {MAX_FINALIZERS}",
+    )
+
+    # A permanently rejected input must never become a source again. Keep its
+    # literal out of user-facing documentation and compare only a digest here.
+    excluded_literal = "GoodLight999/" + "Trash-ClipCascade"
+    excluded_digest = hashlib.sha256(excluded_literal.encode("utf-8")).hexdigest()
+    require(
+        excluded_digest == "fc4a330962e6551d6447b26270ec94967209907509fd0e8787fffa869eb9e095",
+        "permanent-exclusion digest changed unexpectedly",
+    )
+    for relative in (
+        "README.md",
+        "HANDOFF.md",
+        "WORKLOG.md",
+        "docs/TEST_PLAN.md",
+        ".github/workflows/android-ci.yml",
+    ):
+        require(
+            excluded_literal not in read(relative),
+            f"permanently excluded project reference in {relative}",
+        )
+
+    handoff = read("HANDOFF.md")
+    exclusion_rule = (
+        "過去の破綻した派生物、archive、trash、別リポジトリを資料として復活させない。"
+    )
+    require(
+        handoff.count(exclusion_rule) == 1,
+        "HANDOFF must contain exactly one generalized permanent-exclusion rule",
+    )
+
+    print(
+        "Canonical source cleanliness validated: no OTP/version staging, "
+        "localized UI, serialized foreground acquisition, typed feedback guards, "
+        "standard P2S receipts, explicit delivery outcomes, recovery-safe durable queue, "
+        "bounded signaling and detached supervision complete, no excluded-project input, "
+        f"finalizers={finalizer_count}/{MAX_FINALIZERS}"
+    )
+
+
+if __name__ == "__main__":
+    main()

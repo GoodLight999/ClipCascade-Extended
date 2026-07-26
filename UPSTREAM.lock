@@ -1,0 +1,5 @@
+# Verified upstream source for reproducible Android builds.
+# Keep this file shell-compatible: scripts/materialize_upstream.sh sources it.
+UPSTREAM_REPOSITORY=Sathvik-Rao/ClipCascade
+UPSTREAM_COMMIT=fd2cbbce69d5e5fa6b9b758d13a7dc6efdcb8a39
+UPSTREAM_MOBILE_PATH=ClipCascade_Mobile/src

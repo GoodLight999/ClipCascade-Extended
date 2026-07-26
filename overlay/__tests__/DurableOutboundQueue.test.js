@@ -1,0 +1,221 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createDurableOutboundQueue } from '../DurableOutboundQueue';
+
+const STORAGE_KEY = 'extended_outbound_queue_v1';
+
+describe('DurableOutboundQueue', () => {
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+    jest.useRealTimers();
+  });
+
+  test('persists entries across queue instances with the same scope', async () => {
+    const first = createDurableOutboundQueue('P2S|server|user');
+    await first.enqueue('hello', 'text');
+
+    const second = createDurableOutboundQueue('P2S|server|user');
+    expect((await second.peek()).content).toBe('hello');
+    expect((await second.snapshot()).count).toBe(1);
+  });
+
+  test('a read from a different scope cannot erase the active scope', async () => {
+    const first = createDurableOutboundQueue('P2S|server-a|user');
+    await first.enqueue('secret for A', 'text');
+
+    const second = createDurableOutboundQueue('P2S|server-b|user');
+    expect(await second.peek()).toBeNull();
+    expect((await second.snapshot()).count).toBe(0);
+
+    expect((await first.peek()).content).toBe('secret for A');
+    expect((await first.snapshot()).count).toBe(1);
+  });
+
+  test('a stale runtime clear cannot erase another active scope', async () => {
+    const active = createDurableOutboundQueue('P2S|server-b|user');
+    await active.enqueue('active B payload', 'text');
+
+    const stale = createDurableOutboundQueue('P2S|server-a|user');
+    await expect(stale.clear()).resolves.toMatchObject({ skipped: true });
+
+    expect((await active.peek()).content).toBe('active B payload');
+    expect((await active.snapshot()).count).toBe(1);
+  });
+
+  test('coalesces consecutive duplicate copies', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    const first = await queue.enqueue('same', 'text');
+    const second = await queue.enqueue('same', 'text');
+    expect(first.queued).toBe(true);
+    expect(second).toMatchObject({ duplicate: true, cancelled: false });
+    expect((await queue.snapshot()).count).toBe(1);
+  });
+
+  test('evaluates the runtime admission guard inside the serialized operation', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    let runtimeAcceptingEvents = true;
+
+    const clearFinished = queue.clear().then(() => {
+      runtimeAcceptingEvents = false;
+    });
+    const lateEnqueue = queue.enqueue(
+      'late clipboard event',
+      'text',
+      () => runtimeAcceptingEvents,
+    );
+
+    await clearFinished;
+    await expect(lateEnqueue).resolves.toMatchObject({
+      queued: false,
+      duplicate: false,
+      cancelled: true,
+      id: null,
+    });
+    expect(await queue.peek()).toBeNull();
+  });
+
+  test('rejects a non-function admission guard', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    await expect(queue.enqueue('value', 'text', true)).rejects.toThrow(
+      'admission guard',
+    );
+  });
+
+  test('accounts for UTF-8 bytes rather than UTF-16 code units', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    await queue.enqueue('Aあ😀', 'text');
+
+    const head = await queue.peek();
+    expect(head.byteLength).toBe(8);
+    expect((await queue.snapshot()).totalBytes).toBe(8);
+  });
+
+  test('normalizes legacy persisted items without byteLength', async () => {
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        scope: 'scope',
+        dropped: 0,
+        items: [
+          {
+            id: 'legacy',
+            content: '日本',
+            type: 'text',
+            createdAt: Date.now(),
+            failures: 0,
+            lastError: '',
+          },
+        ],
+      }),
+    );
+
+    const queue = createDurableOutboundQueue('scope');
+    expect((await queue.snapshot()).totalBytes).toBe(6);
+    expect((await queue.peek()).byteLength).toBe(6);
+    const migrated = JSON.parse(await AsyncStorage.getItem(STORAGE_KEY));
+    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.items[0].byteLength).toBe(6);
+  });
+
+  test('reapplies the item-count bound while loading persisted state', async () => {
+    const now = Date.now();
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 2,
+        scope: 'scope',
+        dropped: 0,
+        items: Array.from({ length: 65 }, (_, index) => ({
+          id: `item-${index}`,
+          content: String(index),
+          type: 'text',
+          byteLength: 1,
+          createdAt: now,
+          failures: 0,
+          lastError: '',
+        })),
+      }),
+    );
+
+    const queue = createDurableOutboundQueue('scope');
+    expect(await queue.peek()).toMatchObject({ id: 'item-1' });
+    expect(await queue.snapshot()).toMatchObject({ count: 64, dropped: 1 });
+  });
+
+  test('reapplies per-item and aggregate byte bounds while loading state', async () => {
+    const now = Date.now();
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 2,
+        scope: 'scope',
+        dropped: 0,
+        items: [
+          {
+            id: 'oversized',
+            content: 'x',
+            type: 'text',
+            byteLength: 17 * 1024 * 1024,
+            createdAt: now,
+            failures: 0,
+            lastError: '',
+          },
+          {
+            id: 'aggregate-oldest',
+            content: 'a',
+            type: 'text',
+            byteLength: 10 * 1024 * 1024,
+            createdAt: now,
+            failures: 0,
+            lastError: '',
+          },
+          {
+            id: 'aggregate-newest',
+            content: 'b',
+            type: 'text',
+            byteLength: 10 * 1024 * 1024,
+            createdAt: now,
+            failures: 0,
+            lastError: '',
+          },
+        ],
+      }),
+    );
+
+    const queue = createDurableOutboundQueue('scope');
+    expect(await queue.peek()).toMatchObject({ id: 'aggregate-newest' });
+    expect(await queue.snapshot()).toMatchObject({
+      count: 1,
+      totalBytes: 10 * 1024 * 1024,
+      dropped: 2,
+    });
+  });
+
+  test('acknowledges only the matching entry', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    const first = await queue.enqueue('A', 'text');
+    await queue.enqueue('B', 'text');
+    await queue.acknowledge(first.id);
+    expect((await queue.peek()).content).toBe('B');
+  });
+
+  test('drops a permanently failing head after finite retries', async () => {
+    const queue = createDurableOutboundQueue('scope');
+    const queued = await queue.enqueue('broken-uri', 'files');
+    for (let attempt = 1; attempt < 8; attempt += 1) {
+      expect(
+        (await queue.recordFailure(queued.id, `failure-${attempt}`)).dropped,
+      ).toBe(false);
+    }
+    expect((await queue.recordFailure(queued.id, 'failure-8')).dropped).toBe(true);
+    expect(await queue.peek()).toBeNull();
+  });
+
+  test('expires stale clipboard data instead of sending it a day later', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T00:00:00Z'));
+    const queue = createDurableOutboundQueue('scope');
+    await queue.enqueue('old', 'text');
+    jest.setSystemTime(new Date('2026-07-22T00:00:01Z'));
+    expect(await queue.peek()).toBeNull();
+    expect((await queue.snapshot()).dropped).toBe(1);
+  });
+});
