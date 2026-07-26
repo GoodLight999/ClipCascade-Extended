@@ -32,6 +32,7 @@ mkdir -p "$DESTINATION"
 cp -a "$WORK_DIR/upstream/$UPSTREAM_MOBILE_PATH/." "$DESTINATION/"
 
 python3 "$ROOT_DIR/scripts/apply_overlay.py" "$DESTINATION"
+python3 "$ROOT_DIR/scripts/validate_release_reproducibility.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/apply_accessibility_overlay.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/finalize_shizuku_guidance.py" "$DESTINATION"
 python3 "$ROOT_DIR/scripts/fix_upstream_js.py" "$DESTINATION"
